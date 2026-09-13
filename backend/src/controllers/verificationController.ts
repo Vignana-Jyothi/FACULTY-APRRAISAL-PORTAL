@@ -6,6 +6,7 @@ import prisma from '../utils/prismaClient';
 import { canViewUserResource } from '../utils/access';
 import { syncProofVerifications, enumerateProofs, PROOF_INCLUDE, PROOF_SOURCES } from '../services/proofService';
 import { enqueueEmail } from '../services/emailService';
+import { proofRejectedKey, holdClearedKey } from '../services/emailKeys';
 
 // How long a faculty has to replace a rejected proof before the daily job
 // voids the marks for that source and lets the appraisal move on. Calendar
@@ -28,6 +29,18 @@ function canVerifyProof(user: NonNullable<Request['user']>, ownerId: string, own
     (r) => (r.role === RoleType.HOD || r.role === RoleType.REVIEWER) && r.departmentId != null && r.departmentId === ownerDept
   );
 }
+
+// Proofs are checked as part of the review, so only between submission and the
+// decision. A DRAFT is still the faculty's to edit: rejecting a proof there
+// flipped it to HOLD (locking the form), red-listed the faculty and emailed
+// them before they had submitted anything. A decided appraisal (APPROVED /
+// REJECTED / WITHDRAWN) is reopened first rather than changed from here.
+export const PROOF_REVIEW_STATUSES: SubmissionStatus[] = [
+  SubmissionStatus.SUBMITTED,
+  SubmissionStatus.UNDER_REVIEW,
+  SubmissionStatus.HOLD,
+  SubmissionStatus.FINAL_REVIEW,
+];
 
 // Who may manage the red-list / clear a hold: HoD or admin of the dept.
 function canManage(user: NonNullable<Request['user']>, ownerId: string, ownerDept: string | null): boolean {
@@ -98,6 +111,11 @@ export async function verifyProof(req: Request, res: Response) {
   if (!canVerifyProof(req.user!, sub.userId, sub.user.departmentId)) {
     return res.status(403).json({ error: 'Only the admin, HoD or incharge can verify uploads' });
   }
+  if (!PROOF_REVIEW_STATUSES.includes(sub.status)) {
+    return res.status(400).json({
+      error: `Proofs are checked once the appraisal is submitted and before it is decided — this one is ${sub.status}`,
+    });
+  }
 
   const { url, status, comment } = verifySchema.parse(req.body);
 
@@ -154,7 +172,7 @@ export async function verifyProof(req: Request, res: Response) {
         toUserId: sub.userId,
         template: 'proof_rejected',
         payload: { name: sub.user.name, ...base },
-        dedupeKey: `proof_rejected:${pv.id}:${Date.now()}`,
+        dedupeKey: proofRejectedKey(pv.id, url),
       });
       const hods = await prisma.userRole.findMany({
         where: { role: 'HOD', isActive: true, departmentId: sub.user.departmentId ?? undefined },
@@ -167,7 +185,7 @@ export async function verifyProof(req: Request, res: Response) {
           toUserId: h.userId,
           template: 'proof_rejected_hod',
           payload: { name: hod?.name ?? 'HoD', facultyName: sub.user.name, employeeCode: sub.user.employeeCode, ...base },
-          dedupeKey: `proof_rejected_hod:${pv.id}:${h.userId}:${Date.now()}`,
+          dedupeKey: proofRejectedKey(pv.id, url, h.userId),
         });
       }
     } catch (e) {
@@ -415,7 +433,7 @@ export async function clearHold(req: Request, res: Response) {
       toUserId: sub.userId,
       template: 'hold_cleared',
       payload: { name: sub.user.name, year: sub.academicYear.label, submissionNumber: sub.submissionNumber, submissionId: sub.id },
-      dedupeKey: `hold_cleared:${sub.id}:${Date.now()}`,
+      dedupeKey: holdClearedKey(sub.id, sub.heldAt),
     });
   } catch (e) {
     console.error('[email] enqueue hold cleared failed:', e);

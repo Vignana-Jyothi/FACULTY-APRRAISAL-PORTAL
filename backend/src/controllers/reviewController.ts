@@ -5,6 +5,7 @@ import prisma from '../utils/prismaClient';
 import { isOwnerView, stripReviewerAssessment } from '../utils/reviewVisibility';
 import { computeScore } from '../services/scoringEngine';
 import { enqueueEmail } from '../services/emailService';
+import { unlockedKey } from '../services/emailKeys';
 import { canViewUserResource } from '../utils/access';
 import { syncProofVerifications, PROOF_SOURCES } from '../services/proofService';
 
@@ -364,7 +365,7 @@ export async function adminUnlock(req: Request, res: Response) {
         submissionNumber: sub.submissionNumber,
         submissionId: sub.id,
       },
-      dedupeKey: `unlocked:${sub.id}:${Date.now()}`,
+      dedupeKey: unlockedKey(sub.id, sub.submittedAt),
     });
   } catch (e) {
     console.error('[email] enqueue unlock failed:', e);

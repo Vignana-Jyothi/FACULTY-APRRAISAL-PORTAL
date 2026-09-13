@@ -6,6 +6,9 @@ import { useAuthStore } from '../store/authStore';
 import { uploadApi } from '../api/uploads';
 import { verificationApi, type ProofListResponse, type ProofRow } from '../api/verification';
 
+// Mirrors the server's PROOF_REVIEW_STATUSES (verificationController).
+const PROOF_REVIEW_STATUSES = ['SUBMITTED', 'UNDER_REVIEW', 'HOLD', 'FINAL_REVIEW'];
+
 const STATUS_STYLE: Record<ProofRow['status'], string> = {
   VERIFIED: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   REJECTED: 'bg-red-50 text-red-700 border-red-200',
@@ -79,6 +82,10 @@ export default function ProofVerificationPanel({
 
   const { proofs, summary, submission } = data;
   const sections = Array.from(new Set(proofs.map((p) => p.section)));
+  // Same window the server enforces (PROOF_REVIEW_STATUSES): after submission,
+  // before the decision. A draft is still the faculty's to change.
+  const inReview = PROOF_REVIEW_STATUSES.includes(submission.status);
+  const canAct = canEdit && inReview;
 
   return (
     <Card>
@@ -104,8 +111,13 @@ export default function ProofVerificationPanel({
         </div>
       )}
 
-      {canEdit && !summary.allVerified && summary.total > 0 && (
+      {canAct && !summary.allVerified && summary.total > 0 && (
         <p className="mb-3 text-xs text-amber-700">Approval is blocked until every proof is verified.</p>
+      )}
+      {canEdit && !inReview && summary.total > 0 && (
+        <p className="mb-3 text-xs text-ink-muted">
+          Proofs can be verified or rejected once the appraisal is submitted, and until it is decided (now {submission.status}).
+        </p>
       )}
 
       {proofs.length === 0 ? (
@@ -132,7 +144,7 @@ export default function ProofVerificationPanel({
                         {p.status}
                       </span>
                       <div className="flex-1" />
-                      {canEdit && (
+                      {canAct && (
                         <>
                           <button
                             onClick={() => act(p, 'VERIFIED')}

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { RoleType, SubmissionStatus, FinalDecision } from '@prisma/client';
 import prisma from '../utils/prismaClient';
 import { enqueueEmail } from '../services/emailService';
+import { finalApprovedKey } from '../services/emailKeys';
 import { computeScore } from '../services/scoringEngine';
 import { FULL_INCLUDE } from './reviewController';
 import { canViewUserResource } from '../utils/access';
@@ -179,7 +180,7 @@ export async function submitFinalReview(req: Request, res: Response) {
           teachingComment: '', researchComment: '', developmentComment: '', governanceComment: '', supplementaryComment: '',
           overallComment: rv?.overallComment ?? '',
         },
-        dedupeKey: `final_approved:${sub.id}:${Date.now()}`,
+        dedupeKey: finalApprovedKey(sub.id, rv?.reviewedAt),
       });
     } catch (e) {
       console.error('[email] enqueue final approval failed:', e);

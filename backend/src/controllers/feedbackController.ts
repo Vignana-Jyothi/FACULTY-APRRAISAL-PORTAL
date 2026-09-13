@@ -4,6 +4,7 @@ import { RoleType } from '@prisma/client';
 import prisma from '../utils/prismaClient';
 import { canViewUserResource } from '../utils/access';
 import { enqueueEmail } from '../services/emailService';
+import { feedbackIssuedKey } from '../services/emailKeys';
 import { TRACKING_INCLUDE, loadTrackingContext } from '../services/trackingService';
 import { computeScore } from '../services/scoringEngine';
 import { computeActuals } from '../services/trackingEngine';
@@ -151,7 +152,7 @@ export async function issueFeedback(req: Request, res: Response) {
       toUserId: sub.userId,
       template: 'feedback_issued',
       payload: { name: faculty?.name ?? 'Faculty', year: sub.academicYear.label, submissionId: sub.id },
-      dedupeKey: `feedback_issued:${feedback.id}:${Date.now()}`,
+      dedupeKey: feedbackIssuedKey(feedback.id, [feedback.strengths, feedback.improvements, feedback.growthTargets]),
     });
   } catch (e) {
     console.error('[email] enqueue feedback_issued failed:', e);
