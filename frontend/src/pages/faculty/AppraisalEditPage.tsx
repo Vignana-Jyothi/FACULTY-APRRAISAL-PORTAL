@@ -11,7 +11,8 @@ import { useAuthStore } from '../../store/authStore';
 import {
   computeScore, lectureRowScore, projectRowScore, eContentRowScore, ictRowScore,
   publicationRowScore, INDEX_LABEL, countAuthors, citationScore, bookRowScore, patentRowScore,
-  sponsoredProjectRowScore, type PublicationKind, type ScoreBreakdown,
+  sponsoredProjectRowScore, consultancyRowScore, outcomeRowScore, trainingRowScore,
+  type PublicationKind, type ScoreBreakdown,
 } from '../../utils/scoring';
 import { sponsoredProjectWarnings } from '../../utils/sponsoredProjects';
 import { patentWarnings } from '../../utils/patents';
@@ -37,6 +38,15 @@ const RESOURCE_PROGRAM_TYPES = ['FDP', 'Conference', 'Workshop', 'Guest Lecture'
 const EDITORIAL_NATURES = ['Editorial Board', 'Review Committee', 'Org Committee', 'Reviewer'];
 const ICT_PLATFORMS = ['Google Classroom', 'Moodle', 'MS Teams'];
 const ICT_USES = ['Assignments', 'Quizzes', 'Recorded Lectures', 'Discussion Forums'];
+
+// Per-entry working under a row, from the same helper the engines score with.
+function RowNote({ r }: { r: { score: number; reason: string } }) {
+  return (
+    <div className={`col-span-full text-xs ${r.score ? 'text-ink-muted' : 'text-amber-700'}`}>
+      {r.reason} → <span className="font-medium">{r.score}</span>
+    </div>
+  );
+}
 
 // A row is only saved if the faculty actually filled its free-text identifier
 // (an alphanumeric char) — this drops the empty "Add Row" placeholders and their
@@ -1099,16 +1109,18 @@ export default function AppraisalEditPage() {
 
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">2.6 Consultancy</h2>
+                <h2 className="font-semibold text-ink-primary">2.6 Consultancy Projects</h2>
                 <ScoreBadge value={live.cat2.consultancy} max={10} />
               </div>
+              <p className="text-xs text-ink-muted mb-3">Per project, by amount: up to Rs. 1 lakh 2, up to 2 lakh 4, up to 5 lakh 6, up to 10 lakh 8, above 10 lakh 10. Max 10.</p>
               {consultancy.fields.map((field, i) => (
                 <div key={field.id} className="grid grid-cols-3 gap-3 mb-2">
-                  <div><label className={labelCls}>Name</label><input {...register(`cat2Consultancy.${i}.name`)} className={inputCls} /></div>
-                  <div><label className={labelCls}>Sponsoring Agency</label><input {...register(`cat2Consultancy.${i}.agency`)} className={inputCls} /></div>
-                  <div><label className={labelCls}>Amount (Lakhs)</label><input type="number" step="0.1" {...register(`cat2Consultancy.${i}.amountLakhs`, { valueAsNumber: true })} className={inputCls} /></div>
+                  <div><label className={labelCls}>Name of Consultancy Project</label><input {...register(`cat2Consultancy.${i}.name`)} className={inputCls} /></div>
+                  <div><label className={labelCls}>Consulting / Sponsoring Agency</label><input {...register(`cat2Consultancy.${i}.agency`)} className={inputCls} /></div>
+                  <div><label className={labelCls}>Amount (Rs. Lakhs)</label><input type="number" min={0} step="0.1" {...register(`cat2Consultancy.${i}.amountLakhs`, { valueAsNumber: true })} className={inputCls} /></div>
                   {proofField(`cat2Consultancy.${i}.proofFile`)}
                   <button type="button" onClick={() => consultancy.remove(i)} className="text-red-400 text-xs">Remove</button>
+                  <RowNote r={consultancyRowScore((watchedValues as any)?.cat2Consultancy?.[i])} />
                 </div>
               ))}
               {addRowBtn('Add Consultancy', () => consultancy.append({ name: '', agency: '', amountLakhs: 0, proofFile: '' }))}
@@ -1119,6 +1131,7 @@ export default function AppraisalEditPage() {
                 <h2 className="font-semibold text-ink-primary">2.7 Research Guidance (PhD)</h2>
                 <ScoreBadge value={live.cat2.guidance} max={5} />
               </div>
+              <p className="text-xs text-ink-muted mb-3">Ph.D. guide 5 per candidate, co-guide 3. Max 5.</p>
               {guidance.fields.map((field, i) => (
                 <div key={field.id} className="grid grid-cols-2 gap-3 mb-2">
                   <div><label className={labelCls}>Research Scholar Name</label><input {...register(`cat2Guidance.${i}.studentName`)} className={inputCls} /></div>
@@ -1142,15 +1155,20 @@ export default function AppraisalEditPage() {
                 <h2 className="font-semibold text-ink-primary">2.8 Research Interest Groups</h2>
                 <ScoreBadge value={live.cat2.researchGroups} max={5} />
               </div>
-              {researchGroups.fields.map((field, i) => (
+              <p className="text-xs text-ink-muted mb-3">5 for participation with a tangible outcome — an entry with no outcome scores 0. Max 5.</p>
+              {researchGroups.fields.map((field, i) => {
+                const row = (watchedValues as any)?.cat2ResearchGroups?.[i] ?? {};
+                return (
                 <div key={field.id} className="grid grid-cols-3 gap-3 mb-2">
                   <div><label className={labelCls}>Group Name</label><input {...register(`cat2ResearchGroups.${i}.groupName`)} className={inputCls} /></div>
                   <div><label className={labelCls}>Size</label><input type="number" {...register(`cat2ResearchGroups.${i}.size`, { valueAsNumber: true })} className={inputCls} /></div>
-                  <div><label className={labelCls}>Outcome</label><input {...register(`cat2ResearchGroups.${i}.outcome`)} className={inputCls} /></div>
+                  <div><label className={labelCls}>Outcome (required to score)</label><input {...register(`cat2ResearchGroups.${i}.outcome`)} className={inputCls} /></div>
                   {proofField(`cat2ResearchGroups.${i}.proofFile`)}
                   <button type="button" onClick={() => researchGroups.remove(i)} className="text-red-400 text-xs">Remove</button>
+                  <RowNote r={outcomeRowScore(row.groupName, row.outcome)} />
                 </div>
-              ))}
+                );
+              })}
               {addRowBtn('Add Research Group', () => researchGroups.append({ groupName: '', size: 1, outcome: '', proofFile: '' }))}
             </div>
 
@@ -1159,15 +1177,20 @@ export default function AppraisalEditPage() {
                 <h2 className="font-semibold text-ink-primary">2.9 Institute &amp; Industry Linkages</h2>
                 <ScoreBadge value={live.cat2.linkages} max={10} />
               </div>
-              {linkages.fields.map((field, i) => (
+              <p className="text-xs text-ink-muted mb-3">5 per linkage with an outcome (joint paper / project / shared facilities / student projects) — no outcome scores 0. Max 10 with industry linkages.</p>
+              {linkages.fields.map((field, i) => {
+                const row = (watchedValues as any)?.cat2Linkages?.[i] ?? {};
+                return (
                 <div key={field.id} className="grid grid-cols-3 gap-3 mb-2">
                   <div><label className={labelCls}>Institute Name</label><input {...register(`cat2Linkages.${i}.instituteName`)} className={inputCls} /></div>
                   <div><label className={labelCls}>Contact Person</label><input {...register(`cat2Linkages.${i}.contactPerson`)} className={inputCls} /></div>
-                  <div><label className={labelCls}>Outcome</label><input {...register(`cat2Linkages.${i}.outcome`)} className={inputCls} /></div>
+                  <div><label className={labelCls}>Outcome (required to score)</label><input {...register(`cat2Linkages.${i}.outcome`)} className={inputCls} /></div>
                   {proofField(`cat2Linkages.${i}.proofFile`)}
                   <button type="button" onClick={() => linkages.remove(i)} className="text-red-400 text-xs">Remove</button>
+                  <RowNote r={outcomeRowScore(row.instituteName, row.outcome)} />
                 </div>
-              ))}
+                );
+              })}
               {addRowBtn('Add Linkage', () => linkages.append({ instituteName: '', contactPerson: '', outcome: '', proofFile: '' }))}
             </div>
 
@@ -1176,16 +1199,20 @@ export default function AppraisalEditPage() {
                 <h2 className="font-semibold text-ink-primary">2.9 Industry Linkage (contd.)</h2>
                 <ScoreBadge value={live.cat2.linkages} max={10} />
               </div>
-              <p className="text-xs text-ink-muted mb-3">Scored with Institute Linkages — 5 per linkage, 10 max across both.</p>
-              {industryLinkages.fields.map((field, i) => (
+              <p className="text-xs text-ink-muted mb-3">Scored with Institute Linkages — 5 per linkage with an outcome, 10 max across both.</p>
+              {industryLinkages.fields.map((field, i) => {
+                const row = (watchedValues as any)?.cat2IndustryLinkages?.[i] ?? {};
+                return (
                 <div key={field.id} className="grid grid-cols-3 gap-3 mb-2">
                   <div><label className={labelCls}>Industry Name</label><input {...register(`cat2IndustryLinkages.${i}.industryName`)} className={inputCls} /></div>
                   <div><label className={labelCls}>Contact Person</label><input {...register(`cat2IndustryLinkages.${i}.contactPerson`)} className={inputCls} /></div>
-                  <div><label className={labelCls}>Outcome</label><input {...register(`cat2IndustryLinkages.${i}.outcome`)} className={inputCls} /></div>
+                  <div><label className={labelCls}>Outcome (required to score)</label><input {...register(`cat2IndustryLinkages.${i}.outcome`)} className={inputCls} /></div>
                   {proofField(`cat2IndustryLinkages.${i}.proofFile`)}
                   <button type="button" onClick={() => industryLinkages.remove(i)} className="text-red-400 text-xs">Remove</button>
+                  <RowNote r={outcomeRowScore(row.industryName, row.outcome)} />
                 </div>
-              ))}
+                );
+              })}
               {addRowBtn('Add Industry Linkage', () => industryLinkages.append({ industryName: '', contactPerson: '', outcome: '', proofFile: '' }))}
             </div>
 
@@ -1194,15 +1221,20 @@ export default function AppraisalEditPage() {
                 <h2 className="font-semibold text-ink-primary">2.10 Innovation / Start-ups</h2>
                 <ScoreBadge value={live.cat2.startups} max={5} />
               </div>
-              {startups.fields.map((field, i) => (
+              <p className="text-xs text-ink-muted mb-3">5 per activity with an outcome — no outcome scores 0. Max 5.</p>
+              {startups.fields.map((field, i) => {
+                const row = (watchedValues as any)?.cat2Startups?.[i] ?? {};
+                return (
                 <div key={field.id} className="grid grid-cols-3 gap-3 mb-2">
                   <div><label className={labelCls}>Group Name</label><input {...register(`cat2Startups.${i}.groupName`)} className={inputCls} /></div>
                   <div><label className={labelCls}>Activity</label><input {...register(`cat2Startups.${i}.activity`)} className={inputCls} /></div>
-                  <div><label className={labelCls}>Outcome</label><input {...register(`cat2Startups.${i}.outcome`)} className={inputCls} /></div>
+                  <div><label className={labelCls}>Outcome (required to score)</label><input {...register(`cat2Startups.${i}.outcome`)} className={inputCls} /></div>
                   {proofField(`cat2Startups.${i}.proofFile`)}
                   <button type="button" onClick={() => startups.remove(i)} className="text-red-400 text-xs">Remove</button>
+                  <RowNote r={outcomeRowScore(row.groupName, row.outcome)} />
                 </div>
-              ))}
+                );
+              })}
               {addRowBtn('Add Startup', () => startups.append({ groupName: '', activity: '', outcome: '', proofFile: '' }))}
             </div>
           </div>
@@ -1341,14 +1373,16 @@ export default function AppraisalEditPage() {
                 <h2 className="font-semibold text-ink-primary">3.5 Training Attended</h2>
                 <ScoreBadge value={live.cat3.training} max={25} />
               </div>
-              <p className="text-xs text-ink-muted mb-3">Score 10 for more than 5 days, 5 for 5 days or fewer. Max 25.</p>
+              {/* Was "5 for 5 days or fewer" — wrong since 2026-08-28: under 5 days scores 0. */}
+              <p className="text-xs text-ink-muted mb-3">10 for more than 5 days, 5 for exactly 5 days; shorter programmes don&apos;t score. Max 25.</p>
               {training.fields.map((field, i) => (
                 <div key={field.id} className="grid grid-cols-3 gap-3 mb-2">
                   <div><label className={labelCls}>Name</label><input {...register(`cat3Training.${i}.name`)} className={inputCls} /></div>
                   <div><label className={labelCls}>Period</label><input {...register(`cat3Training.${i}.period`)} className={inputCls} /></div>
-                  <div><label className={labelCls}>Duration (Days)</label><input type="number" {...register(`cat3Training.${i}.durationDays`, { valueAsNumber: true })} className={inputCls} /></div>
+                  <div><label className={labelCls}>Duration (Days)</label><input type="number" min={0} {...register(`cat3Training.${i}.durationDays`, { valueAsNumber: true })} className={inputCls} /></div>
                   {proofField(`cat3Training.${i}.proofFile`, 'Certificate')}
                   <button type="button" onClick={() => training.remove(i)} className="text-red-400 text-xs">Remove</button>
+                  <RowNote r={trainingRowScore((watchedValues as any)?.cat3Training?.[i])} />
                 </div>
               ))}
               {addRowBtn('Add Training', () => training.append({ name: '', period: '', durationDays: 5 }))}

@@ -95,14 +95,27 @@ describe('computeScore — cat2 branch coverage', () => {
     expect(computeScore({ cat2BookChapters: [{ title: 'A Book', scope: 'NATIONAL', isEdited: true }] }).cat2.books).toBe(3);
   });
 
-  it('2.6 consultancy tiers: <1L->2, 1-2L->4, 2-5L->6, 5-10L->8, >10L->10', () => {
-    const mk = (amountLakhs: number) => computeScore({ cat2Consultancy: [{ amountLakhs }] }).cat2.consultancy;
+  it('2.6 consultancy bands keep their upper edge: up to 1L->2, 2L->4, 5L->6, 10L->8, above 10L->10', () => {
+    const mk = (amountLakhs: number) => computeScore({ cat2Consultancy: [{ name: 'Advisory', amountLakhs }] }).cat2.consultancy;
     expect(mk(0.5)).toBe(2);
-    expect(mk(1)).toBe(4);
-    expect(mk(2)).toBe(6);
-    expect(mk(5)).toBe(8);
+    expect(mk(1)).toBe(2);
+    expect(mk(1.5)).toBe(4);
+    expect(mk(2)).toBe(4);
+    expect(mk(5)).toBe(6);
     expect(mk(10)).toBe(8);
     expect(mk(10.5)).toBe(10);
+    // No project name: not a project.
+    expect(computeScore({ cat2Consultancy: [{ amountLakhs: 6 }] }).cat2.consultancy).toBe(0);
+  });
+
+  it('2.8 / 2.9 / 2.10 score only entries with an outcome', () => {
+    const s = computeScore({
+      cat2ResearchGroups: [{ groupName: 'G', outcome: '' }],
+      cat2Linkages: [{ instituteName: 'I', outcome: 'MoU' }],
+      cat2IndustryLinkages: [{ industryName: 'T', outcome: ' ' }],
+      cat2Startups: [{ groupName: 'E', outcome: 'Startup' }],
+    }).cat2;
+    expect([s.researchGroups, s.linkages, s.startups]).toEqual([0, 5, 5]);
   });
 });
 

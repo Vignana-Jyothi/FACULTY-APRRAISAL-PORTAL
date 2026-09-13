@@ -11,8 +11,40 @@ import FeedbackSection from '../../components/FeedbackSection';
 import {
   courseResultScore, lectureRowScore, projectRowScore, eContentRowScore, ictRowScore,
   publicationRowScore, INDEX_LABEL, countAuthors, citationScore, bookRowScore, patentRowScore,
-  sponsoredProjectRowScore,
+  sponsoredProjectRowScore, consultancyRowScore, guidanceRowScore, outcomeRowScore, advQualScore,
+  trainingRowScore, membershipRowScore, awardRowScore, differentiatorRowScore, PER_ENTRY,
 } from '../../utils/scoring';
+
+type RowLine = { text: string; reason?: string; score: number };
+type RowSection = { title: string; rows: any[]; total: number | undefined; max: number; line: (r: any) => RowLine };
+
+const scopeLabel = (s: unknown) => (s === 'INTERNATIONAL' ? 'International' : s === 'NATIONAL' ? 'National' : '');
+const quoted = (v: unknown) => `"${String(v ?? '').trim() || 'untitled'}"`;
+const joined = (...bits: unknown[]) => bits.map((b) => String(b ?? '').trim()).filter(Boolean).join(' · ');
+
+// One card per subsection from 2.6 on: each entry with the helper's reason and
+// score, and the section total as the engine capped it. Same helpers the
+// engines score with — never re-derive a rule here.
+function RowsCard({ title, rows, total, max, line }: RowSection) {
+  return (
+    <Card>
+      <h2 className="text-sm font-semibold text-ink-primary mb-2 pb-2 border-b border-accent-500/30 font-serif flex items-baseline justify-between gap-2">
+        <span>{title} ({rows.length})</span>
+        <span className="text-xs font-normal text-ink-muted">{total ?? 0} / {max}</span>
+      </h2>
+      {rows.map((r, i) => {
+        const l = line(r);
+        return (
+          <div key={r.id ?? i} className="text-xs text-ink-secondary mb-1">
+            {l.text}
+            {l.reason && <> — <span className={l.score ? '' : 'text-amber-700'}>{l.reason}</span></>}
+            {` → ${l.score}`}
+          </div>
+        );
+      })}
+    </Card>
+  );
+}
 import { sponsoredProjectWarnings } from '../../utils/sponsoredProjects';
 import { patentWarnings } from '../../utils/patents';
 import { citationWarnings } from '../../utils/citations';
@@ -371,6 +403,64 @@ export default function ReviewAppraisalPage() {
               );
             })}
           </Card>
+
+          {(() => {
+            const flat = (n: number) => () => ({ score: n });
+            const sections: RowSection[] = [
+              { title: '2.6 Consultancy Projects', rows: submission.cat2Consultancy ?? [], total: score?.cat2.consultancy, max: 10,
+                line: (c) => ({ text: `${quoted(c.name)} — ${joined(c.agency, `Rs. ${c.amountLakhs ?? 0} lakh`)}`, ...consultancyRowScore(c) }) },
+              { title: '2.7 Research Guidance', rows: submission.cat2Guidance ?? [], total: score?.cat2.guidance, max: 5,
+                line: (g) => ({ text: `${quoted(g.studentName)} — ${joined(g.university, g.thesisTitle)}`, ...guidanceRowScore(g) }) },
+              { title: '2.8 Research Interest Groups', rows: submission.cat2ResearchGroups ?? [], total: score?.cat2.researchGroups, max: 5,
+                line: (g) => ({ text: `${quoted(g.groupName)} — ${joined(g.size ? `size ${g.size}` : '', g.outcome ? `outcome: ${g.outcome}` : '')}`, ...outcomeRowScore(g.groupName, g.outcome) }) },
+              { title: '2.9 Institute & Industry Linkages',
+                rows: [
+                  ...(submission.cat2Linkages ?? []).map((l: any) => ({ ...l, kind: 'Institute', name: l.instituteName })),
+                  ...(submission.cat2IndustryLinkages ?? []).map((l: any) => ({ ...l, kind: 'Industry', name: l.industryName })),
+                ],
+                total: score?.cat2.linkages, max: 10,
+                line: (l) => ({ text: `${l.kind}: ${quoted(l.name)} — ${joined(l.contactPerson, l.outcome ? `outcome: ${l.outcome}` : '')}`, ...outcomeRowScore(l.name, l.outcome) }) },
+              { title: '2.10 Innovation / Start-ups', rows: submission.cat2Startups ?? [], total: score?.cat2.startups, max: 5,
+                line: (x) => ({ text: `${quoted(x.groupName)} — ${joined(x.activity, x.outcome ? `outcome: ${x.outcome}` : '')}`, ...outcomeRowScore(x.groupName, x.outcome) }) },
+              { title: '3.1 Status of Ph.D.', rows: submission.cat3AdvQual ? [submission.cat3AdvQual] : [], total: score?.cat3.advQual, max: 10,
+                line: (q) => ({ text: 'Highest applicable', ...advQualScore(q) }) },
+              { title: 'Conferences Attended (local, not in the PDF)', rows: submission.cat3ConferencesAttended ?? [], total: score?.cat3.conferencesAttended, max: 20,
+                line: (c) => ({ text: `${quoted(c.paperTitle)} — ${joined(c.conferenceName, c.period)}`, ...flat(PER_ENTRY.conferencesAttended)() }) },
+              { title: '3.2 Programmes Organised', rows: submission.cat3Organised ?? [], total: score?.cat3.organisedPrograms, max: 20,
+                line: (e) => ({ text: `${quoted(e.title)} — ${joined(e.period, e.sponsor, e.status, scopeLabel(e.scope))}`, ...flat(PER_ENTRY.organisedPrograms)() }) },
+              { title: '3.3 Resource Person', rows: submission.cat3ResourcePerson ?? [], total: score?.cat3.resourcePerson, max: 20,
+                line: (r) => ({ text: `${quoted(r.programName)} — ${joined(r.programType, r.topic, r.duration, r.venue)}`, ...flat(PER_ENTRY.resourcePerson)() }) },
+              { title: '3.4 Editorial / Review Roles', rows: submission.cat3Editorial ?? [], total: score?.cat3.editorial, max: 20,
+                line: (e) => ({ text: `${e.natureOfContrib || 'Contribution'} — ${joined(e.orgOrJournal, scopeLabel(e.scope), e.dateDuration)}`, ...flat(PER_ENTRY.editorial)() }) },
+              { title: '3.5 Training Attended', rows: submission.cat3Training ?? [], total: score?.cat3.training, max: 25,
+                line: (t) => ({ text: `${quoted(t.name)} — ${joined(t.period, t.durationDays != null ? `${t.durationDays} days` : '')}`, ...trainingRowScore(t) }) },
+              { title: '3.6 International Travel', rows: submission.cat3IntlTravel ?? [], total: score?.cat3.intlTravel, max: 5,
+                line: (t) => ({ text: `${quoted(t.purpose)} — ${joined(t.placeOrUniv, t.outcome ? `outcome: ${t.outcome}` : '')}`, ...flat(PER_ENTRY.intlTravel)() }) },
+              { title: '4.1 Administrative Responsibilities', rows: submission.cat4AdminResp ?? [], total: score?.cat4.adminResp, max: 40,
+                line: (a) => ({ text: `${quoted(a.responsibility)} — ${joined(a.level, a.workInvolved, a.period)}`, ...flat(PER_ENTRY.adminResp)() }) },
+              { title: '4.2 Student Activities', rows: submission.cat4StudentAct ?? [], total: score?.cat4.studentActivities, max: 10,
+                line: (s) => ({ text: `${quoted(s.activityName)} — ${joined(s.period)}`, ...flat(PER_ENTRY.studentActivities)() }) },
+              { title: '5.1 Professional Memberships', rows: submission.cat5Memberships ?? [], total: score?.cat5.memberships, max: 15,
+                line: (m) => ({ text: quoted(m.association), ...membershipRowScore(m) }) },
+              { title: '5.2 Awards', rows: submission.cat5Awards ?? [], total: score?.cat5.awards, max: 10,
+                line: (a) => ({ text: `${quoted(a.awardType)} — ${joined(a.organization)}`, ...awardRowScore(a) }) },
+              { title: '5.3 VNR VJIET Differentiators', rows: submission.cat5Differentiators ?? [], total: score?.cat5.differentiators, max: 20,
+                line: (d) => ({ text: quoted(d.name), ...differentiatorRowScore(d) }) },
+              { title: '5.4 Internships Arranged', rows: submission.cat5Internships ?? [], total: score?.cat5.internships, max: 5,
+                line: (i) => ({ text: `${quoted(i.industryOrInst)} — ${joined(i.studentBatch ? `batch ${i.studentBatch}` : '', i.internshipDetails, i.period)}`, ...flat(PER_ENTRY.internships)() }) },
+            ];
+            const empty = sections.filter((s) => !s.rows.length).map((s) => s.title.split(' ')[0]);
+            return (
+              <>
+                {sections.filter((s) => s.rows.length).map((s) => <RowsCard key={s.title} {...s} />)}
+                {empty.length > 0 && (
+                  <Card>
+                    <div className="text-xs text-ink-muted">No entries: {empty.join(', ')}</div>
+                  </Card>
+                )}
+              </>
+            );
+          })()}
 
           <ProofVerificationPanel submissionId={id!} />
 

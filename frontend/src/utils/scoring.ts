@@ -93,6 +93,7 @@ export interface Cat2ProjectInput {
 }
 
 export interface Cat2ConsultancyInput {
+  name?: string | null;
   amountLakhs?: number;
 }
 
@@ -152,7 +153,7 @@ export interface ScoreFormValues {
 
   cat3AdvQual?: Cat3AdvQualInput | null;
   cat3Organised?: unknown[];
-  // Retained on the form but intentionally not scored (matches backend).
+  // Local addition, not in the PDF — scored 10 each, max 20 (owner decision).
   cat3ConferencesAttended?: unknown[];
   cat3ResourcePerson?: unknown[];
   cat3Editorial?: unknown[];
@@ -298,6 +299,92 @@ export function citationScore(totalCitations?: number | null): number {
   return tc > 100 ? 5 : tc >= 51 ? 3 : tc >= 11 ? 2 : tc >= 3 ? 1 : 0;
 }
 
+const filled = (v: unknown) => String(v ?? '').trim() !== '';
+
+/**
+ * 2.6 per-row working. Mirror of the backend's consultancyRowScore: bands keep
+ * their upper edge (owner decision 2026-09-13) — up to 1 lakh 2, up to 2 4, up
+ * to 5 6, up to 10 8, above 10 10; no name or no amount scores 0.
+ */
+export function consultancyRowScore(c: { name?: string | null; amountLakhs?: number | null } | null | undefined) {
+  if (!filled(c?.name)) return { score: 0, reason: 'Enter the project name to score this entry' };
+  const a = Number(c?.amountLakhs);
+  if (!Number.isFinite(a) || a <= 0) return { score: 0, reason: 'Enter the amount to score this entry' };
+  if (a > 10) return { score: 10, reason: 'Above Rs. 10 lakh' };
+  if (a > 5) return { score: 8, reason: 'Rs. 5-10 lakh' };
+  if (a > 2) return { score: 6, reason: 'Rs. 2-5 lakh' };
+  if (a > 1) return { score: 4, reason: 'Rs. 1-2 lakh' };
+  return { score: 2, reason: 'Up to Rs. 1 lakh' };
+}
+
+/** 2.7 per-row working. Mirror of the backend's guidanceRowScore: guide 5, co-guide 3. */
+export function guidanceRowScore(g: { isGuide?: boolean | null } | null | undefined) {
+  return g?.isGuide ? { score: 5, reason: 'Guide' } : { score: 3, reason: 'Co-Guide' };
+}
+
+/**
+ * 2.8 / 2.9 / 2.10 per-row working. Mirror of the backend's outcomeRowScore:
+ * 5 per entry with a tangible outcome (owner decision 2026-09-13), else 0.
+ */
+export function outcomeRowScore(name: unknown, outcome: unknown) {
+  if (!filled(name)) return { score: 0, reason: 'Enter the name to score this entry' };
+  if (!filled(outcome)) return { score: 0, reason: 'Add the tangible outcome to score this entry' };
+  return { score: 5, reason: 'With outcome' };
+}
+
+/** 3.1 — highest applicable level. Mirror of the backend's advQualScore. */
+export function advQualScore(q: Cat3AdvQualInput | null | undefined) {
+  if (!q) return { score: 0, reason: 'Not filled' };
+  if (q.postDoc) return { score: 10, reason: 'Post-Doctoral' };
+  if (q.awarded) return { score: 10, reason: 'Ph.D. awarded' };
+  if (q.thesisSubmitted) return { score: 10, reason: 'Thesis submitted' };
+  if (q.pgDegree) return { score: 10, reason: 'PG degree' };
+  if (q.pgDiploma) return { score: 10, reason: 'PG diploma' };
+  if (q.clearedPrePhD) return { score: 8, reason: 'Cleared pre-Ph.D.' };
+  if (q.registeredForPhD) return { score: 5, reason: 'Registered for Ph.D.' };
+  return { score: 0, reason: 'None' };
+}
+
+/** Flat marks per entry (section caps still apply). Mirror of the backend's PER_ENTRY. */
+export const PER_ENTRY = {
+  organisedPrograms: 10, conferencesAttended: 10, resourcePerson: 10, editorial: 10, intlTravel: 5,
+  adminResp: 10, studentActivities: 5, internships: 5,
+} as const;
+
+/** 3.5 per-row working. Mirror of the backend's trainingRowScore. */
+export function trainingRowScore(t: { durationDays?: number | null } | null | undefined) {
+  const days = Number(t?.durationDays);
+  if (!Number.isFinite(days) || days <= 0) return { score: 0, reason: 'Enter the duration to score this entry' };
+  if (days > 5) return { score: 10, reason: 'More than 5 days' };
+  if (days >= 5) return { score: 5, reason: '5 days' };
+  return { score: 0, reason: 'Under 5 days — not scored' };
+}
+
+/** 5.1 per-row working. Mirror of the backend's membershipRowScore. */
+export function membershipRowScore(m: { status?: string | null } | null | undefined) {
+  if (m?.status === 'national_member') return { score: 5, reason: 'National member' };
+  if (m?.status === 'international_member') return { score: 10, reason: 'International member' };
+  if (m?.status === 'national_executive') return { score: 10, reason: 'National executive' };
+  if (m?.status === 'life_member') return { score: 10, reason: 'Life member' };
+  return { score: 0, reason: 'Choose a status' };
+}
+
+/** 5.2 per-row working. Mirror of the backend's awardRowScore. */
+export function awardRowScore(a: { level?: string | null } | null | undefined) {
+  if (a?.level === 'international') return { score: 10, reason: 'International' };
+  if (a?.level === 'national') return { score: 10, reason: 'National' };
+  if (a?.level === 'state') return { score: 5, reason: 'State' };
+  return { score: 0, reason: 'Choose a level' };
+}
+
+/** 5.3 per-row working. Mirror of the backend's differentiatorRowScore. */
+export function differentiatorRowScore(d: { role?: string | null } | null | undefined) {
+  if (d?.role === 'participating') return { score: 3, reason: 'Participating' };
+  if (d?.role === 'leading') return { score: 7, reason: 'Leading' };
+  if (d?.role === 'initiating') return { score: 10, reason: 'Initiating, shaping & executing' };
+  return { score: 0, reason: 'Choose a role' };
+}
+
 function scoreCategory1(v: ScoreFormValues) {
   // 1.1 Lectures (max 40) — per-course rules in lectureRowScore.
   let lectures = 0;
@@ -359,32 +446,32 @@ function scoreCategory2(v: ScoreFormValues) {
   for (const p of arr<Cat2ProjectInput>(v.cat2Projects)) sponsoredProjects += sponsoredProjectRowScore(p as any).score;
   sponsoredProjects = Math.min(sponsoredProjects, 20);
 
-  // 2.6 Consultancy (max 10) — PDF bands: <=1L 2, 1-2L 4, 2-5L 6, 5-10L 8, >10L 10.
+  // 2.6 Consultancy (max 10) — per-row bands in consultancyRowScore.
   let consultancy = 0;
-  for (const c of arr<Cat2ConsultancyInput>(v.cat2Consultancy)) {
-    const a = n(c?.amountLakhs);
-    // The lowest band presumes a real project; a row with no amount is not one.
-    if (!(a > 0)) continue;
-    consultancy += a > 10 ? 10 : a >= 5 ? 8 : a >= 2 ? 6 : a >= 1 ? 4 : 2;
-  }
+  for (const c of arr<Cat2ConsultancyInput>(v.cat2Consultancy)) consultancy += consultancyRowScore(c).score;
   consultancy = Math.min(consultancy, 10);
 
-  // 2.7 Research Guidance (max 5) — Guide 5, Co-Guide 3
+  // 2.7 Research Guidance (max 5) — Guide 5, Co-Guide 3 per candidate.
   let guidance = 0;
-  for (const g of arr<Cat2GuidanceInput>(v.cat2Guidance)) {
-    guidance += g?.isGuide ? 5 : 3;
-  }
+  for (const g of arr<Cat2GuidanceInput>(v.cat2Guidance)) guidance += guidanceRowScore(g).score;
   guidance = Math.min(guidance, 5);
 
-  // 2.8 Research Groups (max 5)
-  const researchGroups = arr(v.cat2ResearchGroups).length > 0 ? 5 : 0;
+  // 2.8 Research Groups (max 5) — 5 for a group with a tangible outcome.
+  let researchGroups = 0;
+  for (const r of arr<any>(v.cat2ResearchGroups)) researchGroups += outcomeRowScore(r?.groupName, r?.outcome).score;
+  researchGroups = Math.min(researchGroups, 5);
 
-  // 2.9 Interaction/association with institutes AND industry linkage — ONE
-  // subsection in the PDF, 5 per linkage, max 10 shared across both tables.
-  const linkages = Math.min((arr(v.cat2Linkages).length + arr(v.cat2IndustryLinkages).length) * 5, 10);
+  // 2.9 Institutes AND industry linkage — ONE subsection in the PDF, 5 per
+  // linkage with an outcome, max 10 across both tables.
+  let linkages = 0;
+  for (const l of arr<any>(v.cat2Linkages)) linkages += outcomeRowScore(l?.instituteName, l?.outcome).score;
+  for (const l of arr<any>(v.cat2IndustryLinkages)) linkages += outcomeRowScore(l?.industryName, l?.outcome).score;
+  linkages = Math.min(linkages, 10);
 
-  // 2.10 Initiation/motivation/guidance towards innovation & start-ups (max 5).
-  const startups = Math.min(arr(v.cat2Startups).length * 5, 5);
+  // 2.10 Innovation / start-ups (max 5), 5 per activity with an outcome.
+  let startups = 0;
+  for (const x of arr<any>(v.cat2Startups)) startups += outcomeRowScore(x?.groupName, x?.outcome).score;
+  startups = Math.min(startups, 5);
 
   const total = Math.min(
     publications + citations + books + patents + sponsoredProjects +
@@ -395,43 +482,28 @@ function scoreCategory2(v: ScoreFormValues) {
 }
 
 function scoreCategory3(v: ScoreFormValues) {
-  // 3.1 Status of Ph.D. / advanced qualification (max 10) — take highest applicable
-  let advQual = 0;
-  const q = v.cat3AdvQual;
-  if (q) {
-    if (q.postDoc) advQual = 10;
-    else if (q.awarded) advQual = 10;
-    else if (q.thesisSubmitted) advQual = 10;
-    else if (q.pgDegree) advQual = 10;
-    else if (q.pgDiploma) advQual = 10;
-    else if (q.clearedPrePhD) advQual = 8;
-    else if (q.registeredForPhD) advQual = 5;
-  }
-  advQual = Math.min(advQual, 10);
+  // 3.1 Status of Ph.D. / advanced qualification (max 10) — see advQualScore.
+  const advQual = advQualScore(v.cat3AdvQual).score;
 
-  // 3.2 Organised Programs (max 20)
-  const organisedPrograms = Math.min(arr(v.cat3Organised).length * 10, 20);
+  // 3.2 Organised Programs (max 20, 10 each)
+  const organisedPrograms = Math.min(arr(v.cat3Organised).length * PER_ENTRY.organisedPrograms, 20);
 
-  // 3.3 Conferences / Seminars / Workshops Attended (max 20, 10 each)
-  const conferencesAttended = Math.min(arr(v.cat3ConferencesAttended).length * 10, 20);
+  // Conferences / Seminars / Workshops Attended — local, un-numbered (max 20, 10 each)
+  const conferencesAttended = Math.min(arr(v.cat3ConferencesAttended).length * PER_ENTRY.conferencesAttended, 20);
 
   // 3.3 Resource Person (max 20, 10 each)
-  const resourcePerson = Math.min(arr(v.cat3ResourcePerson).length * 10, 20);
+  const resourcePerson = Math.min(arr(v.cat3ResourcePerson).length * PER_ENTRY.resourcePerson, 20);
 
   // 3.4 Editorial (max 20, 10 each)
-  const editorial = Math.min(arr(v.cat3Editorial).length * 10, 20);
+  const editorial = Math.min(arr(v.cat3Editorial).length * PER_ENTRY.editorial, 20);
 
-  // 3.5 Training (max 25) — PDF: >5 days -> 10, a minimum of 5 days -> 5.
+  // 3.5 Training (max 25) — per-row rules in trainingRowScore.
   let training = 0;
-  for (const t of arr<Cat3TrainingInput>(v.cat3Training)) {
-    // PDF: 10 above 5 days, 5 at a minimum of 5 days, nothing below that.
-    const days = n(t?.durationDays);
-    training += days > 5 ? 10 : days >= 5 ? 5 : 0;
-  }
+  for (const t of arr<Cat3TrainingInput>(v.cat3Training)) training += trainingRowScore(t).score;
   training = Math.min(training, 25);
 
-  // 3.6 International Travel (max 5)
-  const intlTravel = Math.min(arr(v.cat3IntlTravel).length * 5, 5);
+  // 3.6 International Travel (max 5, 5 each)
+  const intlTravel = Math.min(arr(v.cat3IntlTravel).length * PER_ENTRY.intlTravel, 5);
 
   const total = Math.min(
     advQual + organisedPrograms + conferencesAttended + resourcePerson + editorial + training + intlTravel,
@@ -441,41 +513,31 @@ function scoreCategory3(v: ScoreFormValues) {
 }
 
 function scoreCategory4(v: ScoreFormValues) {
-  const adminResp = Math.min(arr(v.cat4AdminResp).length * 10, 40);
-  const studentActivities = Math.min(arr(v.cat4StudentAct).length * 5, 10);
+  // 4.1 (max 40, 10 each); 4.2 (max 10, 5 each).
+  const adminResp = Math.min(arr(v.cat4AdminResp).length * PER_ENTRY.adminResp, 40);
+  const studentActivities = Math.min(arr(v.cat4StudentAct).length * PER_ENTRY.studentActivities, 10);
   const total = Math.min(adminResp + studentActivities, 50);
   return { adminResp, studentActivities, total };
 }
 
 function scoreCategory5(v: ScoreFormValues) {
-  // 5.1 Memberships (max 15)
+  // 5.1 Memberships (max 15) — per-row rules in membershipRowScore.
   let memberships = 0;
-  for (const m of arr<Cat5MembershipInput>(v.cat5Memberships)) {
-    if (m?.status === 'national_member') memberships += 5;
-    else if (m?.status === 'international_member' || m?.status === 'national_executive' || m?.status === 'life_member') memberships += 10;
-  }
+  for (const m of arr<Cat5MembershipInput>(v.cat5Memberships)) memberships += membershipRowScore(m).score;
   memberships = Math.min(memberships, 15);
 
-  // 5.2 Awards (max 10) — state = 5, national/international = 10
+  // 5.2 Awards (max 10) — per-row rules in awardRowScore.
   let awards = 0;
-  for (const a of arr<Cat5AwardInput>(v.cat5Awards)) {
-    // Only the levels the PDF defines; an unset level scores nothing.
-    if (a?.level === 'state') awards += 5;
-    else if (a?.level === 'national' || a?.level === 'international') awards += 10;
-  }
+  for (const a of arr<Cat5AwardInput>(v.cat5Awards)) awards += awardRowScore(a).score;
   awards = Math.min(awards, 10);
 
-  // 5.3 Differentiators (max 20)
+  // 5.3 Differentiators (max 20) — per-row rules in differentiatorRowScore.
   let differentiators = 0;
-  for (const d of arr<Cat5DifferentiatorInput>(v.cat5Differentiators)) {
-    if (d?.role === 'participating') differentiators += 3;
-    else if (d?.role === 'leading') differentiators += 7;
-    else if (d?.role === 'initiating') differentiators += 10;
-  }
+  for (const d of arr<Cat5DifferentiatorInput>(v.cat5Differentiators)) differentiators += differentiatorRowScore(d).score;
   differentiators = Math.min(differentiators, 20);
 
-  // 5.4 Internships (max 5)
-  const internships = Math.min(arr(v.cat5Internships).length * 5, 5);
+  // 5.4 Internships (max 5, 5 each)
+  const internships = Math.min(arr(v.cat5Internships).length * PER_ENTRY.internships, 5);
 
   const total = Math.min(memberships + awards + differentiators + internships, 50);
   return { memberships, awards, differentiators, internships, total };

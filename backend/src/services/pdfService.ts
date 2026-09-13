@@ -3,7 +3,8 @@ import { VNRVJIET_LOGO_DATA_URI } from './logoAsset';
 import {
   lectureRowScore, projectRowScore, eContentRowScore, ictRowScore,
   publicationRowScore, INDEX_LABEL, countAuthors, citationScore, bookRowScore, patentRowScore,
-  sponsoredProjectRowScore,
+  sponsoredProjectRowScore, consultancyRowScore, guidanceRowScore, outcomeRowScore, advQualScore,
+  trainingRowScore, membershipRowScore, awardRowScore, differentiatorRowScore, PER_ENTRY,
 } from './scoringEngine';
 
 let browserPromise: Promise<Browser> | null = null;
@@ -144,12 +145,7 @@ function proofCell(file: any): RawHtml {
   return raw(`<a href="${esc(`${FRONTEND}${f}`)}">Attached (${esc(name)})</a>`);
 }
 
-// 5.3 roles are stored as keys; print the form's wording, not the key.
-const DIFFERENTIATOR_ROLE_LABEL: Record<string, string> = {
-  participating: 'Participating',
-  leading: 'Leading',
-  initiating: 'Initiating, shaping & executing',
-};
+const scopeLabel = (s: unknown) => (s === 'INTERNATIONAL' ? 'International' : s === 'NATIONAL' ? 'National' : '—');
 
 function listTable(title: string, headers: string[], rows: any[][]): string {
   if (!rows.length) return '';
@@ -359,75 +355,131 @@ export function renderAppraisalHtml(sub: any, score: any, review: any | null): s
       sponsoredProjectRowScore(p).score, proofCell(p.proofFile),
     ])
   )}
-  ${listTable('Consultancy',
-    ['Name', 'Agency', 'Amount (Lakhs)'],
-    (sub.cat2Consultancy ?? []).map((c: any) => [c.name, c.agency, c.amountLakhs])
+  ${/* 2.6 onward: the PDF's numbering and columns, a Score column from the same
+    helpers the engine scores with (never re-derive a rule here), and the proof.
+    Each score is per entry; the category total above applies the section caps. */ ''}
+  ${listTable('2.6 Consultancy Projects',
+    ['Name of Consultancy Project', 'Consulting / Sponsoring Agency', 'Amount (Rs. Lakhs)', 'Band', 'Score', 'Proof'],
+    (sub.cat2Consultancy ?? []).map((c: any) => {
+      const r = consultancyRowScore(c);
+      return [c.name, c.agency, c.amountLakhs ?? '—', r.reason, r.score, proofCell(c.proofFile)];
+    })
   )}
-  ${listTable('Research Guidance (PhD/PG)',
-    ['Scholar', 'University', 'Thesis', 'Guide/Co-Guide'],
-    (sub.cat2Guidance ?? []).map((g: any) => [g.studentName, g.university, g.thesisTitle, g.isGuide ? 'Guide' : 'Co-Guide'])
+  ${listTable('2.7 Research Guidance',
+    ['Name of the Student', 'University', 'Title of the Thesis', 'Guide / Co-Guide', 'Score', 'Proof'],
+    (sub.cat2Guidance ?? []).map((g: any) => {
+      const r = guidanceRowScore(g);
+      return [g.studentName, g.university, g.thesisTitle, r.reason, r.score, proofCell(g.proofFile)];
+    })
   )}
-  ${listTable('Research Interest Groups',
-    ['Group', 'Size', 'Outcome'],
-    (sub.cat2ResearchGroups ?? []).map((r: any) => [r.groupName, r.size, r.outcome])
+  ${listTable('2.8 Research Interest Groups and Development of Research Facilities',
+    ['Name of Interest Group', 'Size of the Group', 'Outcome', 'Score', 'Proof'],
+    (sub.cat2ResearchGroups ?? []).map((g: any) => [
+      g.groupName, g.size, g.outcome || 'No outcome given', outcomeRowScore(g.groupName, g.outcome).score, proofCell(g.proofFile),
+    ])
   )}
-  ${listTable('Institute / HEI Linkages',
-    ['Institute', 'Contact Person', 'Outcome'],
-    (sub.cat2Linkages ?? []).map((l: any) => [l.instituteName, l.contactPerson, l.outcome])
+  ${listTable('2.9 Interaction / Association with Institutes and Industry Linkage',
+    ['Institute / Industry', 'Name', 'Associated Person', 'Outcome', 'Score', 'Proof'],
+    [
+      ...(sub.cat2Linkages ?? []).map((l: any) => [
+        'Institute', l.instituteName, l.contactPerson, l.outcome || 'No outcome given',
+        outcomeRowScore(l.instituteName, l.outcome).score, proofCell(l.proofFile),
+      ]),
+      ...(sub.cat2IndustryLinkages ?? []).map((l: any) => [
+        'Industry', l.industryName, l.contactPerson, l.outcome || 'No outcome given',
+        outcomeRowScore(l.industryName, l.outcome).score, proofCell(l.proofFile),
+      ]),
+    ]
   )}
-  ${listTable('Industry Linkage',
-    ['Industry', 'Contact Person', 'Outcome'],
-    (sub.cat2IndustryLinkages ?? []).map((l: any) => [l.industryName, l.contactPerson, l.outcome])
-  )}
-
-  <h2>Cat 3 — Developmental Activities</h2>
-  ${listTable('3.2 Programs Organised',
-    ['Title', 'Period', 'Sponsor', 'Status', 'Scope'],
-    (sub.cat3Organised ?? []).map((e: any) => [e.title, e.period, e.sponsor, e.status, e.scope])
-  )}
-  ${listTable('3.3 Conferences / Seminars / Workshops Attended',
-    ['Paper Title', 'Authors', 'Conference', 'Period'],
-    (sub.cat3ConferencesAttended ?? []).map((c: any) => [c.paperTitle, c.authors, c.conferenceName, c.period])
-  )}
-  ${listTable('3.4 Resource Person',
-    ['Type', 'Program', 'Topic', 'Duration', 'Venue', 'Organised By'],
-    (sub.cat3ResourcePerson ?? []).map((r: any) => [r.programType, r.programName, r.topic, r.duration, r.venue, r.organisedBy])
-  )}
-  ${listTable('3.4 Editorial / Review Roles',
-    ['Contribution', 'Organization / Journal', 'Scope', 'Date / Duration'],
-    (sub.cat3Editorial ?? []).map((e: any) => [e.natureOfContrib, e.orgOrJournal, e.scope, e.dateDuration])
-  )}
-  ${listTable('3.5 Training Attended',
-    ['Name', 'Period', 'Duration (days)', 'Proof'],
-    (sub.cat3Training ?? []).map((t: any) => [t.name, t.period, t.durationDays, proofCell(t.proofFile)])
-  )}
-
-  <h2>Cat 4 — Governance</h2>
-  ${listTable('Administrative Responsibilities',
-    ['Responsibility', 'Institute/Dept', 'Work Involved', 'Period'],
-    (sub.cat4AdminResp ?? []).map((a: any) => [a.responsibility, a.level, a.workInvolved, a.period])
-  )}
-  ${listTable('Student Activities',
-    ['Activity', 'Period'],
-    (sub.cat4StudentAct ?? []).map((s: any) => [s.activityName, s.period])
+  ${listTable('2.10 Initiation / Motivation / Guidance towards Innovation / Start-ups',
+    ['Name of the Group', 'Activity', 'Outcome', 'Score', 'Proof'],
+    (sub.cat2Startups ?? []).map((x: any) => [
+      x.groupName, x.activity, x.outcome || 'No outcome given', outcomeRowScore(x.groupName, x.outcome).score, proofCell(x.proofFile),
+    ])
   )}
 
-  <h2>Cat 5 — Supplementary</h2>
-  ${listTable('Professional Memberships',
-    ['Association', 'Status'],
-    (sub.cat5Memberships ?? []).map((m: any) => [m.association, m.status])
+  <h2>Cat 3 — Faculty Development</h2>
+  ${sub.cat3AdvQual ? listTable('3.1 Working for Advanced Qualification (Status of Ph.D.)',
+    ['Highest applicable', 'Score', 'Proof'],
+    [[advQualScore(sub.cat3AdvQual).reason, advQualScore(sub.cat3AdvQual).score, proofCell(sub.cat3AdvQual.proofFile)]]
+  ) : ''}
+  ${listTable('3.2 Organizing Seminars / Conferences / Workshops / Training Programmes',
+    ['Title of the Programme', 'Period', 'Sponsors', 'Status', 'National / International', 'Score', 'Proof'],
+    (sub.cat3Organised ?? []).map((e: any) => [
+      e.title, e.period, e.sponsor || '—', e.status, scopeLabel(e.scope), PER_ENTRY.organisedPrograms, proofCell(e.proofFile),
+    ])
   )}
-  ${listTable('Awards',
-    ['Award Type', 'Organization', 'Level', 'Proof'],
-    (sub.cat5Awards ?? []).map((a: any) => [a.awardType, a.organization, a.level, proofCell(a.proofFile)])
+  ${listTable('Conferences / Seminars / Workshops Attended (local addition, not in the PDF)',
+    ['Paper Title', 'Authors', 'Conference', 'Period', 'Score', 'Proof'],
+    (sub.cat3ConferencesAttended ?? []).map((c: any) => [
+      c.paperTitle, c.authors, c.conferenceName, c.period, PER_ENTRY.conferencesAttended, proofCell(c.proofFile),
+    ])
   )}
-  ${listTable('Differentiators',
-    ['Name', 'Role'],
-    (sub.cat5Differentiators ?? []).map((d: any) => [d.name, DIFFERENTIATOR_ROLE_LABEL[d.role] ?? d.role])
+  ${listTable('3.3 Resource Person in Conferences / FDPs / Workshops / Guest Lectures etc.',
+    ['Type of the Program', 'Name of the Program', 'Lecture Topic', 'Duration', 'Venue', 'Organized By', 'Score', 'Proof'],
+    (sub.cat3ResourcePerson ?? []).map((r: any) => [
+      r.programType, r.programName, r.topic, r.duration, r.venue, r.organisedBy, PER_ENTRY.resourcePerson, proofCell(r.proofFile),
+    ])
   )}
-  ${listTable('Internships Coordinated',
-    ['Industry/Institute', 'Batch', 'Details', 'Period'],
-    (sub.cat5Internships ?? []).map((i: any) => [i.industryOrInst, i.studentBatch, i.internshipDetails, i.period])
+  ${listTable('3.4 Editorial Boards / Organising Committees / Reviewer Roles',
+    ['Nature of Contribution', 'Organization / Journal / Conference', 'National / International', 'Date / Duration', 'Score', 'Proof'],
+    (sub.cat3Editorial ?? []).map((e: any) => [
+      e.natureOfContrib, e.orgOrJournal, scopeLabel(e.scope), e.dateDuration, PER_ENTRY.editorial, proofCell(e.proofFile),
+    ])
+  )}
+  ${listTable('3.5 Training Programs Attended',
+    ['Name of the Programme', 'Period', 'Duration (days)', 'Basis', 'Score', 'Proof'],
+    (sub.cat3Training ?? []).map((t: any) => {
+      const r = trainingRowScore(t);
+      return [t.name, t.period, t.durationDays, r.reason, r.score, proofCell(t.proofFile)];
+    })
+  )}
+  ${listTable('3.6 International Travel / Exposure',
+    ['Purpose of Travel', 'Place of Visit / University', 'Outcome', 'Funding', 'Score', 'Proof'],
+    (sub.cat3IntlTravel ?? []).map((t: any) => [
+      t.purpose, t.placeOrUniv, t.outcome, t.fundingSource || '—', PER_ENTRY.intlTravel, proofCell(t.proofFile),
+    ])
+  )}
+
+  <h2>Cat 4 — Governance &amp; Administration</h2>
+  ${listTable('4.1 Contribution to Management of the Department and Institution',
+    ['Academic / Administrative Responsibility', 'Institute / Department', 'Work Involved', 'Period', 'Score', 'Proof'],
+    (sub.cat4AdminResp ?? []).map((a: any) => [
+      a.responsibility, a.level, a.workInvolved, a.period, PER_ENTRY.adminResp, proofCell(a.proofFile),
+    ])
+  )}
+  ${listTable('4.2 Student-related Co-curricular, Extra-curricular, Extension and Outreach Activities',
+    ['Activity', 'Period', 'Score', 'Proof'],
+    (sub.cat4StudentAct ?? []).map((s: any) => [s.activityName, s.period, PER_ENTRY.studentActivities, proofCell(s.proofFile)])
+  )}
+
+  <h2>Cat 5 — Supplementary Process</h2>
+  ${listTable('5.1 Membership in Professional Bodies',
+    ['Name of the Association / Organization', 'Status', 'Score', 'Proof'],
+    (sub.cat5Memberships ?? []).map((m: any) => {
+      const r = membershipRowScore(m);
+      return [m.association, r.reason, r.score, proofCell(m.proofFile)];
+    })
+  )}
+  ${listTable('5.2 Awards / Rewards, Honors and Recognitions',
+    ['Type of Award', 'Organization', 'Level', 'Score', 'Proof'],
+    (sub.cat5Awards ?? []).map((a: any) => {
+      const r = awardRowScore(a);
+      return [a.awardType, a.organization, r.reason, r.score, proofCell(a.proofFile)];
+    })
+  )}
+  ${listTable('5.3 Participation / Leading the VNR VJIET Differentiators',
+    ['Differentiator', 'Participation / Leading / Initiating', 'Score', 'Proof'],
+    (sub.cat5Differentiators ?? []).map((d: any) => {
+      const r = differentiatorRowScore(d);
+      return [d.name, r.reason, r.score, proofCell(d.proofFile)];
+    })
+  )}
+  ${listTable('5.4 Internships Arranged for Students in Industries / Institutes',
+    ['Industry / Institute', 'Student Batch', 'Internship Details', 'Period', 'Score', 'Proof'],
+    (sub.cat5Internships ?? []).map((i: any) => [
+      i.industryOrInst, i.studentBatch, i.internshipDetails, i.period, PER_ENTRY.internships, proofCell(i.proofFile),
+    ])
   )}
 
   <div class="sig-grid">

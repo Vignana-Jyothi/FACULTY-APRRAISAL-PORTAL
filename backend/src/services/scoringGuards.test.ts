@@ -55,13 +55,47 @@ describe('3.5 training — the PDF grants 5 only from a minimum of 5 days', () =
 
 describe('2.6 consultancy — a row with no amount is not a project', () => {
   it('scores nothing for a zero amount (was 2)', () => {
-    expect(score({ cat2Consultancy: [{ amountLakhs: 0 }] }).cat2.consultancy).toBe(0);
+    expect(score({ cat2Consultancy: [{ name: 'Advisory', amountLakhs: 0 }] }).cat2.consultancy).toBe(0);
   });
 
-  it('still scores the PDF bands', () => {
-    expect(score({ cat2Consultancy: [{ amountLakhs: 0.5 }] }).cat2.consultancy).toBe(2);
-    expect(score({ cat2Consultancy: [{ amountLakhs: 10 }] }).cat2.consultancy).toBe(8);
-    expect(score({ cat2Consultancy: [{ amountLakhs: 10.5 }] }).cat2.consultancy).toBe(10);
+  it('scores nothing without a project name — an agency-only row kept by the blank-row filter used to score', () => {
+    expect(score({ cat2Consultancy: [{ agency: 'ABC Corp', amountLakhs: 6 }] }).cat2.consultancy).toBe(0);
+  });
+
+  it('keeps each band\'s upper edge (owner decision 2026-09-13)', () => {
+    const at = (amountLakhs: number) => score({ cat2Consultancy: [{ name: 'Advisory', amountLakhs }] }).cat2.consultancy;
+    expect(at(0.5)).toBe(2);
+    expect(at(1)).toBe(2); // was 4
+    expect(at(1.5)).toBe(4);
+    expect(at(2)).toBe(4); // was 6
+    expect(at(5)).toBe(6); // was 8
+    expect(at(7)).toBe(8);
+    expect(at(10)).toBe(8);
+    expect(at(10.5)).toBe(10);
+  });
+});
+
+describe('2.8 / 2.9 / 2.10 — an entry scores only with a tangible outcome', () => {
+  it('scores nothing for a blank outcome (was 5 each)', () => {
+    const s = score({
+      cat2ResearchGroups: [{ groupName: 'AI Group', outcome: '' }],
+      cat2Linkages: [{ instituteName: 'IIT H', outcome: '   ' }],
+      cat2IndustryLinkages: [{ industryName: 'TCS', outcome: null }],
+      cat2Startups: [{ groupName: 'E-Cell' }],
+    }).cat2;
+    expect([s.researchGroups, s.linkages, s.startups]).toEqual([0, 0, 0]);
+  });
+
+  it('scores 5 per entry with an outcome, within each cap', () => {
+    const s = score({
+      cat2ResearchGroups: [{ groupName: 'AI Group', outcome: '2 papers' }, { groupName: 'IoT Group', outcome: 'Lab' }],
+      cat2Linkages: [{ instituteName: 'IIT H', outcome: 'Joint paper' }],
+      cat2IndustryLinkages: [{ industryName: 'TCS', outcome: '' }, { industryName: 'Infosys', outcome: 'Shared lab' }],
+      cat2Startups: [{ groupName: 'E-Cell', outcome: '1 startup' }],
+    }).cat2;
+    expect(s.researchGroups).toBe(5); // 2 x 5, capped at 5
+    expect(s.linkages).toBe(10); // two with an outcome; the blank one scores 0
+    expect(s.startups).toBe(5);
   });
 });
 

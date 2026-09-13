@@ -206,8 +206,8 @@ describe('Category 2 — Research', () => {
 
   it('2.9 institute + industry linkages share one cap of 10', () => {
     const s = computeScore(emptySubmission({
-      cat2Linkages: [{}],
-      cat2IndustryLinkages: [{}, {}],
+      cat2Linkages: [{ instituteName: 'IIT H', outcome: 'Joint paper' }],
+      cat2IndustryLinkages: [{ industryName: 'TCS', outcome: 'Student projects' }, { industryName: 'Infosys', outcome: 'Shared lab' }],
     }));
     expect(s.cat2.linkages).toBe(10); // 3 x 5 = 15, capped at 10
     expect((s.cat2 as any).industryLinkages).toBeUndefined();
@@ -221,15 +221,20 @@ describe('Category 2 — Research', () => {
   });
 
   it('2.10 start-ups: 5 each, capped 5', () => {
-    const s = computeScore(emptySubmission({ cat2Startups: [{}, {}] }));
+    const s = computeScore(emptySubmission({
+      cat2Startups: [{ groupName: 'E-Cell', outcome: 'Pitch day' }, { groupName: 'Hack club', outcome: 'Prototype' }],
+    }));
     expect(s.cat2.startups).toBe(5);
   });
 
-  it('2.6 consultancy: exactly 10 lakhs is the 5-10 band (8), above 10 scores 10', () => {
-    const at10 = computeScore(emptySubmission({ cat2Consultancy: [{ amountLakhs: 10 }] }));
-    expect(at10.cat2.consultancy).toBe(8);
-    const above = computeScore(emptySubmission({ cat2Consultancy: [{ amountLakhs: 10.5 }] }));
-    expect(above.cat2.consultancy).toBe(10);
+  it('2.6 consultancy: each band keeps its upper edge — 1L 2, 2L 4, 5L 6, 10L 8, above 10L 10', () => {
+    const at = (amountLakhs: number) =>
+      computeScore(emptySubmission({ cat2Consultancy: [{ name: 'Advisory', agency: 'ABC', amountLakhs }] })).cat2.consultancy;
+    expect(at(1)).toBe(2);
+    expect(at(2)).toBe(4);
+    expect(at(5)).toBe(6);
+    expect(at(10)).toBe(8);
+    expect(at(10.5)).toBe(10);
   });
 });
 
@@ -431,10 +436,14 @@ describe('sample appraisal — form alignment', () => {
     // 2.4 — 1 published patent -> 5 (published tier, not granted). Titled: since
     // 2026-09-11 an untitled row scores 0, as a blank-row placeholder would.
     cat2Patents: [{ title: 'Published patent', status: 'PUBLISHED' }],
-    // 2.8 -> 5, 2.9 institute + industry linkages (2 + 3 = 5 x 5 = 25) -> capped 10
-    cat2ResearchGroups: [{}],
-    cat2Linkages: [{}, {}],
-    cat2IndustryLinkages: [{}, {}, {}],
+    // 2.8 -> 5, 2.9 institute + industry linkages (2 + 3 = 5 x 5 = 25) -> capped 10.
+    // Each entry is given a name and an outcome here: without an outcome an
+    // entry scores nothing (owner decision 2026-09-13).
+    cat2ResearchGroups: [{ groupName: 'AI Group', outcome: 'Papers' }],
+    cat2Linkages: [{ instituteName: 'Inst A', outcome: 'MoU' }, { instituteName: 'Inst B', outcome: 'Joint project' }],
+    cat2IndustryLinkages: [
+      { industryName: 'Ind A', outcome: 'Internships' }, { industryName: 'Ind B', outcome: 'Lab' }, { industryName: 'Ind C', outcome: 'Talks' },
+    ],
     // 3.2 -> 20, 3.3 conferences (2) -> 20, 3.3 resourcePerson (1) -> 10,
     // 3.4 editorial (1) -> 10, 3.5 (10+5+5+5)=25  → cat3 = 85
     cat3Organised: [{}, {}],

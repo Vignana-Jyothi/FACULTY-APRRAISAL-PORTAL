@@ -32,17 +32,21 @@ export const PROOF_SOURCES: Source[] = [
   { key: 'cat2Startups', section: '2.10 Innovation / Start-ups', title: (r) => r.groupName, fields: [['proofFile', 'Proof']] },
   { key: 'cat3AdvQual', section: '3.1 Status of Ph.D.', title: () => 'Status of Ph.D.', fields: [['proofFile', 'Proof']] },
   { key: 'cat3Organised', section: '3.2 Organised Programs', title: (r) => r.title, fields: [['proofFile', 'Proof']] },
-  { key: 'cat3ConferencesAttended', section: '3.3 Conferences Attended', title: (r) => r.paperTitle || r.conferenceName, fields: [['proofFile', 'Proof']] },
-  { key: 'cat3ResourcePerson', section: '3 Resource Person', title: (r) => r.programName || r.topic, fields: [['proofFile', 'Proof']] },
-  { key: 'cat3Editorial', section: '3 Editorial', title: (r) => r.orgOrJournal, fields: [['proofFile', 'Proof']] },
-  { key: 'cat3IntlTravel', section: '3 International Travel', title: (r) => r.purpose || r.placeOrUniv, fields: [['proofFile', 'Proof']] },
-  { key: 'cat4AdminResp', section: '4 Administrative Responsibility', title: (r) => r.responsibility, fields: [['proofFile', 'Proof']] },
-  { key: 'cat4StudentAct', section: '4 Student Activity', title: (r) => r.activityName, fields: [['proofFile', 'Proof']] },
-  { key: 'cat5Memberships', section: '5 Professional Membership', title: (r) => r.association, fields: [['proofFile', 'Proof']] },
-  { key: 'cat5Differentiators', section: '5 Differentiator', title: (r) => r.name, fields: [['proofFile', 'Proof']] },
-  { key: 'cat5Internships', section: '5 Internship', title: (r) => r.industryOrInst || r.internshipDetails, fields: [['proofFile', 'Proof']] },
-  { key: 'cat3Training', section: '3 Training', title: (r) => r.name, fields: [['proofFile', 'Proof']] },
-  { key: 'cat5Awards', section: '5 Awards', title: (r) => r.awardType, fields: [['proofFile', 'Proof']] },
+  // Conferences Attended is a local addition with no PDF number, so it carries
+  // none. A relabel reaches rows already stored on the next sync
+  // (syncProofVerifications rewrites the section), so only a REJECTED row
+  // awaiting the deadline sweep can be caught out by it.
+  { key: 'cat3ConferencesAttended', section: 'Conferences Attended (Cat 3)', title: (r) => r.paperTitle || r.conferenceName, fields: [['proofFile', 'Proof']] },
+  { key: 'cat3ResourcePerson', section: '3.3 Resource Person', title: (r) => r.programName || r.topic, fields: [['proofFile', 'Proof']] },
+  { key: 'cat3Editorial', section: '3.4 Editorial / Review Roles', title: (r) => r.orgOrJournal, fields: [['proofFile', 'Proof']] },
+  { key: 'cat3IntlTravel', section: '3.6 International Travel', title: (r) => r.purpose || r.placeOrUniv, fields: [['proofFile', 'Proof']] },
+  { key: 'cat4AdminResp', section: '4.1 Administrative Responsibilities', title: (r) => r.responsibility, fields: [['proofFile', 'Proof']] },
+  { key: 'cat4StudentAct', section: '4.2 Student Activities', title: (r) => r.activityName, fields: [['proofFile', 'Proof']] },
+  { key: 'cat5Memberships', section: '5.1 Professional Memberships', title: (r) => r.association, fields: [['proofFile', 'Proof']] },
+  { key: 'cat5Differentiators', section: '5.3 Differentiators', title: (r) => r.name, fields: [['proofFile', 'Proof']] },
+  { key: 'cat5Internships', section: '5.4 Internships', title: (r) => r.industryOrInst || r.internshipDetails, fields: [['proofFile', 'Proof']] },
+  { key: 'cat3Training', section: '3.5 Training Attended', title: (r) => r.name, fields: [['proofFile', 'Proof']] },
+  { key: 'cat5Awards', section: '5.2 Awards', title: (r) => r.awardType, fields: [['proofFile', 'Proof']] },
 ];
 
 // Relations needed to enumerate proofs.
