@@ -33,14 +33,14 @@ export function currentQuarter(date: Date = new Date()): Quarter {
  */
 export function buildQuarterlyPayload(sub: any, row: TrackingRow, yearLabel: string, quarter: Quarter) {
   const score = computeScore(sub);
+  // The payload is stored on the EmailNotification row and re-rendered on a
+  // retry, so it carries only what the faculty may see. No cadre, tier or
+  // eligibility, and not the tracking engine's requirement rows: their total
+  // "actual" is the reviewer's /550 grand total once a review exists.
   return {
     name: row.faculty.name,
     year: yearLabel,
     quarter,
-    cadre: row.cadreLabel ?? 'Unknown',
-    tier: row.tier ?? '—',
-    eligible: row.eligibility.eligible,
-    requirements: row.eligibility.requirements.map((r) => ({ label: r.label, target: r.target, actual: r.actual, met: r.met })),
     // Cat 1-5 self-assessed score vs half of each category's maximum.
     categories: categoryRemarks(score),
     // Each target: required, current, what is left, plus a summary. Measured
