@@ -103,7 +103,7 @@ describe('own appraisal — staff viewing their own submission', () => {
       const mkHod = async (code: string, name: string) => {
         const u = await prisma.user.create({
           data: {
-            employeeCode: code, name, email: `${code.toLowerCase()}@college.edu`,
+            employeeCode: code, name, email: `${code.toLowerCase()}@fixture.invalid`,
             passwordHash: hash, departmentId: dept.id, designation: 'Professor',
             dateOfJoining: new Date('2010-07-01'),
           },

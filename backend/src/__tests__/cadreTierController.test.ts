@@ -2,12 +2,16 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { RoleType } from '@prisma/client';
 import app from '../app';
+import prisma from '../utils/prismaClient';
 import { createFixture, type Fixture } from './helpers/fixtures';
 
 // W7 — per-cadre tier threshold endpoints (admin only). Real app + DB.
 // Self-skips if the DB is unreachable — and the fixture guard then fails.
-// Its own dean and faculty: logging in as ADMIN001 / FAC21 left LOGIN audit
-// rows behind, and with FAC21 gone the suite skipped itself while passing.
+//
+// Everything is the suite's own: a dean, a faculty, and a throwaway academic
+// year carrying one cadre target. It used to work on the OPEN year and "restore"
+// by deleting every cadre-tier cell in it — real configuration included — and
+// logged in as ADMIN001 / FAC21. Deleting the year cascades its cells and target.
 
 const bearer = (t: string) => ({ Authorization: `Bearer ${t}` });
 
@@ -21,11 +25,6 @@ async function listCells() {
   const res = await request(app).get(`/api/admin/cadre-tiers?academicYearId=${yearId}`).set(bearer(adminTok));
   return res.body as Array<{ id: string; cadre: string; tier: string; criteria: any }>;
 }
-async function deleteAllCells() {
-  for (const c of await listCells()) {
-    await request(app).delete(`/api/admin/cadre-tiers/${c.id}`).set(bearer(adminTok));
-  }
-}
 
 beforeAll(async () => {
   try {
@@ -33,16 +32,26 @@ beforeAll(async () => {
     adminTok = (await fixture.addUser({ name: 'ADM', role: RoleType.ADMIN })).token;
     facTok = (await fixture.addUser({ name: 'FAC' })).token;
     if (!adminTok || !facTok) return;
-    const years = await request(app).get('/api/academic-years').set(bearer(adminTok));
-    const open = years.body.find((y: any) => y.submissionOpen) ?? years.body[0];
-    yearId = open?.id ?? '';
-    ready = !!yearId;
+    const year = await prisma.academicYear.create({
+      data: { label: `W7-TEST-${Date.now()}`, startDate: new Date('2098-07-01'), endDate: new Date('2099-06-30'), submissionOpen: false },
+    });
+    yearId = year.id;
+    // One target, so seed-defaults has exactly one cadre to seed.
+    await prisma.cadreTarget.create({
+      data: {
+        academicYearId: year.id, cadre: 'PROFESSOR', minExpYears: 0, maxExpYears: null,
+        totalScoreTarget: 375, feedbackTarget: 3.5, indexedCount: 2, minJournal: 1,
+        quartileSet: null, ppcRule: 'MANDATORY', ppcCount: 1,
+      },
+    });
+    ready = true;
   } catch {
     ready = false;
   }
 });
 
 afterAll(async () => {
+  if (yearId) await prisma.academicYear.delete({ where: { id: yearId } }).catch(() => {});
   await fixture?.destroy();
 });
 
@@ -139,32 +148,24 @@ describe('W7 cadre-tiers upsert', () => {
 });
 
 describe('W7 seed-defaults → tracking', () => {
-  it('seeds cadre×tier cells from targets, then cleans up', async () => {
+  it('seeds cadre×tier cells from targets', async () => {
     if (!ready) return;
-    const before = await listCells();
+    expect(await listCells()).toHaveLength(0);
 
     const seed = await request(app)
       .post('/api/admin/cadre-tiers/seed-defaults')
       .set(bearer(adminTok))
       .send({ academicYearId: yearId });
     expect(seed.status).toBe(201);
-    expect(Array.isArray(seed.body.rows)).toBe(true);
-    expect(Array.isArray(seed.body.seededCadres)).toBe(true);
+    // The throwaway year has one target (PROFESSOR), so exactly one cadre seeds.
+    expect(seed.body.seededCadres).toEqual(['PROFESSOR']);
 
-    if (seed.body.seededCadres.length > 0) {
-      // Each seeded cadre gets 3 tier cells; defaults enable totalScore.
-      const cells = await listCells();
-      expect(cells.length).toBe(seed.body.seededCadres.length * 3);
-      const sample = cells[0];
-      expect(sample.criteria.totalScore.enabled).toBe(true);
-      // NOTE: thresholds no longer drive tracking — tiers are assigned manually
-      // (PUT /admin/faculty-tiers). This test only covers the threshold endpoints.
-    }
-
-    // Restore prior state (the table started empty in dev) to avoid leaking config.
-    await deleteAllCells();
-    if (before.length === 0) {
-      expect((await listCells()).length).toBe(0);
-    }
+    // Each seeded cadre gets 3 tier cells; defaults enable totalScore.
+    const cells = await listCells();
+    expect(cells.map((c) => c.tier).sort()).toEqual(['T1', 'T2', 'T3']);
+    expect(cells[0].criteria.totalScore.enabled).toBe(true);
+    // NOTE: thresholds no longer drive tracking — tiers are assigned manually
+    // (PUT /admin/faculty-tiers). This test only covers the threshold endpoints.
+    // No clean-up here: deleting the throwaway year in afterAll removes them.
   });
 });

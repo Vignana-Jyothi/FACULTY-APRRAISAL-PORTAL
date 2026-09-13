@@ -182,7 +182,13 @@ function sameLocalDay(a: Date, b: Date): boolean {
 
 // W8 — fire the quarterly automation for any enabled review window whose end
 // date is `at`'s day and that hasn't already run today. Called by the daily cron.
-export async function runDueReviewWindows(at: Date = new Date()) {
+export async function runDueReviewWindows(
+  at: Date = new Date(),
+  // Tests pass their own throwaway year. Unscoped, a test run fired every real
+  // window ending that day — a snapshot and a mail to every opted-in faculty.
+  // The daily job passes no scope.
+  scope?: { academicYearIds?: string[] },
+) {
   // Kill switch. This job mails every opted-in faculty the moment a window's end
   // date arrives, with nobody present to confirm it — unlike the admin button,
   // which is a dry run until confirmed. Default is unchanged (it runs), but an
@@ -192,7 +198,9 @@ export async function runDueReviewWindows(at: Date = new Date()) {
     return { windows: 0, faculty: 0, skipped: true as const };
   }
 
-  const windows = await prisma.reviewWindow.findMany({ where: { enabled: true } });
+  const windows = await prisma.reviewWindow.findMany({
+    where: { enabled: true, ...(scope?.academicYearIds ? { academicYearId: { in: scope.academicYearIds } } : {}) },
+  });
   const due = windows.filter(
     (w) => sameLocalDay(new Date(w.endDate), at) && (!w.lastRunAt || !sameLocalDay(new Date(w.lastRunAt), at))
   );

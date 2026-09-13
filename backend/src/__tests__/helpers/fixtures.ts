@@ -77,7 +77,9 @@ export async function createFixture(tag: string): Promise<Fixture> {
         data: {
           employeeCode,
           name: `${tag} ${opts.name}`,
-          email: `${employeeCode.toLowerCase()}@college.edu`,
+          // A reserved, undeliverable domain (RFC 2606): the running backend's
+          // mail worker polls every 30s and skips these rather than sending.
+          email: `${employeeCode.toLowerCase()}@fixture.invalid`,
           passwordHash,
           departmentId: opts.deptId ?? dept.id,
           designation: opts.designation ?? 'Assistant Professor',

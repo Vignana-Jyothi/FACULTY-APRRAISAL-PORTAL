@@ -103,6 +103,20 @@ function redactPayload(_template: string, payload: unknown): any {
   return out;
 }
 
+// Names reserved by RFC 2606 / 6761 never deliver. The test suites give their
+// throwaway users such addresses, and the worker — which runs inside the dev
+// backend and polls every 30s, faster than a suite tears down — used to hand
+// their mail to SMTP. It now marks those rows failed without sending.
+const RESERVED_TLDS = ['invalid', 'test', 'example', 'localhost'];
+const RESERVED_DOMAINS = ['example.com', 'example.org', 'example.net'];
+
+export function isUndeliverableAddress(email: string | null | undefined): boolean {
+  const domain = String(email ?? '').trim().toLowerCase().split('@')[1] ?? '';
+  if (!domain) return true;
+  const tld = domain.split('.').pop() ?? '';
+  return RESERVED_TLDS.includes(tld) || RESERVED_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`));
+}
+
 /**
  * Actually send an email via SMTP. Called by worker.
  */
@@ -110,6 +124,20 @@ export async function sendEmail(notificationId: string): Promise<void> {
   const row = await prisma.emailNotification.findUnique({ where: { id: notificationId } });
   if (!row) throw new Error(`EmailNotification ${notificationId} not found`);
   if (row.status === EmailStatus.SENT) return;
+
+  if (isUndeliverableAddress(row.toEmail)) {
+    await prisma.emailNotification.update({
+      where: { id: row.id },
+      data: {
+        status: EmailStatus.FAILED,
+        attempts: 3,
+        error: 'Reserved or undeliverable address — not sent',
+        payload: redactPayload(row.template, row.payload),
+      },
+    });
+    console.log(`[email] Skipped ${row.template} to ${row.toEmail} — reserved/undeliverable address`);
+    return;
+  }
 
   if (DISABLED) {
     console.log(`[email:DISABLED] would send ${row.template} to ${row.toEmail} — ${row.subject}`);

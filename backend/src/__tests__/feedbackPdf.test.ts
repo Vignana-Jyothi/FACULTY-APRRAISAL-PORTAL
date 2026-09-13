@@ -25,7 +25,7 @@ const userIds: string[] = [];
 async function makeUser(code: string, name: string, departmentId: string) {
   const u = await prisma.user.create({
     data: {
-      employeeCode: code, name, email: `${code.toLowerCase()}@college.edu`,
+      employeeCode: code, name, email: `${code.toLowerCase()}@fixture.invalid`,
       passwordHash: await bcrypt.hash(PW, 10), departmentId,
       designation: 'Assistant Professor', dateOfJoining: new Date('2018-07-01'),
     },

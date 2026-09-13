@@ -118,7 +118,7 @@ describe('W8 automation fires on the window end date', () => {
       data: { academicYearId: yr.id, quarter: 'Q1', startDate: new Date(today.getTime() - 6 * 864e5), endDate: today, enabled: true },
     });
 
-    const first = await runDueReviewWindows(today);
+    const first = await runDueReviewWindows(today, { academicYearIds: [yr.id] });
     expect(first.windows).toBeGreaterThanOrEqual(1);
     expect(first.faculty).toBe(0); // throwaway year has no faculty submissions
 
@@ -126,7 +126,7 @@ describe('W8 automation fires on the window end date', () => {
     const w = await prisma.reviewWindow.findFirst({ where: { academicYearId: yr.id } });
     expect(w?.lastRunAt).toBeTruthy();
 
-    const second = await runDueReviewWindows(today);
+    const second = await runDueReviewWindows(today, { academicYearIds: [yr.id] });
     // Our throwaway window must not fire again today.
     const stillDue = await prisma.reviewWindow.findFirst({ where: { academicYearId: yr.id } });
     expect(second.windows).toBeLessThan(first.windows + 1);
@@ -139,7 +139,7 @@ describe('W8 automation fires on the window end date', () => {
       where: { academicYearId: throwawayYearId },
       data: { endDate: new Date('2099-01-01'), lastRunAt: null },
     });
-    const res = await runDueReviewWindows(new Date());
+    const res = await runDueReviewWindows(new Date(), { academicYearIds: [throwawayYearId] });
     // No assertion on global count (other data may exist); just confirm our window did not run.
     const w = await prisma.reviewWindow.findFirst({ where: { academicYearId: throwawayYearId } });
     expect(w?.lastRunAt).toBeNull();

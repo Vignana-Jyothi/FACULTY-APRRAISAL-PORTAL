@@ -46,7 +46,7 @@ beforeAll(async () => {
       data: {
         employeeCode: `DEPTTEST${stamp}`,
         name: 'Dept Flag Fixture',
-        email: `dept.flag.${stamp}@college.edu`,
+        email: `dept.flag.${stamp}@fixture.invalid`,
         passwordHash: await bcrypt.hash(PW, 10),
         departmentId: live.id,
       },
