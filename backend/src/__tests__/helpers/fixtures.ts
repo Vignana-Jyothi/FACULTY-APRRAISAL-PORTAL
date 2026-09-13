@@ -155,6 +155,15 @@ export async function createFixture(tag: string): Promise<Fixture> {
         await prisma.auditLog.deleteMany({ where: { entityType: 'User', entityId: u.id } });
         await prisma.emailNotification.deleteMany({ where: { toUserId: u.id } });
         await prisma.passwordOtp.deleteMany({ where: { userId: u.id } });
+        // No foreign key to User, so these would outlive the user as orphans.
+        await prisma.facultyTier.deleteMany({ where: { userId: u.id } });
+        // ROLE_ASSIGNED / ROLE_REVOKED rows point at the UserRole, not the
+        // user, and are written by the admin — nothing above removes them, and
+        // every run used to leave one behind.
+        const roleIds = (await prisma.userRole.findMany({ where: { userId: u.id }, select: { id: true } })).map((r) => r.id);
+        if (roleIds.length) {
+          await prisma.auditLog.deleteMany({ where: { entityType: 'UserRole', entityId: { in: roleIds } } });
+        }
         await prisma.userRole.deleteMany({ where: { userId: u.id } });
         await prisma.user.deleteMany({ where: { id: u.id } });
       }

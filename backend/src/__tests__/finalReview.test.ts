@@ -14,10 +14,6 @@ import { createFixture, type Fixture, type FixtureUser } from './helpers/fixture
 // seed account — FAC21 lost a real draft that way once.
 
 const bearer = (t: string) => ({ Authorization: `Bearer ${t}` });
-async function login(employeeCode: string, password: string): Promise<string> {
-  const res = await request(app).post('/api/auth/login').send({ employeeCode, password });
-  return res.status === 200 ? res.body.accessToken : '';
-}
 
 let ready = false;
 let fixture: Fixture | null = null;
@@ -26,11 +22,12 @@ let rev1Id = '', rev2Id = '', outsiderId = '', subId = '';
 
 beforeAll(async () => {
   try {
-    // The admin is a real seed account, used read-only to drive admin actions.
-    adminTok = await login('ADMIN001', process.env.SEED_ADMIN_PW ?? 'admin123');
+    fixture = await createFixture('FRV');
+    // A throwaway dean. Logging in as the seed ADMIN001 left a LOGIN audit row
+    // (and its admin actions' rows) behind on every run.
+    adminTok = (await fixture.addUser({ name: 'ADM', role: RoleType.ADMIN })).token;
     if (!adminTok) return;
 
-    fixture = await createFixture('FRV');
     const faculty = await fixture.addUser({ name: 'FAC' });
     const rev1 = await fixture.addUser({ name: 'RV1', role: RoleType.REVIEWER });
     const rev2 = await fixture.addUser({ name: 'RV2', role: RoleType.HOD, designation: 'Professor' });

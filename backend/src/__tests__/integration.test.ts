@@ -1,53 +1,32 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import { RoleType } from '@prisma/client';
 import app from '../app';
-import prisma from '../utils/prismaClient';
+import { createFixture, FIXTURE_PW, type Fixture, type FixtureUser } from './helpers/fixtures';
 
 // Integration tests hit the real Express app + DB.
-// If DB unreachable or seed users missing, the suite skips itself
-// (so CI without a database still passes `npm test`).
+// If the DB is unreachable the suite skips itself (so CI without a database
+// still passes `npm test`) — and the fixture guard below then fails, so a skip
+// never reads as a pass.
+//
+// Every account is the suite's own: a throwaway dean, faculty and HoD in a
+// private department. It used to log in as ADMIN001 and review as the seed
+// account FAC11, and each run left their LOGIN / REVIEW_APPROVED audit rows
+// and a password OTP mail behind.
 
 let dbReady = false;
-
-// The workflow test files a real appraisal, so it uses a throwaway faculty of
-// its own. It used to borrow the seed account FAC21 and delete every submission
-// that account held for the year — harmless while it pointed at an unused year,
-// but it would destroy a live faculty's current appraisal the moment it pointed
-// at the open one.
-const TEST_FACULTY = { code: 'ITEST_FAC', password: 'faculty123' };
-let testFacultyId = '';
-
-async function login(employeeCode: string, password: string): Promise<string | null> {
-  const res = await request(app).post('/api/auth/login').send({ employeeCode, password });
-  return res.status === 200 ? res.body.accessToken : null;
-}
+let fixture: Fixture | null = null;
+let admin: FixtureUser;
+let faculty: FixtureUser;
+let reviewer: FixtureUser;
 
 beforeAll(async () => {
   try {
-    const tok = await login('ADMIN001', 'admin123');
-    dbReady = !!tok;
-    if (!dbReady) console.warn('[integration] seed users missing — skipping. Run `npm run seed`.');
-
-    if (dbReady) {
-      const bcrypt = (await import('bcryptjs')).default;
-      const cse = await prisma.department.findFirst({ where: { isActive: true } });
-      const existing = await prisma.user.findUnique({ where: { employeeCode: TEST_FACULTY.code } });
-      const user = existing ?? await prisma.user.create({
-        data: {
-          employeeCode: TEST_FACULTY.code,
-          name: 'Integration Test Faculty',
-          email: 'integration.test@example.invalid',
-          passwordHash: await bcrypt.hash(TEST_FACULTY.password, 12),
-          departmentId: cse?.id ?? null,
-          designation: 'Assistant Professor',
-        },
-      });
-      testFacultyId = user.id;
-      const hasRole = await prisma.userRole.findFirst({ where: { userId: user.id, role: 'FACULTY' } });
-      if (!hasRole) {
-        await prisma.userRole.create({ data: { userId: user.id, role: 'FACULTY', assignedBy: user.id } });
-      }
-    }
+    fixture = await createFixture('ITG');
+    admin = await fixture.addUser({ name: 'ADM', role: RoleType.ADMIN });
+    faculty = await fixture.addUser({ name: 'FAC' });
+    reviewer = await fixture.addUser({ name: 'HOD', role: RoleType.HOD, designation: 'Professor' });
+    dbReady = Boolean(admin.token && faculty.token && reviewer.token);
   } catch (e) {
     console.warn('[integration] DB unreachable — skipping integration suite.');
     dbReady = false;
@@ -55,26 +34,25 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (!testFacultyId) return;
-  await prisma.appraisalReview.deleteMany({ where: { submission: { userId: testFacultyId } } });
-  await prisma.appraisalSubmission.deleteMany({ where: { userId: testFacultyId } });
-  await prisma.emailNotification.deleteMany({ where: { toUserId: testFacultyId } });
-  await prisma.userRole.deleteMany({ where: { userId: testFacultyId } });
-  // AuditLog.userId is RESTRICT, so these have to go before the user does.
-  await prisma.auditLog.deleteMany({ where: { userId: testFacultyId } });
-  await prisma.user.deleteMany({ where: { id: testFacultyId } });
+  await fixture?.destroy();
+});
+
+describe('Fixture', () => {
+  it('has a working fixture (guards against a vacuous pass)', () => {
+    expect(dbReady).toBe(true);
+  });
 });
 
 describe('Auth', () => {
   it('rejects bad credentials with 401', async () => {
     if (!dbReady) return;
-    const res = await request(app).post('/api/auth/login').send({ employeeCode: 'ADMIN001', password: 'wrong' });
+    const res = await request(app).post('/api/auth/login').send({ employeeCode: faculty.employeeCode, password: 'wrong' });
     expect(res.status).toBe(401);
   });
 
   it('valid admin login returns token + roles', async () => {
     if (!dbReady) return;
-    const res = await request(app).post('/api/auth/login').send({ employeeCode: 'ADMIN001', password: 'admin123' });
+    const res = await request(app).post('/api/auth/login').send({ employeeCode: admin.employeeCode, password: FIXTURE_PW });
     expect(res.status).toBe(200);
     expect(res.body.accessToken).toBeTruthy();
     expect(res.body.user.roles.some((r: any) => r.role === 'ADMIN')).toBe(true);
@@ -82,7 +60,7 @@ describe('Auth', () => {
 
   it('forgot-password returns generic message (no enumeration)', async () => {
     if (!dbReady) return;
-    const real = await request(app).post('/api/auth/forgot-password').send({ employeeCode: 'ADMIN001' });
+    const real = await request(app).post('/api/auth/forgot-password').send({ employeeCode: faculty.employeeCode });
     const fake = await request(app).post('/api/auth/forgot-password').send({ employeeCode: 'NOPE999' });
     expect(real.status).toBe(200);
     expect(fake.status).toBe(200);
@@ -99,16 +77,13 @@ describe('Authorization guards', () => {
 
   it('faculty hitting admin route → 403', async () => {
     if (!dbReady) return;
-    const facTok = await login(TEST_FACULTY.code, TEST_FACULTY.password);
-    if (!facTok) return;
-    const res = await request(app).get('/api/admin/users').set('Authorization', `Bearer ${facTok}`);
+    const res = await request(app).get('/api/admin/users').set('Authorization', `Bearer ${faculty.token}`);
     expect(res.status).toBe(403);
   });
 
   it('admin can list users', async () => {
     if (!dbReady) return;
-    const adminTok = await login('ADMIN001', 'admin123');
-    const res = await request(app).get('/api/admin/users').set('Authorization', `Bearer ${adminTok}`);
+    const res = await request(app).get('/api/admin/users').set('Authorization', `Bearer ${admin.token}`);
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
   });
@@ -118,19 +93,14 @@ describe('Full appraisal workflow', () => {
   it('create → fill → submit → review → approve → visibility rules', async () => {
     if (!dbReady) return;
 
-    const facTok = await login(TEST_FACULTY.code, TEST_FACULTY.password);
-    const revTok = await login('FAC11', 'faculty123'); // reviewer within their own department
-    if (!facTok || !revTok) return;
+    const facTok = faculty.token;
+    const revTok = reviewer.token; // HoD of the faculty's own department
 
-    // Pick an open academic year
-    const years = await request(app).get('/api/academic-years').set('Authorization', `Bearer ${facTok}`);
     // Whichever year is actually open — this used to hardcode '2025-26', which
     // broke the moment that year was closed. A closed year rejects the create.
-    const year = years.body.find((y: any) => y.submissionOpen) ?? years.body[0];
-    if (!year) return;
-
-    // Safe: this account exists only for this suite and is deleted afterwards.
-    await prisma.appraisalSubmission.deleteMany({ where: { userId: testFacultyId, academicYearId: year.id } });
+    const years = await request(app).get('/api/academic-years').set('Authorization', `Bearer ${facTok}`);
+    const year = years.body.find((y: any) => y.submissionOpen);
+    expect(year).toBeTruthy();
 
     // Create
     const created = await request(app)
@@ -139,6 +109,7 @@ describe('Full appraisal workflow', () => {
       .send({ academicYearId: year.id });
     expect(created.status).toBe(201);
     const subId = created.body.id;
+    fixture!.track(subId);
 
     // One-appraisal-per-year guard: a 2nd create while one is active → 400.
     const dup = await request(app)
@@ -168,42 +139,35 @@ describe('Full appraisal workflow', () => {
     expect(score.status).toBe(200);
     expect(score.body.cat2.total).toBeGreaterThanOrEqual(15);
 
-    // Submit (only if window open)
-    if (year.submissionOpen) {
-      const submitted = await request(app).post(`/api/appraisals/${subId}/submit`).set('Authorization', `Bearer ${facTok}`);
-      expect(submitted.status).toBe(200);
+    // Submit
+    const submitted = await request(app).post(`/api/appraisals/${subId}/submit`).set('Authorization', `Bearer ${facTok}`);
+    expect(submitted.status).toBe(200);
 
-      // Reviewer approves
-      const review = await request(app)
-        .post(`/api/appraisals/${subId}/review`)
-        .set('Authorization', `Bearer ${revTok}`)
-        .send({
-          cat6Punctuality: 9, cat6Professionalism: 9, cat6Willingness: 8, cat6Cordiality: 10, cat6Classroom: 9,
-          overallComment: 'Approved', status: 'APPROVED',
-        });
-      expect([200, 403]).toContain(review.status); // 403 if the reviewer is not scoped to this faculty's department
+    // The department's HoD approves
+    const review = await request(app)
+      .post(`/api/appraisals/${subId}/review`)
+      .set('Authorization', `Bearer ${revTok}`)
+      .send({
+        cat6Punctuality: 9, cat6Professionalism: 9, cat6Willingness: 8, cat6Cordiality: 10, cat6Classroom: 9,
+        overallComment: 'Approved', status: 'APPROVED',
+      });
+    expect(review.status).toBe(200);
 
-      if (review.status === 200) {
-        // Faculty visibility — scores must NOT leak
-        const facReview = await request(app).get(`/api/appraisals/${subId}/review`).set('Authorization', `Bearer ${facTok}`);
-        expect(facReview.status).toBe(200);
-        // The faculty's own score out of 500 is theirs to see, including the
-        // reviewer's per-category marks. What stays hidden is Category 6 and
-        // the /550 grand total — the reviewer's assessment of them.
-        expect(facReview.body.cat1Score).toBeTypeOf('number');
-        expect(facReview.body.totalScore).toBeTypeOf('number');
-        expect(facReview.body.grandTotal).toBeUndefined();
-        expect(facReview.body.cat6Punctuality).toBeUndefined();
-        expect(facReview.body.cat6Classroom).toBeUndefined();
-        expect(facReview.body.overallComment).toBe('Approved');
+    // Faculty visibility — scores must NOT leak
+    const facReview = await request(app).get(`/api/appraisals/${subId}/review`).set('Authorization', `Bearer ${facTok}`);
+    expect(facReview.status).toBe(200);
+    // The faculty's own score out of 500 is theirs to see, including the
+    // reviewer's per-category marks. What stays hidden is Category 6 and
+    // the /550 grand total — the reviewer's assessment of them.
+    expect(facReview.body.cat1Score).toBeTypeOf('number');
+    expect(facReview.body.totalScore).toBeTypeOf('number');
+    expect(facReview.body.grandTotal).toBeUndefined();
+    expect(facReview.body.cat6Punctuality).toBeUndefined();
+    expect(facReview.body.cat6Classroom).toBeUndefined();
+    expect(facReview.body.overallComment).toBe('Approved');
 
-        // Reviewer sees full scores
-        const revReview = await request(app).get(`/api/appraisals/${subId}/review`).set('Authorization', `Bearer ${revTok}`);
-        expect(revReview.body.grandTotal).toBeTypeOf('number');
-      }
-    }
-
-    // Cleanup
-    await prisma.appraisalSubmission.deleteMany({ where: { id: subId } }).catch(() => {});
+    // Reviewer sees full scores
+    const revReview = await request(app).get(`/api/appraisals/${subId}/review`).set('Authorization', `Bearer ${revTok}`);
+    expect(revReview.body.grandTotal).toBeTypeOf('number');
   });
 });

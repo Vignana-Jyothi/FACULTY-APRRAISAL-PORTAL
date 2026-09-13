@@ -15,9 +15,16 @@ import { SubmissionStatus } from '@prisma/client';
  * forgive the missing evidence: `redListed` remains true and the hold reason is
  * kept as the record of why the marks were cut.
  */
-export async function voidExpiredProofs(at: Date = new Date()) {
+export async function voidExpiredProofs(
+  at: Date = new Date(),
+  // Tests run against the shared database and pass a future `at`; without a
+  // scope they voided every held appraisal due before it — other suites' and,
+  // on a restored database, real faculty's. The daily job passes no scope.
+  scope?: { submissionIds?: string[] },
+) {
   const due = await prisma.appraisalSubmission.findMany({
     where: {
+      ...(scope?.submissionIds ? { id: { in: scope.submissionIds } } : {}),
       status: SubmissionStatus.HOLD,
       proofDeadlineAt: { not: null, lte: at },
       proofVerifications: { some: { status: 'REJECTED' } },

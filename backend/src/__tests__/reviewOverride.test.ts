@@ -15,16 +15,12 @@ import { createFixture, type Fixture, type FixtureUser } from './helpers/fixture
 
 const bearer = (t: string) => ({ Authorization: `Bearer ${t}` });
 
-// The admin is a real seed account, used read-only for admin-side actions —
-// nothing in this suite writes to it.
-async function login(employeeCode: string, password: string): Promise<string> {
-  const res = await request(app).post('/api/auth/login').send({ employeeCode, password });
-  return res.status === 200 ? res.body.accessToken : '';
-}
-
 let ready = false;
 let fixture: Fixture | null = null;
 let hodTok = '';
+// A throwaway dean. The seed ADMIN001 used to be logged in here, and every
+// login (and every admin action) leaves an audit row the fixture can't reach.
+let fixtureAdminTok = '';
 let faculty: FixtureUser;
 
 // A submission can only be approved once ("Already approved"), so each test
@@ -39,7 +35,8 @@ beforeAll(async () => {
     faculty = await fixture.addUser({ name: 'FAC' });
     const hod = await fixture.addUser({ name: 'HOD', role: RoleType.HOD, designation: 'Professor' });
     hodTok = hod.token;
-    ready = Boolean(hodTok && faculty.token);
+    fixtureAdminTok = (await fixture.addUser({ name: 'ADM', role: RoleType.ADMIN })).token;
+    ready = Boolean(hodTok && faculty.token && fixtureAdminTok);
   } catch {
     ready = false;
   }
@@ -83,7 +80,7 @@ describe('review score — reviewer marks for categories 1-5', () => {
   it('admin can reopen an approved appraisal so the marks can be corrected', async () => {
     if (!ready) return;
     const subId = await makeSubmission();
-    const adminTok = await login('ADMIN001', 'admin123');
+    const adminTok = fixtureAdminTok;
     if (!adminTok) return;
 
     // Approve with a wrong mark.
@@ -130,7 +127,7 @@ describe('review score — reviewer marks for categories 1-5', () => {
   it('does not re-email the faculty when a reopened appraisal is approved unchanged', async () => {
     if (!ready) return;
     const subId = await makeSubmission();
-    const adminTok = await login('ADMIN001', 'admin123');
+    const adminTok = fixtureAdminTok;
     if (!adminTok) return;
 
     const approve = () => request(app).post(`/api/appraisals/${subId}/review`)
@@ -198,7 +195,7 @@ describe('review score — reviewer marks for categories 1-5', () => {
   it('refuses to reopen a submission that was never decided', async () => {
     if (!ready) return;
     const subId = await makeSubmission();
-    const adminTok = await login('ADMIN001', 'admin123');
+    const adminTok = fixtureAdminTok;
     if (!adminTok) return;
 
     const res = await request(app).post(`/api/admin/appraisals/${subId}/reopen-review`)

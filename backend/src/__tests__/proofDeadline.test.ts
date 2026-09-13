@@ -81,13 +81,13 @@ describe('proof correction deadline', () => {
     expect(blocked.status).toBe(400);
 
     // Nothing is due yet.
-    await voidExpiredProofs(new Date(sub!.proofDeadlineAt!.getTime() - 60_000));
+    await voidExpiredProofs(new Date(sub!.proofDeadlineAt!.getTime() - 60_000), { submissionIds: [subId] });
     sub = await prisma.appraisalSubmission.findUnique({ where: { id: subId } });
     expect(sub!.voidedSources).toEqual([]);
     expect(sub!.status).toBe('HOLD');
 
     // Deadline passes.
-    await voidExpiredProofs(new Date(sub!.proofDeadlineAt!.getTime() + 60_000));
+    await voidExpiredProofs(new Date(sub!.proofDeadlineAt!.getTime() + 60_000), { submissionIds: [subId] });
     sub = await prisma.appraisalSubmission.findUnique({ where: { id: subId } });
     expect(sub!.voidedSources).toContain('cat2Journals');
     expect(sub!.status).toBe('SUBMITTED');

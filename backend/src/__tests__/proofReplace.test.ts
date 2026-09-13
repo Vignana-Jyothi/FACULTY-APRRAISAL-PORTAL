@@ -116,7 +116,7 @@ describe('replacing a rejected proof', () => {
 
     expect((await replace(faculty.token, GOOD, 'https://example.com/late.pdf')).status).toBe(400);
 
-    await voidExpiredProofs(new Date(past.getTime() + 1_000));
+    await voidExpiredProofs(new Date(past.getTime() + 1_000), { submissionIds: [subId] });
     const sub = await prisma.appraisalSubmission.findUnique({ where: { id: subId } });
     expect(sub!.voidedSources).toContain('cat2Journals');
     expect(sub!.redListed).toBe(true);

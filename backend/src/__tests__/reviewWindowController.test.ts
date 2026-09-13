@@ -2,20 +2,19 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import app from '../app';
 import prisma from '../utils/prismaClient';
+import { RoleType } from '@prisma/client';
 import { runDueReviewWindows } from '../cron/quarterlySnapshot';
+import { createFixture, type Fixture } from './helpers/fixtures';
 
 // W8 — admin review-window endpoints + the end-date automation trigger.
-// Self-skips if the DB is unreachable or admin login fails.
-const ADMIN = { code: 'ADMIN001', pw: 'admin123' };
-const FAC = { code: 'FAC21', pw: 'faculty123' };
+// Self-skips if the DB is unreachable — and the fixture guard then fails.
+// Its own dean and faculty: logging in as ADMIN001 / FAC21 left LOGIN audit
+// rows behind, and with FAC21 gone the suite skipped itself while passing.
 
-async function login(employeeCode: string, password: string): Promise<string | null> {
-  const res = await request(app).post('/api/auth/login').send({ employeeCode, password });
-  return res.status === 200 ? res.body.accessToken : null;
-}
 const bearer = (t: string) => ({ Authorization: `Bearer ${t}` });
 
 let ready = false;
+let fixture: Fixture | null = null;
 let adminTok = '';
 let facTok = '';
 let yearId = '';
@@ -23,8 +22,9 @@ let throwawayYearId = '';
 
 beforeAll(async () => {
   try {
-    adminTok = (await login(ADMIN.code, ADMIN.pw)) ?? '';
-    facTok = (await login(FAC.code, FAC.pw)) ?? '';
+    fixture = await createFixture('RWC');
+    adminTok = (await fixture.addUser({ name: 'ADM', role: RoleType.ADMIN })).token;
+    facTok = (await fixture.addUser({ name: 'FAC' })).token;
     if (!adminTok || !facTok) return;
     const years = await request(app).get('/api/academic-years').set(bearer(adminTok));
     yearId = (years.body.find((y: any) => y.submissionOpen) ?? years.body[0])?.id ?? '';
@@ -36,6 +36,13 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (throwawayYearId) await prisma.academicYear.delete({ where: { id: throwawayYearId } }).catch(() => {});
+  await fixture?.destroy();
+});
+
+describe('W8 fixture', () => {
+  it('has a working fixture (guards against a vacuous pass)', () => {
+    expect(ready).toBe(true);
+  });
 });
 
 describe('W8 review-window gating', () => {

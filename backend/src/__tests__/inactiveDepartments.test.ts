@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import bcrypt from 'bcryptjs';
+import { RoleType } from '@prisma/client';
 import app from '../app';
 import prisma from '../utils/prismaClient';
+import { createFixture, type Fixture } from './helpers/fixtures';
 
 // GET /departments hides inactive departments from every form and picker. That
 // also hid anything still attached to one: an incharge assigned before a
@@ -14,6 +16,7 @@ const bearer = (t: string) => ({ Authorization: `Bearer ${t}` });
 const PW = 'DeptTest@123';
 
 let ready = false;
+let fixture: Fixture | null = null;
 let adminTok = '';
 let facultyTok = '';
 let deadDeptId = '';
@@ -22,11 +25,11 @@ let userId = '';
 
 beforeAll(async () => {
   try {
-    const r = await request(app)
-      .post('/api/auth/login')
-      .send({ employeeCode: 'ADMIN001', password: process.env.SEED_ADMIN_PW ?? 'admin123' });
-    if (r.status !== 200) return;
-    adminTok = r.body.accessToken;
+    // A throwaway dean, not the seed ADMIN001: every login is audited, and so
+    // is each reactivation below — the fixture removes both with the admin.
+    fixture = await createFixture('IDP');
+    adminTok = (await fixture.addUser({ name: 'ADM', role: RoleType.ADMIN })).token;
+    if (!adminTok) return;
 
     const stamp = Date.now() % 100000;
     // Own both fixtures rather than borrowing a real department.
@@ -74,6 +77,7 @@ afterAll(async () => {
       await prisma.department.deleteMany({ where: { id } });
     }
   }
+  await fixture?.destroy();
 });
 
 const ids = (body: any[]) => body.map((d) => d.id);

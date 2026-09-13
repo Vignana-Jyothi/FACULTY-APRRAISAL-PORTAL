@@ -1,53 +1,58 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import { RoleType } from '@prisma/client';
 import app from '../app';
 import prisma from '../utils/prismaClient';
+import { createFixture, type Fixture, type FixtureUser } from './helpers/fixtures';
 
 // V2 workflow (W1–W6) endpoint tests — real Express app + DB.
 // Covers the controllers that were previously only smoke-tested by hand:
 // cadreTarget, verification/red-list, tracking, feedback, /reports/criteria.
 //
-// Self-skips if the DB is unreachable or the expected users are missing, so
-// `npm test` still passes on a machine without a seeded database.
-//
-// Verified working credentials (see memory/open-issues credential map):
-//   ADMIN001 / admin123        → ADMIN
-//   00CSE003 / Welcome@123     → HOD (CSE, real bulk-imported user)
-//   FAC21    / faculty123       → FACULTY (seed)
-const ADMIN = { code: 'ADMIN001', pw: 'admin123' };
-const HOD = { code: '00CSE003', pw: 'Welcome@123' };
-const FAC = { code: 'FAC21', pw: 'faculty123' };
+// Every account is the suite's own — a throwaway dean, a HoD and a faculty with
+// a draft in a private department. It used to log in as ADMIN001, the real HoD
+// 00CSE003 and seed FAC21: each run left their LOGIN audit rows behind, the
+// manual-tier cases wrote onto whichever real faculty sorted first, and with
+// those accounts absent the whole suite skipped itself and still reported green.
 
-async function login(employeeCode: string, password: string): Promise<string | null> {
-  const res = await request(app).post('/api/auth/login').send({ employeeCode, password });
-  return res.status === 200 ? res.body.accessToken : null;
-}
 const bearer = (t: string) => ({ Authorization: `Bearer ${t}` });
 
 let ready = false;
+let fixture: Fixture | null = null;
 let adminTok = '';
 let hodTok = '';
 let facTok = '';
+let faculty: FixtureUser;
 let openYearId = '';
 
 beforeAll(async () => {
   try {
-    adminTok = (await login(ADMIN.code, ADMIN.pw)) ?? '';
-    hodTok = (await login(HOD.code, HOD.pw)) ?? '';
-    facTok = (await login(FAC.code, FAC.pw)) ?? '';
-    if (!adminTok || !facTok) {
-      console.warn('[v2] admin/faculty login failed — skipping V2 suite.');
-      return;
-    }
+    fixture = await createFixture('V2C');
+    adminTok = (await fixture.addUser({ name: 'ADM', role: RoleType.ADMIN })).token;
+    hodTok = (await fixture.addUser({ name: 'HOD', role: RoleType.HOD, designation: 'Professor' })).token;
+    faculty = await fixture.addUser({ name: 'FAC' });
+    facTok = faculty.token;
+    if (!adminTok || !hodTok || !facTok) return;
+    // A draft in the open year, so the faculty has a row on /tracking.
+    await fixture.createSubmission(faculty);
     const years = await request(app).get('/api/academic-years').set(bearer(adminTok));
     const open = years.body.find((y: any) => y.submissionOpen) ?? years.body[0];
     openYearId = open?.id ?? '';
     ready = !!openYearId;
-    if (!hodTok) console.warn('[v2] HOD 00CSE003 login failed — HOD-scoped tests will be skipped.');
   } catch {
     console.warn('[v2] DB unreachable — skipping V2 suite.');
     ready = false;
   }
+});
+
+afterAll(async () => {
+  await fixture?.destroy();
+});
+
+describe('V2 fixture', () => {
+  it('has a working fixture (guards against a vacuous pass)', () => {
+    expect(ready).toBe(true);
+  });
 });
 
 // ─── Auth / role gating ────────────────────────────────────────────────────
@@ -189,7 +194,9 @@ describe('W3/W5 tracking', () => {
   it('admin sets a manual tier by hand and tracking reflects it', async () => {
     if (!ready) return;
     const track1 = await request(app).get(`/api/tracking?academicYearId=${openYearId}`).set(bearer(adminTok));
-    const row = track1.body.rows?.[0];
+    // The suite's own faculty — never a real one.
+    const row = track1.body.rows?.find((r: any) => r.faculty.id === faculty.id);
+    expect(row).toBeTruthy();
     if (!row) return; // no faculty in scope
     const userId = row.faculty.id;
 
@@ -212,7 +219,9 @@ describe('W3/W5 tracking', () => {
   it('admin sets eligibility by hand and tracking + aggregates reflect it', async () => {
     if (!ready) return;
     const track1 = await request(app).get(`/api/tracking?academicYearId=${openYearId}`).set(bearer(adminTok));
-    const row = track1.body.rows?.[0];
+    // The suite's own faculty — never a real one.
+    const row = track1.body.rows?.find((r: any) => r.faculty.id === faculty.id);
+    expect(row).toBeTruthy();
     if (!row) return;
     const userId = row.faculty.id;
 

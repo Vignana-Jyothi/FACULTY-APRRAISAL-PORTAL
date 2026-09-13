@@ -1,19 +1,18 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import { RoleType } from '@prisma/client';
 import app from '../app';
+import { createFixture, type Fixture } from './helpers/fixtures';
 
 // W7 — per-cadre tier threshold endpoints (admin only). Real app + DB.
-// Self-skips if the DB is unreachable or admin login fails.
-const ADMIN = { code: 'ADMIN001', pw: 'admin123' };
-const FAC = { code: 'FAC21', pw: 'faculty123' };
+// Self-skips if the DB is unreachable — and the fixture guard then fails.
+// Its own dean and faculty: logging in as ADMIN001 / FAC21 left LOGIN audit
+// rows behind, and with FAC21 gone the suite skipped itself while passing.
 
-async function login(employeeCode: string, password: string): Promise<string | null> {
-  const res = await request(app).post('/api/auth/login').send({ employeeCode, password });
-  return res.status === 200 ? res.body.accessToken : null;
-}
 const bearer = (t: string) => ({ Authorization: `Bearer ${t}` });
 
 let ready = false;
+let fixture: Fixture | null = null;
 let adminTok = '';
 let facTok = '';
 let yearId = '';
@@ -30,8 +29,9 @@ async function deleteAllCells() {
 
 beforeAll(async () => {
   try {
-    adminTok = (await login(ADMIN.code, ADMIN.pw)) ?? '';
-    facTok = (await login(FAC.code, FAC.pw)) ?? '';
+    fixture = await createFixture('CTC');
+    adminTok = (await fixture.addUser({ name: 'ADM', role: RoleType.ADMIN })).token;
+    facTok = (await fixture.addUser({ name: 'FAC' })).token;
     if (!adminTok || !facTok) return;
     const years = await request(app).get('/api/academic-years').set(bearer(adminTok));
     const open = years.body.find((y: any) => y.submissionOpen) ?? years.body[0];
@@ -40,6 +40,16 @@ beforeAll(async () => {
   } catch {
     ready = false;
   }
+});
+
+afterAll(async () => {
+  await fixture?.destroy();
+});
+
+describe('W7 fixture', () => {
+  it('has a working fixture (guards against a vacuous pass)', () => {
+    expect(ready).toBe(true);
+  });
 });
 
 describe('W7 cadre-tiers gating', () => {

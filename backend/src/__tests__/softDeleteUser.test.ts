@@ -22,13 +22,12 @@ let colleagueSubId = '';
 
 beforeAll(async () => {
   try {
-    const r = await request(app)
-      .post('/api/auth/login')
-      .send({ employeeCode: 'ADMIN001', password: process.env.SEED_ADMIN_PW ?? 'admin123' });
-    if (r.status !== 200) return;
-    adminTok = r.body.accessToken;
-
     fixture = await createFixture('SDL');
+    // A throwaway dean, not the seed ADMIN001 — every login is audited, and
+    // this suite's admin actions are audited too; the fixture takes them away.
+    adminTok = (await fixture.addUser({ name: 'ADM', role: RoleType.ADMIN })).token;
+    if (!adminTok) return;
+
     // The victim is a HoD, so the role stand-down is observable, and they have
     // both an appraisal of their own and a review they gave to someone else.
     victim = await fixture.addUser({ name: 'VIC', role: RoleType.HOD, designation: 'Professor' });
