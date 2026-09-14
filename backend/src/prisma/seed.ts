@@ -18,9 +18,12 @@ async function ensureRole(userId: string, role: RoleType, assignedBy: string, de
 //
 // Set these before seeding anything that is not a throwaway development box:
 //   SEED_ADMIN_PW=... SEED_HOD_PW=... SEED_FACULTY_PW=... npm run seed
-const SEED_ADMIN_PW = process.env.SEED_ADMIN_PW ?? 'admin123';
-const SEED_HOD_PW = process.env.SEED_HOD_PW ?? 'hod123';
-const SEED_FACULTY_PW = process.env.SEED_FACULTY_PW ?? 'faculty123';
+//
+// `||`, not `??`: a variable handed through empty (`-e SEED_ADMIN_PW=` or a
+// blank compose `${VAR}`) arrives as "", which `??` would hash as the password.
+const SEED_ADMIN_PW = process.env.SEED_ADMIN_PW || 'admin123';
+const SEED_HOD_PW = process.env.SEED_HOD_PW || 'hod123';
+const SEED_FACULTY_PW = process.env.SEED_FACULTY_PW || 'faculty123';
 
 // Employee codes this seed owns. Anything else in the users table came from a
 // real CSV import.

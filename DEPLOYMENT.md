@@ -2,8 +2,8 @@
 
 How to put the portal on a server and keep it running. The target is **one
 Docker host running `docker compose`, behind the campus reverse proxy that
-terminates TLS, on a subdomain** (e.g. `appraisal.vnrvjiet.in`). A subdomain
-needs no code changes.
+terminates TLS, on the subdomain `appraisal.vjstartup.com`**. A subdomain
+needs no code changes — the public address is one setting, `FRONTEND_URL`.
 
 Related documents:
 - [IT_HANDOFF.md](IT_HANDOFF.md) — one-page brief for college IT
@@ -28,14 +28,15 @@ Browser ──HTTPS──▶ campus proxy (TLS) ──HTTP──▶ frontend (ng
 
 | Service | Built from | Port in container | Public? |
 |---|---|---|---|
-| `frontend` | `./frontend` (Vite build served by nginx) | 80 | Yes, through the campus proxy only |
-| `backend` | `./backend` (Node 20, Prisma, system Chromium for PDFs) | 5000 | No |
-| `postgres` | `postgres:15-alpine` | 5432 | No |
-| `prometheus`, `loki`, `grafana` | upstream images | 9090 / 3100 / 3000 | No (optional stack) |
+| `frontend` | `./frontend` (Vite build served by nginx) | 80 | Yes — on `HTTP_BIND`, reached through the campus proxy |
+| `backend` | `./backend` (Node 20, Prisma, system Chromium for PDFs) | 5000 | No host port |
+| `postgres` | `postgres:15-alpine` | 5432 | No host port |
+| `prometheus`, `loki`, `grafana` | `v3.5.5` / `3.7.7` / `13.2.1` | 9090 / 3100 / 3000 | `127.0.0.1` only, `--profile monitoring` |
+| `alloy` (ships logs to Loki) | `grafana/alloy:v1.19.2` | 12345 | No host port, `--profile monitoring` |
 
 The frontend needs no API URL: it calls the relative path `/api`, and its nginx
-forwards `/api/` and `/uploads/` to the backend. `VITE_API_URL` is not used
-(ignore `frontend/.env.example`).
+forwards `/api/` and `/uploads/` to the backend. The frontend takes no
+environment variables at all (`VITE_API_URL` was never read).
 
 The backend also runs the scheduled jobs itself (email sending, reminders,
 review-window mail, proof deadlines) — see §9. **Run exactly one backend
@@ -52,8 +53,8 @@ container**; two would run every job twice.
 - A sending mailbox with an app password (Gmail) or institute SMTP credentials,
   and outbound access to its port (587 or 465).
 - Node.js is **not** needed on the host — the images build everything.
-- Port 5432 free on the host, or change the published port (§4). A host that
-  already runs PostgreSQL will clash with the compose `postgres` service.
+- One free host port for the frontend (`HTTP_BIND`, default 80). Postgres and
+  the backend publish nothing, so a PostgreSQL already on the host does not clash.
 
 ---
 
@@ -73,71 +74,63 @@ write a `backend/.env` on the server.
 
 | Key | Value | Notes |
 |---|---|---|
-| `DB_PASSWORD` | `openssl rand -base64 24` | Compose builds `DATABASE_URL` from it (host = `postgres`). |
-| `JWT_SECRET` | `openssl rand -hex 32` | At least 32 characters. Rotating it logs everyone out. |
-| `REFRESH_TOKEN_SECRET` | `openssl rand -hex 32` | Must differ from `JWT_SECRET`. |
+Keys marked **required** are enforced by compose itself: `up` stops with
+`required variable X is missing a value` instead of starting the app with a
+blank secret.
+
+| Key | Value | Notes |
+|---|---|---|
+| `DB_PASSWORD` | `openssl rand -hex 24` | **Required.** Compose builds `DATABASE_URL` from it, so it must be URL-safe — `@ : / #` break the URL. Hex is safe. |
+| `JWT_SECRET` | `openssl rand -hex 32` | **Required.** At least 32 characters. Rotating it logs everyone out. |
+| `REFRESH_TOKEN_SECRET` | `openssl rand -hex 32` | **Required.** Must differ from `JWT_SECRET`. |
 | `JWT_EXPIRES_IN` / `REFRESH_TOKEN_EXPIRES_IN` | `8h` / `7d` | Defaults in compose. |
-| `FRONTEND_URL` | `https://appraisal.vnrvjiet.in` | **Required.** CORS allowlist, comma-separated. The **first** origin is also the base of every link in emails and PDFs, so put the real public URL first. |
-| `EMAIL_DISABLED` | `false` in production | `false` sends real mail to real people — read §8 first. Use `true` on staging. |
+| `FRONTEND_URL` | `https://appraisal.vjstartup.com` | **Required.** CORS allowlist, comma-separated. The **first** origin is also the base of every link in emails and PDFs, so put the real public URL first. |
+| `HTTP_BIND` | `80` or `127.0.0.1:8080` | Where the frontend listens on the host (§4). |
+| `EMAIL_DISABLED` | `false` in production | **Required.** `false` sends real mail to real people — read §8 first. Use `true` on staging. |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` | `smtp.gmail.com` / `587` / `false` (or `465` / `true`) | Port and `SECURE` must match: 587 → `false`, 465 → `true`. |
 | `SMTP_USER` | the sending mailbox | |
 | `SMTP_PASS` | Gmail 16-character **app password** | Not `SMTP_PASSWORD`, and not the account password. |
-| `SMTP_FROM` | `"VNRVJIET Faculty Portal <addr@vnrvjiet.in>"` | Contains `<` `>` — keep it quoted. |
-| `GRAFANA_PASSWORD` | `openssl rand -base64 24` | Only if you run the monitoring stack. |
+| `SMTP_FROM` | `"VNRVJIET Faculty Portal <sender@…>"` | Contains `<` `>` — keep it quoted. |
+| `QUARTERLY_AUTOSEND` | `true` | `false` stops the daily review-window mail to all faculty (§8). |
+| `DEFAULT_IMPORT_PASSWORD` | a strong shared password | **Required.** Given to faculty created by CSV import. |
+| `MAX_UPLOAD_MB` | `5` | Per-file upload limit (links are exempt). |
+| `TZ` | `Asia/Kolkata` | Default in compose; the scheduled jobs use it (§9). |
+| `LOG_LEVEL` | `info` | |
+| `METRICS_TOKEN` | optional | Bearer token for `/metrics`, which is internal anyway (§12). |
+| `GRAFANA_PASSWORD` | `openssl rand -hex 24` | **Required** — compose checks it even when the monitoring profile is off. |
+| `PROMETHEUS_RETENTION` | `30d` | Monitoring profile only. |
 
 Generate every secret fresh. **Nothing from the development machine goes to
 production** — not the JWT secrets, not the SMTP credentials.
 
-### Settings compose does not pass through yet
-
-`docker-compose.prod.yml` does not forward these to the backend, so putting them
-in `.env` alone does nothing. Add them under `services.backend.environment` if
-you need them:
-
-```yaml
-      # Kill switch for the daily review-window mail to all faculty (see §8)
-      QUARTERLY_AUTOSEND: ${QUARTERLY_AUTOSEND:-true}
-      # Per-file upload limit in MB (links are exempt)
-      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-5}
-      # Password given to faculty created by CSV bulk import. The code uses it
-      # as-is, so an empty value would mean an empty password — :? refuses that.
-      DEFAULT_IMPORT_PASSWORD: ${DEFAULT_IMPORT_PASSWORD:?set DEFAULT_IMPORT_PASSWORD in .env}
-      # Run the scheduled jobs on Indian time (see §9)
-      TZ: Asia/Kolkata
-```
-
-Do **not** add `SEED_*_PW` here — they are passed only for the one seed run (§6).
+Do **not** add `SEED_*_PW` to `.env` — they are passed only for the one seed run (§6).
 
 ---
 
-## 4. Close the ports before the first start
+## 4. Ports
 
-As written, `docker-compose.prod.yml` publishes **5432, 5000, 9090, 3100 and
-3000 on every interface**. Only the frontend should be reachable, and only by
-the campus proxy. Edit the `ports:` entries before starting:
+Only the frontend is published, on `HTTP_BIND`:
 
-```yaml
-  postgres:
-    ports:
-      - "127.0.0.1:5433:5432"   # loopback only; 5433 avoids a host PostgreSQL on 5432
-  backend:
-    ports:
-      - "127.0.0.1:5000:5000"   # loopback only: health checks and debugging
-  frontend:
-    ports:
-      - "127.0.0.1:8080:80"     # proxy on this host; use "80:80" + firewall if the proxy is elsewhere
-```
+| Campus proxy runs… | `HTTP_BIND` |
+|---|---|
+| on another machine | `80` (and firewall port 80 to that machine) |
+| on this same host | `127.0.0.1:8080` (the proxy forwards to it) |
 
-Do the same for prometheus, loki and grafana if you run them. Then allow only
-80/443 through the host firewall.
+Postgres and the backend have **no host ports**: the frontend's nginx reaches
+the backend over the compose network, and the backup script uses
+`docker compose exec`. The monitoring UIs bind to `127.0.0.1` only (§12). Allow
+only 80/443 through the host firewall.
 
 ---
 
 ## 5. Build and start
 
 ```bash
-# App only (add prometheus loki grafana to also start the monitoring stack)
-docker compose -f docker-compose.prod.yml up -d --build postgres backend frontend
+# The app (postgres, backend, frontend)
+docker compose -f docker-compose.prod.yml up -d --build
+
+# Optional: also start prometheus, loki, alloy and grafana
+docker compose -f docker-compose.prod.yml --profile monitoring up -d
 
 docker compose -f docker-compose.prod.yml logs -f backend
 ```
@@ -150,9 +143,9 @@ empty database and applies additive changes later. It runs **without**
 Check it:
 
 ```bash
-curl -s http://127.0.0.1:5000/health          # {"status":"ok"}
-curl -s http://127.0.0.1:5000/health/ready    # includes the database check
-curl -sI http://127.0.0.1:8080/               # 200 from nginx (the frontend)
+docker compose -f docker-compose.prod.yml ps                                   # backend "healthy"
+docker compose -f docker-compose.prod.yml exec backend curl -fsS http://localhost:5000/health/ready
+curl -sI http://127.0.0.1/                    # 200 from nginx — use your HTTP_BIND address
 ```
 
 ---
@@ -219,15 +212,15 @@ hashes and proof files all come across.
 
 ## 7. Reverse proxy and TLS
 
-Point the campus proxy at the frontend (`127.0.0.1:8080` in §4's example, or the
-host's port 80) and terminate TLS there. An nginx example for the proxy:
+Point the campus proxy at the frontend (`HTTP_BIND`, §4) and terminate TLS
+there. An nginx example for the proxy:
 
 ```nginx
 server {
     listen 443 ssl http2;
-    server_name appraisal.vnrvjiet.in;
-    ssl_certificate     /etc/letsencrypt/live/appraisal.vnrvjiet.in/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/appraisal.vnrvjiet.in/privkey.pem;
+    server_name appraisal.vjstartup.com;
+    ssl_certificate     /etc/letsencrypt/live/appraisal.vjstartup.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/appraisal.vjstartup.com/privkey.pem;
 
     client_max_body_size 10m;   # proof uploads; the app caps files at MAX_UPLOAD_MB
 
@@ -241,24 +234,26 @@ server {
 }
 server {
     listen 80;
-    server_name appraisal.vnrvjiet.in;
+    server_name appraisal.vjstartup.com;
     return 301 https://$host$request_uri;
 }
 ```
 
-Set `FRONTEND_URL=https://appraisal.vnrvjiet.in` to match, then
+Set `FRONTEND_URL=https://appraisal.vjstartup.com` to match, then
 `docker compose -f docker-compose.prod.yml up -d backend` to apply it.
 
-> **Known gap — rate limits behind two proxies.** The backend trusts one proxy
-> hop (`app.set('trust proxy', 1)`). With the campus proxy *and* the frontend
-> nginx in front of it, every request appears to come from the campus proxy, so
-> the limits are shared by the whole college: 120 API requests per minute, and
-> 10 failed logins per 15 minutes. Expect "Too many requests" during a deadline
-> rush. The fix is a one-line change before go-live: set `trust proxy` to `2`,
-> or have the frontend nginx pass the proxy's `X-Forwarded-For` through
-> unchanged.
+> **Set the proxy hop count before building.** The backend trusts exactly one
+> proxy hop — `app.set('trust proxy', 1)` in `backend/src/app.ts`, hard-coded,
+> not an environment variable. With the campus proxy *and* the frontend nginx in
+> front of it there are two, so every request appears to come from the campus
+> proxy and the rate limits are shared by the whole college (120 API requests a
+> minute, 10 failed logins per 15 minutes) — expect "Too many requests" during a
+> deadline rush. Change the `1` to the real number of proxies (`2` for this
+> layout) and rebuild the backend. Never set it higher than the real count:
+> Express would then believe an `X-Forwarded-For` the client wrote itself, and
+> anyone could dodge the login limit.
 
-A subpath (`vnrvjiet.in/appraisal`) instead of a subdomain needs a frontend
+A subpath (`vjstartup.com/appraisal`) instead of a subdomain needs a frontend
 rebuild (Vite `base` + router `basename`) — ask the developer.
 
 ---
@@ -274,7 +269,7 @@ Two things send to many people at once:
    recipients until you confirm it.
 2. **The daily 09:00 review-window job** — when a review window ends it mails
    every opted-in faculty **with nobody clicking anything**. Stop it with
-   `QUARTERLY_AUTOSEND=false` (after adding it to compose, §3).
+   `QUARTERLY_AUTOSEND=false` in `.env`.
 
 On staging, keep `EMAIL_DISABLED=true` or point SMTP at a catch-all mailbox.
 
@@ -297,9 +292,10 @@ These start with the backend — there is nothing to add to the host's cron:
 | Daily 09:00 | Review-window mail to faculty (kill switch `QUARTERLY_AUTOSEND`) |
 | Daily 09:00 | Proof deadlines: a rejected proof not replaced within **14 days** loses its subsection's marks, and the appraisal goes back to the HoD on the reduced marks. The faculty stays on the red list. |
 
-**Timezone.** The jobs use the container's local time, which is UTC unless you
-set `TZ`. Without it, "09:00" runs at **14:30 IST**. Set `TZ: Asia/Kolkata`
-(§3) and check it from inside the container:
+**Timezone.** The jobs use the container's local time. Compose sets
+`TZ=Asia/Kolkata` by default (override it in `.env`); without it the container
+runs on UTC and "09:00" fires at **14:30 IST**. Check it from inside the
+container:
 
 ```bash
 docker compose -f docker-compose.prod.yml exec backend node -e "console.log(new Date().toString())"
@@ -395,8 +391,9 @@ reset the database. `npm run prisma:migrate` is wired to refuse.
 | `/health/ready` | Readiness, including a database ping |
 | `/metrics` | Prometheus metrics |
 
-These sit on the backend port, which the frontend nginx does not proxy, so they
-stay private as long as port 5000 is not public (§4).
+These sit on the backend port, which is not published and which the frontend
+nginx does not proxy, so they are reachable only inside the compose network.
+Check them with `docker compose … exec backend curl -fsS http://localhost:5000/health/ready`.
 
 Logs are JSON on stdout:
 
@@ -404,15 +401,23 @@ Logs are JSON on stdout:
 docker compose -f docker-compose.prod.yml logs -f --tail=200 backend
 ```
 
-Optional stack: start `prometheus loki grafana`, log in to Grafana with
-`GRAFANA_PASSWORD`, and add the data sources `http://prometheus:9090` and
-`http://loki:3100`.
+**Monitoring stack** (`--profile monitoring`), all configured in the repository:
 
-> **Known gap:** `prometheus.yml` scrapes `localhost:5000`. Inside the
-> Prometheus container that is Prometheus itself, so nothing is collected.
-> Change the target to `backend:5000`.
+| Piece | Config | What it does |
+|---|---|---|
+| Prometheus | `prometheus.yml` | Scrapes `backend:5000/metrics` every 15 s; keeps `PROMETHEUS_RETENTION` (30d) |
+| Loki | bundled `local-config.yaml` | Stores logs. **No retention limit** in that config — watch its disk |
+| Alloy | `monitoring/alloy/config.alloy` | Reads every container's logs through the Docker socket (mounted read-only) and pushes them to Loki, labelled `service` and `container` |
+| Grafana | `monitoring/grafana/provisioning/` | Starts with Prometheus and Loki already added as data sources |
 
-See [OBSERVABILITY.md](OBSERVABILITY.md) for dashboards.
+The UIs bind to `127.0.0.1`. From your machine:
+
+```bash
+ssh -L 3000:127.0.0.1:3000 <server>     # then http://localhost:3000, user admin / GRAFANA_PASSWORD
+```
+
+In Grafana Explore, `{service="backend"} | json | status_code >= 500` lists
+server errors. See [OBSERVABILITY.md](OBSERVABILITY.md) for the metric names.
 
 ---
 
@@ -429,35 +434,48 @@ See [OBSERVABILITY.md](OBSERVABILITY.md) for dashboards.
 | Proof files missing after a redeploy | `backend/uploads` was not on the host volume, or a restore skipped `uploads.tar.gz`. |
 | PDF download fails | Backend image must keep `PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser`; check memory, then `docker compose restart backend`. |
 | Backend exits on start with a Prisma data-loss message | A destructive schema change — see §11. |
-| `port is already allocated` for 5432 | PostgreSQL already runs on the host — publish postgres on another port (§4). |
+| `port is already allocated` on start | Something else holds `HTTP_BIND`'s port — pick another (§4). Postgres publishes nothing, so a host PostgreSQL is not the cause. |
+| `required variable X is missing a value` | A required key is empty in `.env` (§3). |
 | Imported faculty cannot log in | They use `DEFAULT_IMPORT_PASSWORD` (or `Welcome@123` for accounts imported before it was set). |
 
 ---
 
-## 14. Known gaps (as of 2026-09-11)
+## 14. Known gaps (as of 2026-09-14)
 
-Fix or accept these before go-live:
+Closed on 2026-09-14: compose now passes every setting and enforces the required
+ones; only the frontend is published; `TZ` defaults to IST; Prometheus scrapes
+`backend:5000`; Alloy ships logs to Loki; Grafana's data sources are provisioned
+and its password is required; `frontend/.env.example` no longer advertises
+`VITE_API_URL`; the domain is `appraisal.vjstartup.com`.
 
-- [ ] `trust proxy` behind two proxies — shared rate limits (§7).
-- [ ] Compose does not pass `QUARTERLY_AUTOSEND`, `MAX_UPLOAD_MB`,
-      `DEFAULT_IMPORT_PASSWORD`, `TZ` (§3).
-- [ ] Compose publishes every port on all interfaces (§4).
-- [ ] `prometheus.yml` scrapes the wrong target (§12).
-- [ ] `frontend/.env.example` still lists `VITE_API_URL`, which nothing reads.
-- [ ] The backup script's compose mode and the restore commands are untested on Docker (§10).
+Still open — fix or accept before go-live:
+
+- [ ] **Proxy hop count** is hard-coded to 1 in `backend/src/app.ts` — the
+      deployment team sets it for the real layout (§7).
+- [ ] **Forced password change** at first login does not exist; the imported
+      accounts share `DEFAULT_IMPORT_PASSWORD` (or `Welcome@123`) until each
+      person changes it.
+- [ ] **Node 20** in both Dockerfiles is end-of-life (April 2026); development
+      and the test runs use Node 24.
+- [ ] **Not yet run on a Docker host:** the images with the new compose file,
+      the pinned monitoring images, the Alloy config, and the backup script's
+      compose mode with the restore commands (§10). The compose file itself is
+      validated with `docker compose config`.
+- [ ] Loki keeps logs with no retention limit (§12).
 - [ ] Hosting prerequisites (not code): the repository is on a personal GitHub
-      account, not the Vignana-Jyothi organisation; the domain
-      (`appraisal.vnrvjiet.in` vs the granted `vjstartup.com`) is unresolved; the
-      VJ Shield scan has not been run; there has been no user-testing period.
+      account, not the Vignana-Jyothi organisation; the VJ Shield scan has not
+      been run; there has been no user-testing period.
 
 ---
 
 ## 15. Go-live checklist
 
 - [ ] `.env` filled with fresh secrets, `chmod 600`, not in git
-- [ ] Ports closed (§4); only 80/443 public, via the campus proxy
-- [ ] TLS on the proxy; `FRONTEND_URL` = the public HTTPS URL, first in the list
-- [ ] `TZ=Asia/Kolkata` set and checked
+- [ ] `HTTP_BIND` chosen (§4); only 80/443 public, via the campus proxy
+- [ ] DNS `appraisal.vjstartup.com` → server; TLS on the proxy
+- [ ] `FRONTEND_URL=https://appraisal.vjstartup.com`, first in the list
+- [ ] Proxy hop count set in `backend/src/app.ts` (§7)
+- [ ] Container clock checked on IST (§9)
 - [ ] Admin password changed; seed sample accounts deactivated
 - [ ] `DEFAULT_IMPORT_PASSWORD` set; imported accounts forced to reset
 - [ ] Test email received (Forgot password)
@@ -469,4 +487,4 @@ Fix or accept these before go-live:
 
 ---
 
-**Last updated:** 2026-09-11
+**Last updated:** 2026-09-14

@@ -1,18 +1,28 @@
-version: '3.8'
+# Production stack for the VNRVJIET Faculty Appraisal Portal.
+#
+# Every setting comes from `.env` next to this file (copy .env.example). A value
+# written `${VAR:?...}` is required: compose refuses to start without it rather
+# than starting the app with a blank secret or password.
+#
+# Only the frontend is published. Postgres and the backend have no host ports —
+# the frontend's nginx reaches the backend over the compose network, and
+# scripts/backup.sh uses `docker compose exec`. The monitoring stack is opt-in
+# (`--profile monitoring`) and binds to 127.0.0.1 only; reach it over SSH.
+#
+# Run exactly one backend: it also runs the scheduled jobs (mail, reminders,
+# review windows, proof deadlines), and two would run each job twice.
 
 services:
   postgres:
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: appraisal_user
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
       POSTGRES_DB: faculty_appraisal
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U appraisal_user"]
+      test: ["CMD-SHELL", "pg_isready -U appraisal_user -d faculty_appraisal"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -21,30 +31,40 @@ services:
   backend:
     build: ./backend
     environment:
-      DATABASE_URL: postgresql://appraisal_user:${DB_PASSWORD}@postgres:5432/faculty_appraisal
+      # DB_PASSWORD sits inside a URL here, so it must be URL-safe (hex).
+      DATABASE_URL: postgresql://appraisal_user:${DB_PASSWORD:?set DB_PASSWORD in .env}@postgres:5432/faculty_appraisal
       # Auth
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
-      REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET}
+      REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:?set REFRESH_TOKEN_SECRET in .env}
       REFRESH_TOKEN_EXPIRES_IN: ${REFRESH_TOKEN_EXPIRES_IN:-7d}
-      # CORS — public origin of the frontend (REQUIRED, else browser calls blocked)
-      FRONTEND_URL: ${FRONTEND_URL}
-      # Email (code reads SMTP_PASS, not SMTP_PASSWORD)
-      EMAIL_DISABLED: ${EMAIL_DISABLED:-false}
-      SMTP_HOST: ${SMTP_HOST}
-      SMTP_PORT: ${SMTP_PORT}
+      # Public origin — CORS allowlist, and the first entry is the base of every
+      # link in emails and PDFs.
+      FRONTEND_URL: ${FRONTEND_URL:?set FRONTEND_URL in .env, e.g. https://appraisal.vjstartup.com}
+      # Email. Required on purpose: `false` mails real faculty, so choose it.
+      EMAIL_DISABLED: ${EMAIL_DISABLED:?set EMAIL_DISABLED in .env (true on staging, false in production)}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_SECURE: ${SMTP_SECURE:-false}
-      SMTP_USER: ${SMTP_USER}
-      SMTP_PASS: ${SMTP_PASS}
-      SMTP_FROM: ${SMTP_FROM}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      # Kill switch for the daily review-window mail to every faculty member.
+      QUARTERLY_AUTOSEND: ${QUARTERLY_AUTOSEND:-true}
+      # Password given to faculty created by CSV bulk import.
+      DEFAULT_IMPORT_PASSWORD: ${DEFAULT_IMPORT_PASSWORD:?set DEFAULT_IMPORT_PASSWORD in .env}
+      # Per-file upload limit in MB (pasted links are exempt).
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-5}
+      # Optional bearer token for /metrics (the port is internal either way).
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+      # The scheduled jobs run at 09:00 in this zone. Without it: 14:30 IST.
+      TZ: ${TZ:-Asia/Kolkata}
       NODE_ENV: production
-      LOG_LEVEL: info
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       PORT: 5000
       # Proof files are written here, and this path is the volume below. The
       # database does not hold them — scripts/backup.sh archives both.
       UPLOAD_DIR: /app/uploads
-    ports:
-      - "5000:5000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -52,51 +72,80 @@ services:
       - ./backend/uploads:/app/uploads
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:5000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 30s
 
   frontend:
     build: ./frontend
-    # No API URL env needed: the app calls relative /api, and nginx proxies
-    # /api and /uploads to the backend service (see frontend/nginx.conf).
+    # The app calls relative /api; this nginx proxies /api and /uploads to the
+    # backend (frontend/nginx.conf). HTTP_BIND is where the host listens:
+    #   80              — the TLS proxy is on another machine (firewall to it)
+    #   127.0.0.1:8080  — the TLS proxy runs on this same host
     ports:
-      - "80:80"
+      - "${HTTP_BIND:-80}:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
+  # ── Monitoring (optional): docker compose --profile monitoring up -d ──────
+
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.5.5
+    profiles: ["monitoring"]
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
-    ports:
-      - "9090:9090"
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}'
+    ports:
+      - "127.0.0.1:9090:9090"
     restart: unless-stopped
 
   loki:
-    image: grafana/loki:latest
-    ports:
-      - "3100:3100"
+    image: grafana/loki:3.7.7
+    profiles: ["monitoring"]
+    command: -config.file=/etc/loki/local-config.yaml
     volumes:
       - loki_data:/loki
-    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "127.0.0.1:3100:3100"
+    restart: unless-stopped
+
+  # Ships container logs to Loki (successor to Promtail, which is end of life).
+  alloy:
+    image: grafana/alloy:v1.19.2
+    profiles: ["monitoring"]
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./monitoring/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy_data:/var/lib/alloy/data
+    depends_on:
+      - loki
     restart: unless-stopped
 
   grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
+    image: grafana/grafana:13.2.1
+    profiles: ["monitoring"]
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?set GRAFANA_PASSWORD in .env}
       GF_AUTH_ANONYMOUS_ENABLED: "false"
     volumes:
       - grafana_data:/var/lib/grafana
+      # Prometheus + Loki data sources, present on first login.
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "127.0.0.1:3000:3000"
     depends_on:
       - prometheus
       - loki
@@ -106,4 +155,5 @@ volumes:
   postgres_data:
   prometheus_data:
   loki_data:
+  alloy_data:
   grafana_data:

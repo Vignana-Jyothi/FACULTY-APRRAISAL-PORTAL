@@ -31,84 +31,36 @@ Structured JSON via `pino` → **stdout**, one line per request.
 
 **How logs reach Loki depends on where the backend runs:**
 
-| Backend runs as | How Promtail gets the logs |
-|-----------------|----------------------------|
-| Docker container | Promtail scrapes `/var/lib/docker/containers/*/*-json.log` (compose below) |
-| `npm run dev` / `npm start` on host | stdout goes to your terminal — Promtail does **not** see it. Pipe to a file: `npm start > logs/app.log 2>&1` and point Promtail at that file, OR run the backend in Docker. |
-| Don't want Promtail at all | Add a direct Loki transport: `npm i pino-loki`, then set the pino transport target to `pino-loki` with your Loki URL. |
+| Backend runs as | How the logs get to Loki |
+|-----------------|--------------------------|
+| Docker container (production) | Grafana **Alloy** reads every container's stdout through the Docker socket and pushes it to Loki — `monitoring/alloy/config.alloy`, started by `--profile monitoring`. No app change. |
+| `npm run dev` / `npm start` on the host | stdout goes to your terminal and nothing ships it. Run the backend in Docker, or add a direct transport (`npm i pino-loki`). |
 
-So the earlier "no app change needed" only holds when the backend is containerized (or file-logged). For the current local `npm run dev` setup, use the file or `pino-loki` route.
+Alloy replaced Promtail here; Promtail reached end of life in 2026.
 
-## Prometheus scrape config
+## The stack in this repository
 
-```yaml
-# prometheus.yml
-scrape_configs:
-  - job_name: faculty-appraisal-api
-    metrics_path: /metrics
-    static_configs:
-      # Docker Desktop (Mac/Windows): host.docker.internal reaches the host.
-      # Plain Linux: use the host IP, or add `extra_hosts: ["host.docker.internal:host-gateway"]`
-      # to the prometheus service. If backend is also in compose, use its service name:port.
-      - targets: ['host.docker.internal:5000']
-    scrape_interval: 15s
+Everything is already wired in `docker-compose.prod.yml` under the `monitoring`
+profile — there is no sample to copy:
+
+```bash
+docker compose -f docker-compose.prod.yml --profile monitoring up -d
 ```
 
-## Sample stack (docker-compose)
+| Service | Image | Config in the repo | Notes |
+|---------|-------|--------------------|-------|
+| Prometheus | `prom/prometheus:v3.5.5` | `prometheus.yml` | Scrapes `backend:5000/metrics` every 15 s; retention `PROMETHEUS_RETENTION` (30d) |
+| Loki | `grafana/loki:3.7.7` | bundled `local-config.yaml` | No retention limit in that config — watch its disk |
+| Alloy | `grafana/alloy:v1.19.2` | `monitoring/alloy/config.alloy` | Docker socket mounted read-only; labels each stream `service` + `container` |
+| Grafana | `grafana/grafana:13.2.1` | `monitoring/grafana/provisioning/` | Prometheus and Loki data sources provisioned; login `admin` / `GRAFANA_PASSWORD`; anonymous access off |
 
-```yaml
-services:
-  prometheus:
-    image: prom/prometheus
-    volumes: ['./prometheus.yml:/etc/prometheus/prometheus.yml']
-    ports: ['9090:9090']
-    extra_hosts: ['host.docker.internal:host-gateway']   # so it can scrape host backend on Linux
+The UIs bind to `127.0.0.1` on the server — use an SSH tunnel
+(`ssh -L 3000:127.0.0.1:3000 <server>`). Build or import dashboards from the
+`http_*` metrics, and query logs in Explore:
 
-  loki:
-    image: grafana/loki
-    command: -config.file=/etc/loki/local-config.yaml     # baked-in default config
-    ports: ['3100:3100']
-
-  promtail:
-    image: grafana/promtail
-    volumes:
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./promtail.yml:/etc/promtail/config.yml
-    command: -config.file=/etc/promtail/config.yml
-
-  grafana:
-    image: grafana/grafana
-    ports: ['3000:3000']
-    environment:
-      - GF_AUTH_ANONYMOUS_ENABLED=true
+```logql
+{service="backend"} | json | status_code >= 500
 ```
-
-### promtail.yml (required — scrapes Docker container stdout)
-
-```yaml
-server:
-  http_listen_port: 9080
-
-positions:
-  filename: /tmp/positions.yaml
-
-clients:
-  - url: http://loki:3100/loki/api/v1/push
-
-scrape_configs:
-  - job_name: docker
-    docker_sd_configs:
-      - host: unix:///var/run/docker.sock
-        refresh_interval: 5s
-    relabel_configs:
-      - source_labels: ['__meta_docker_container_name']
-        target_label: container
-```
-
-> This captures logs only from **containerized** services. If the backend runs on the host via `npm`, see the logs table above (file scrape or `pino-loki`).
-
-In Grafana: add Prometheus (`http://prometheus:9090`) + Loki (`http://loki:3100`) data sources, then build/import dashboards (e.g. Node Exporter Full, or a custom HTTP RED dashboard from the `http_*` metrics). Query logs in Grafana Explore with `{container=~".*backend.*"}`.
 
 ## Env
 

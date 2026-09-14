@@ -8,5 +8,14 @@ scrape_configs:
   - job_name: 'faculty-appraisal-api'
     metrics_path: '/metrics'
     static_configs:
-      - targets: ['localhost:5000']
+      # The compose service name. `localhost` here would be the Prometheus
+      # container itself, which is what this used to scrape.
+      - targets: ['backend:5000']
     scrape_interval: 15s
+    # /metrics is reachable only inside the compose network: the backend port is
+    # not published and the frontend nginx does not proxy it. If METRICS_TOKEN is
+    # set on the backend anyway, /metrics answers 401 without it — put the same
+    # token in monitoring/metrics_token, mount it, and uncomment:
+    # authorization:
+    #   type: Bearer
+    #   credentials_file: /etc/prometheus/metrics_token

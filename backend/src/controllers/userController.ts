@@ -431,7 +431,9 @@ export async function revokeRole(req: Request, res: Response) {
 // with it and are still using it, so changing the default would not rotate them
 // — it would only make new imports inconsistent with the ones already out there.
 // Rotate properly (force-reset those accounts) rather than editing this line.
-const DEFAULT_IMPORT_PASSWORD = process.env.DEFAULT_IMPORT_PASSWORD ?? 'Welcome@123';
+// `||`, not `??`: a blank value (an empty compose `${VAR}`) must not become an
+// empty password for every imported account.
+const DEFAULT_IMPORT_PASSWORD = process.env.DEFAULT_IMPORT_PASSWORD || 'Welcome@123';
 
 const TEMPLATE_CSV = `S.NO,EMP ID,Name of the Faculty,Designation,D.O.J,Mobile Number,E - Mail ID
 1,FAC001,John Doe,Assistant Professor,15-08-2020,9876543210,john.doe@vnrvjiet.in
