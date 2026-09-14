@@ -198,10 +198,12 @@ curl http://localhost:5000/health/ready   # readiness (DB ping)
 
 | File | What it covers |
 |------|----------------|
+| [docs/architecture.html](docs/architecture.html) | System architecture map — deployment, request path, modules, lifecycle, scoring, email, auth, data model. Open in a browser (download it, or view it through a raw-HTML previewer) |
 | [FACULTY_APPRAISAL_SYSTEM_LLD.md](FACULTY_APPRAISAL_SYSTEM_LLD.md) | Low-level design — data model, scoring, workflows |
 | [PROJECT_HISTORY.md](PROJECT_HISTORY.md) | Chronological log of everything built, fixed, and decided |
 | [TUTORIAL.md](TUTORIAL.md) | End-user guide (faculty / HoD / admin) |
 | [DEPLOYMENT.md](DEPLOYMENT.md) | Docker Compose deployment instructions |
+| [ENV_SETUP.md](ENV_SETUP.md) | Filling `.env` for the deployment team — every setting's format, source and checks |
 | [GO_LIVE_CHECKLIST.md](GO_LIVE_CHECKLIST.md) | Pre-launch checklist |
 | [IT_HANDOFF.md](IT_HANDOFF.md) | Operations / IT handoff notes |
 | [OBSERVABILITY.md](OBSERVABILITY.md) | Metrics, health probes, logging setup |

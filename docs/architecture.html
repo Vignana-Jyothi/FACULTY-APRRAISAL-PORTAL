@@ -1,0 +1,871 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Appraisal Portal System Map</title>
+<style>html{color-scheme:light dark}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=Lato:wght@400;700&display=swap">
+<style>
+  :root {
+    --ground: #f5f7fb;
+    --card: #ffffff;
+    --ink: #0f1a2b;
+    --ink-2: #34435a;
+    --muted: #5d6b80;
+    --rule: #d6dee9;
+    --navy: #1e3a5f;
+    --edge: #51647d;
+    --zone: #8193ab;
+    --hot: #b07a05;
+    --hot-fill: #fdf3dc;
+    --hot-ink: #7a5404;
+    --gap: #b4471f;
+    --gap-fill: #fbece5;
+    --ok: #0f7a55;
+    --display: "EB Garamond", Georgia, "Times New Roman", serif;
+    --body: "Lato", system-ui, "Segoe UI", Roboto, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0b1320; --card: #121d2e; --ink: #e7edf5; --ink-2: #c3cedd; --muted: #8e9db3;
+      --rule: #26354b; --navy: #8fb0dc; --edge: #9aabc2; --zone: #5f7392;
+      --hot: #f0b64a; --hot-fill: #2d2412; --hot-ink: #f5c870; --gap: #f08a5d; --gap-fill: #2c1a14; --ok: #4cc79a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0b1320; --card: #121d2e; --ink: #e7edf5; --ink-2: #c3cedd; --muted: #8e9db3;
+    --rule: #26354b; --navy: #8fb0dc; --edge: #9aabc2; --zone: #5f7392;
+    --hot: #f0b64a; --hot-fill: #2d2412; --hot-ink: #f5c870; --gap: #f08a5d; --gap-fill: #2c1a14; --ok: #4cc79a;
+  }
+
+  * { box-sizing: border-box; }
+  body { background: var(--ground); color: var(--ink); font: 400 15px/1.6 var(--body); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 40px 28px 80px; }
+  a { color: var(--navy); }
+  a:focus-visible { outline: 2px solid var(--hot); outline-offset: 2px; }
+  code, .mono { font-family: var(--mono); font-size: 0.86em; }
+  code { background: var(--card); border: 1px solid var(--rule); border-radius: 3px; padding: 0 4px; white-space: nowrap; }
+
+  header.top { display: grid; gap: 14px; padding-bottom: 26px; border-bottom: 1px solid var(--rule); }
+  .eyebrow { font: 500 12px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  h1 { font: 600 44px/1.05 var(--display); margin: 0; color: var(--navy); text-wrap: balance; }
+  .lede { max-width: 68ch; margin: 0; color: var(--ink-2); font-size: 16px; }
+  .facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin: 10px 0 0; border: 1px solid var(--rule); border-radius: 6px; background: var(--card); }
+  .facts div { padding: 12px 16px; border-left: 1px solid var(--rule); }
+  .facts div:first-child { border-left: 0; }
+  .facts dt { font: 500 11px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  .facts dd { margin: 4px 0 0; font-size: 14px; font-variant-numeric: tabular-nums; }
+
+  nav.toc { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 16px 0 0; font-size: 13.5px; }
+  nav.toc a { text-decoration: none; color: var(--ink-2); border-bottom: 1px solid transparent; }
+  nav.toc a:hover { border-bottom-color: var(--hot); }
+
+  section { padding-top: 48px; }
+  h2 { font: 600 28px/1.15 var(--display); margin: 0 0 6px; color: var(--navy); text-wrap: balance; }
+  h2 .sn { font: 500 13px var(--mono); color: var(--muted); margin-right: 10px; vertical-align: 4px; }
+  .claim { max-width: 70ch; margin: 0 0 18px; color: var(--ink-2); }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--rule); border-radius: 6px; padding: 18px 18px 12px; }
+  .scroll { overflow-x: auto; }
+  .scroll svg { min-width: 860px; }
+  figcaption { font-size: 13px; color: var(--muted); padding-top: 10px; border-top: 1px solid var(--rule); margin-top: 10px; max-width: 90ch; }
+  h3 { font: 700 12px var(--mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin: 22px 0 8px; }
+  .notes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 32px; margin: 18px 0 0; padding: 0; list-style: none; }
+  .notes li { font-size: 14px; color: var(--ink-2); padding-left: 14px; position: relative; max-width: 62ch; }
+  .notes li::before { content: ""; position: absolute; left: 0; top: 0.62em; width: 6px; height: 6px; border-radius: 1px; background: var(--zone); }
+  .notes li.gap::before { background: var(--gap); }
+  .chip { display: inline-block; font: 700 10.5px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; padding: 1px 6px; border-radius: 3px; vertical-align: 1px; margin-right: 4px; }
+  .chip.gap { color: var(--gap); background: var(--gap-fill); }
+  .chip.ok { color: var(--ok); border: 1px solid currentColor; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; background: var(--card); }
+  .tablebox { overflow-x: auto; border: 1px solid var(--rule); border-radius: 6px; margin-top: 14px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font: 700 11px var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); background: var(--ground); }
+  tr:last-child td { border-bottom: 0; }
+  td.c { text-align: center; font-variant-numeric: tabular-nums; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--navy); }
+  .dot.hot { background: var(--hot); }
+
+  /* Diagram vocabulary — shared by every figure */
+  .dg { width: 100%; height: auto; display: block; }
+  .dg .n { fill: var(--card); stroke: var(--rule); stroke-width: 1.3; }
+  .dg .n-key { fill: var(--card); stroke: var(--navy); stroke-width: 1.6; }
+  .dg .n-hot { fill: var(--hot-fill); stroke: var(--hot); stroke-width: 1.8; }
+  .dg .n-ext { fill: var(--card); stroke: var(--zone); stroke-width: 1.3; stroke-dasharray: 5 4; }
+  .dg .n-gap { fill: var(--gap-fill); stroke: var(--gap); stroke-width: 1.3; }
+  .dg .zone { fill: none; stroke: var(--zone); stroke-width: 1.1; stroke-dasharray: 6 5; }
+  .dg .t { fill: var(--ink); font: 700 13px var(--body); }
+  .dg .t-hot { fill: var(--hot-ink); font: 700 13px var(--body); }
+  .dg .s { fill: var(--muted); font: 400 11px var(--mono); }
+  .dg .zl { fill: var(--muted); font: 500 11px var(--mono); letter-spacing: 0.04em; }
+  .dg .l { fill: var(--ink-2); font: 400 11.5px var(--body); paint-order: stroke; stroke: var(--card); stroke-width: 4px; stroke-linejoin: round; }
+  .dg .l-hot { fill: var(--hot-ink); font: 700 11.5px var(--body); paint-order: stroke; stroke: var(--card); stroke-width: 4px; stroke-linejoin: round; }
+  .dg .l-gap { fill: var(--gap); font: 400 11.5px var(--body); paint-order: stroke; stroke: var(--card); stroke-width: 4px; stroke-linejoin: round; }
+  .dg .e { stroke: var(--edge); stroke-width: 1.4; fill: none; }
+  .dg .e-hot { stroke: var(--hot); stroke-width: 2.2; fill: none; }
+  .dg .e-dash { stroke: var(--edge); stroke-width: 1.3; fill: none; stroke-dasharray: 4 4; }
+  .dg .e-gap { stroke: var(--gap); stroke-width: 1.3; fill: none; stroke-dasharray: 4 4; }
+  .dg .ah { fill: var(--edge); }
+  .dg .ah-hot { fill: var(--hot); }
+  .dg .ah-gap { fill: var(--gap); }
+  .dg .life { stroke: var(--rule); stroke-width: 1.5; stroke-dasharray: 3 5; }
+
+  footer { margin-top: 56px; padding-top: 18px; border-top: 1px solid var(--rule); font-size: 13px; color: var(--muted); }
+
+  @media (max-width: 820px) {
+    h1 { font-size: 34px; }
+    .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .facts div:nth-child(3) { border-left: 0; }
+    .facts div:nth-child(n+3) { border-top: 1px solid var(--rule); }
+    .notes { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">VNRVJIET · Faculty Appraisal Portal · architecture</div>
+    <h1>Appraisal Portal System Map</h1>
+    <p class="lede">How a faculty self-appraisal travels from the browser to the database and back out as a score, a PDF, a HoD review and an email. Public address: <code>https://appraisal.vjstartup.com</code>. Every box and arrow below is drawn from the code at <code>33bb98c</code>, not from the design documents. Places where the running system and the intended one disagree are marked <span class="chip gap">gap</span>.</p>
+    <dl class="facts">
+      <div><dt>Client</dt><dd>React 19 · Vite 8 · Tailwind 4</dd></div>
+      <div><dt>Server</dt><dd>Node 24 · Express 4 · Prisma 6 · Postgres 15</dd></div>
+      <div><dt>Marks</dt><dd>500 self-appraisal + 50 HoD = 550</dd></div>
+      <div><dt>Scope</dt><dd>CSE only · 4 roles · AY 2026-27 open</dd></div>
+    </dl>
+    <nav class="toc" aria-label="Sections">
+      <a href="#deploy">Deployment</a><a href="#request">Request path</a><a href="#modules">Backend modules</a>
+      <a href="#lifecycle">Appraisal lifecycle</a><a href="#scoring">Scoring</a><a href="#email">Email</a>
+      <a href="#auth">Sign-in &amp; tokens</a><a href="#data">Data model</a><a href="#frontend">Frontend</a><a href="#gaps">Known gaps</a>
+    </nav>
+  </header>
+
+  <section id="deploy">
+    <h2><span class="sn">01</span>Deployment</h2>
+    <p class="claim">One Docker Compose host runs three app containers, plus four optional monitoring ones. Only nginx is published: Postgres and the backend have no host ports at all. The backend is the only container that talks to the database, the proof-file volume and the outside mail server.</p>
+    <figure>
+      <div class="scroll">
+      <svg class="dg" viewBox="0 0 1060 460" role="img" aria-label="Deployment topology: browser to nginx on port 80, the only published service; nginx proxies /api and /uploads to the Express backend, which reads and writes Postgres and the proof-file volume and sends mail to Gmail SMTP; an optional loopback-only monitoring row where Prometheus scrapes the backend, Alloy ships container logs to Loki, and Grafana reads both.">
+        <defs>
+          <marker id="d-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0L10,5L0,10z"/></marker>
+          <marker id="d-h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-hot" d="M0,0L10,5L0,10z"/></marker>
+          <marker id="d-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-gap" d="M0,0L10,5L0,10z"/></marker>
+        </defs>
+        <rect class="zone" x="190" y="16" width="700" height="428" rx="8"/>
+        <text class="zl" x="206" y="38">docker-compose.prod.yml · one host</text>
+
+        <rect class="n" x="20" y="186" width="140" height="84" rx="5"/>
+        <text class="t" x="90" y="216" text-anchor="middle">Browser</text>
+        <text class="s" x="90" y="236" text-anchor="middle">React SPA</text>
+        <text class="s" x="90" y="252" text-anchor="middle">faculty · HoD · dean</text>
+
+        <rect class="n-key" x="215" y="180" width="180" height="96" rx="5"/>
+        <text class="t" x="305" y="208" text-anchor="middle">frontend</text>
+        <text class="s" x="305" y="228" text-anchor="middle">nginx :80</text>
+        <text class="s" x="305" y="245" text-anchor="middle">static SPA + proxy</text>
+        <text class="s" x="305" y="261" text-anchor="middle">CSP on the document</text>
+
+        <rect class="n-hot" x="475" y="180" width="210" height="96" rx="5"/>
+        <text class="t-hot" x="580" y="208" text-anchor="middle">backend</text>
+        <text class="s" x="580" y="228" text-anchor="middle">Express :5000 · Node 24</text>
+        <text class="s" x="580" y="245" text-anchor="middle">95 routes under /api</text>
+        <text class="s" x="580" y="261" text-anchor="middle">mail worker + 2 daily crons</text>
+
+        <rect class="n" x="440" y="340" width="170" height="76" rx="5"/>
+        <text class="t" x="525" y="368" text-anchor="middle">postgres 15</text>
+        <text class="s" x="525" y="386" text-anchor="middle">:5432 · no host port</text>
+        <text class="s" x="525" y="402" text-anchor="middle">volume postgres_data</text>
+
+        <rect class="n" x="640" y="340" width="200" height="76" rx="5"/>
+        <text class="t" x="740" y="368" text-anchor="middle">proof files</text>
+        <text class="s" x="740" y="386" text-anchor="middle">./backend/uploads</text>
+        <text class="s" x="740" y="402" text-anchor="middle">bind mount /app/uploads</text>
+
+        <rect class="zone" x="460" y="36" width="420" height="82" rx="6"/>
+        <text class="zl" x="470" y="132">monitoring profile · loopback</text>
+        <rect class="n" x="470" y="46" width="88" height="64" rx="5"/>
+        <text class="t" x="514" y="73" text-anchor="middle">prometheus</text>
+        <text class="s" x="514" y="93" text-anchor="middle">:9090</text>
+        <rect class="n" x="574" y="46" width="88" height="64" rx="5"/>
+        <text class="t" x="618" y="73" text-anchor="middle">loki</text>
+        <text class="s" x="618" y="93" text-anchor="middle">:3100</text>
+        <rect class="n" x="678" y="46" width="88" height="64" rx="5"/>
+        <text class="t" x="722" y="73" text-anchor="middle">alloy</text>
+        <text class="s" x="722" y="93" text-anchor="middle">logs → loki</text>
+        <rect class="n" x="782" y="46" width="88" height="64" rx="5"/>
+        <text class="t" x="826" y="73" text-anchor="middle">grafana</text>
+        <text class="s" x="826" y="93" text-anchor="middle">:3000</text>
+
+        <rect class="n-ext" x="900" y="186" width="140" height="84" rx="5"/>
+        <text class="t" x="970" y="216" text-anchor="middle">Gmail SMTP</text>
+        <text class="s" x="970" y="236" text-anchor="middle">nodemailer :587</text>
+        <text class="s" x="970" y="252" text-anchor="middle">real @vnrvjiet.in</text>
+
+        <line class="e" x1="160" y1="228" x2="212" y2="228" marker-end="url(#d-a)"/>
+        <text class="l" x="187" y="220" text-anchor="middle">HTTP :80</text>
+        <line class="e" x1="395" y1="228" x2="472" y2="228" marker-end="url(#d-a)"/>
+        <text class="l" x="434" y="220" text-anchor="middle">/api · /uploads</text>
+        <line class="e" x1="525" y1="276" x2="525" y2="337" marker-end="url(#d-a)"/>
+        <text class="l" x="532" y="312">Prisma</text>
+        <line class="e" x1="660" y1="276" x2="660" y2="337" marker-end="url(#d-a)"/>
+        <text class="l" x="667" y="312">write · stream</text>
+        <line class="e" x1="514" y1="110" x2="514" y2="177" marker-end="url(#d-a)"/>
+        <text class="l" x="520" y="160">scrape /metrics · 15 s</text>
+        <line class="e" x1="675" y1="180" x2="716" y2="113" marker-end="url(#d-a)"/>
+        <text class="l" x="702" y="160">container logs</text>
+        <line class="e" x1="678" y1="78" x2="665" y2="78" marker-end="url(#d-a)"/>
+        <path class="e" d="M826,46 V28 H514 V43" marker-end="url(#d-a)"/>
+        <path class="e" d="M618,28 V43" marker-end="url(#d-a)"/>
+        <text class="l" x="670" y="23" text-anchor="middle">grafana reads both</text>
+        <line class="e-hot" x1="685" y1="228" x2="896" y2="228" marker-end="url(#d-h)"/>
+        <text class="l-hot" x="792" y="220" text-anchor="middle">mail worker · every 30 s</text>
+        <text class="l" x="792" y="246" text-anchor="middle">only outbound hop</text>
+      </svg>
+      </div>
+      <figcaption>Arrows are live traffic. The monitoring row starts only with <code>--profile monitoring</code> and listens on the server's loopback; reach Grafana over an SSH tunnel. Alloy reads every container's logs through the Docker socket (mounted read-only) and pushes them to Loki. In development the same backend runs under <code>tsx watch</code> on :5000, Vite serves the SPA on :5180, and Postgres 18 is installed locally.</figcaption>
+    </figure>
+    <ul class="notes">
+      <li>nginx proxies <code>/api/</code> and <code>/uploads/</code> to <code>backend:5000</code>, caches static assets for a year and falls back to <code>index.html</code> for client routes.</li>
+      <li>Proof files live on the bind mount, not in Postgres. <code>scripts/backup.sh</code> archives the database dump and the uploads together.</li>
+      <li>Only the frontend is published, on <code>HTTP_BIND</code> (default 80). Compose refuses to start while a required setting is blank. The full list is in <code>ENV_SETUP.md</code>.</li>
+      <li>Compose sets <code>TZ=Asia/Kolkata</code>, so the 09:00 jobs run at 09:00 IST. Both images run Node 24.</li>
+    </ul>
+  </section>
+
+  <section id="request">
+    <h2><span class="sn">02</span>Request path through the API</h2>
+    <p class="claim">Every request passes the same middleware in the same order, set in <code>app.ts</code>. The last three stages decide whether the caller may do what they asked. Authorization is layered: a role check on the route, then an ownership and same-department check inside the controller.</p>
+    <figure>
+      <div class="scroll">
+      <svg class="dg" viewBox="0 0 1060 290" role="img" aria-label="Middleware order: logger, metrics, then probes branch off; helmet, CORS, JSON body cap, API rate limit; auth routes branch off with stricter limits; authenticate, role guard and controller ownership check; thrown errors go to the error handler.">
+        <defs>
+          <marker id="r-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0L10,5L0,10z"/></marker>
+          <marker id="r-h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-hot" d="M0,0L10,5L0,10z"/></marker>
+        </defs>
+        <line class="e" x1="24" y1="44" x2="238" y2="44"/>
+        <text class="zl" x="131" y="36" text-anchor="middle">every request</text>
+        <line class="e" x1="252" y1="44" x2="580" y2="44"/>
+        <text class="zl" x="416" y="36" text-anchor="middle">all but the probes</text>
+        <line class="e" x1="594" y1="44" x2="694" y2="44"/>
+        <text class="zl" x="644" y="36" text-anchor="middle">/api only</text>
+        <line class="e-hot" x1="708" y1="44" x2="1036" y2="44"/>
+        <text class="l-hot" x="872" y="36" text-anchor="middle">per route · who may act</text>
+
+        <rect class="n" x="24" y="70" width="100" height="64" rx="4"/>
+        <text class="t" x="74" y="98" text-anchor="middle">logger</text>
+        <text class="s" x="74" y="118" text-anchor="middle">JSON → stdout</text>
+        <rect class="n" x="138" y="70" width="100" height="64" rx="4"/>
+        <text class="t" x="188" y="98" text-anchor="middle">metrics</text>
+        <text class="s" x="188" y="118" text-anchor="middle">route timing</text>
+        <rect class="n" x="252" y="70" width="100" height="64" rx="4"/>
+        <text class="t" x="302" y="98" text-anchor="middle">helmet</text>
+        <text class="s" x="302" y="118" text-anchor="middle">sec. headers</text>
+        <rect class="n" x="366" y="70" width="100" height="64" rx="4"/>
+        <text class="t" x="416" y="98" text-anchor="middle">CORS</text>
+        <text class="s" x="416" y="118" text-anchor="middle">FRONTEND_URL</text>
+        <rect class="n" x="480" y="70" width="100" height="64" rx="4"/>
+        <text class="t" x="530" y="98" text-anchor="middle">body</text>
+        <text class="s" x="530" y="118" text-anchor="middle">JSON ≤ 1 MB</text>
+        <rect class="n" x="594" y="70" width="100" height="64" rx="4"/>
+        <text class="t" x="644" y="98" text-anchor="middle">rate limit</text>
+        <text class="s" x="644" y="118" text-anchor="middle">120/min/IP</text>
+        <rect class="n-hot" x="708" y="70" width="100" height="64" rx="4"/>
+        <text class="t-hot" x="758" y="98" text-anchor="middle">authenticate</text>
+        <text class="s" x="758" y="118" text-anchor="middle">JWT + version</text>
+        <rect class="n-hot" x="822" y="70" width="100" height="64" rx="4"/>
+        <text class="t-hot" x="872" y="98" text-anchor="middle">roleGuard</text>
+        <text class="s" x="872" y="118" text-anchor="middle">route's roles</text>
+        <rect class="n-hot" x="936" y="70" width="100" height="64" rx="4"/>
+        <text class="t-hot" x="986" y="98" text-anchor="middle">controller</text>
+        <text class="s" x="986" y="118" text-anchor="middle">owner · dept</text>
+
+        <line class="e" x1="124" y1="102" x2="136" y2="102" marker-end="url(#r-a)"/>
+        <line class="e" x1="238" y1="102" x2="250" y2="102" marker-end="url(#r-a)"/>
+        <line class="e" x1="352" y1="102" x2="364" y2="102" marker-end="url(#r-a)"/>
+        <line class="e" x1="466" y1="102" x2="478" y2="102" marker-end="url(#r-a)"/>
+        <line class="e" x1="580" y1="102" x2="592" y2="102" marker-end="url(#r-a)"/>
+        <line class="e-hot" x1="694" y1="102" x2="706" y2="102" marker-end="url(#r-h)"/>
+        <line class="e-hot" x1="808" y1="102" x2="820" y2="102" marker-end="url(#r-h)"/>
+        <line class="e-hot" x1="922" y1="102" x2="934" y2="102" marker-end="url(#r-h)"/>
+
+        <path class="e" d="M238,120 H245 V170 H189 V199" marker-end="url(#r-a)"/>
+        <text class="l" x="252" y="166">answered here</text>
+        <rect class="n" x="74" y="202" width="230" height="66" rx="4"/>
+        <text class="t" x="189" y="224" text-anchor="middle">probes · no auth</text>
+        <text class="s" x="189" y="242" text-anchor="middle">/health · /health/ready</text>
+        <text class="s" x="189" y="258" text-anchor="middle">/metrics · METRICS_TOKEN</text>
+
+        <line class="e" x1="644" y1="134" x2="644" y2="199" marker-end="url(#r-a)"/>
+        <text class="l" x="650" y="172">/auth/* skips authenticate</text>
+        <rect class="n" x="520" y="202" width="250" height="66" rx="4"/>
+        <text class="t" x="645" y="224" text-anchor="middle">auth routes</text>
+        <text class="s" x="645" y="242" text-anchor="middle">login · reset: 10 per 15 min</text>
+        <text class="s" x="645" y="258" text-anchor="middle">OTP requests: 3 per min</text>
+
+        <line class="e" x1="986" y1="134" x2="986" y2="199" marker-end="url(#r-a)"/>
+        <text class="l" x="980" y="172" text-anchor="end">throws</text>
+        <rect class="n" x="846" y="202" width="190" height="66" rx="4"/>
+        <text class="t" x="941" y="224" text-anchor="middle">errorHandler</text>
+        <text class="s" x="941" y="242" text-anchor="middle">express-async-errors</text>
+        <text class="s" x="941" y="258" text-anchor="middle">→ JSON status + msg</text>
+      </svg>
+      </div>
+      <figcaption>The controller stage calls services and Prisma (section 03). A role check alone is never enough: a HoD holds the role for one department, so each controller then checks, via <code>utils/access</code>, that the caller owns the record, is its department's HoD or incharge, or is the dean.</figcaption>
+    </figure>
+    <ul class="notes">
+      <li><code>authenticate</code> verifies the access JWT (HS algorithm pinned), loads the user's active roles, and rejects any token whose <code>tokenVersion</code> no longer matches the user row.</li>
+      <li><code>reviewerGuard</code> is added on <code>POST /appraisals/:id/review</code> only. It keeps a reviewer inside their department and stops faculty reviewing their own appraisal.</li>
+      <li>Proof files are never served statically. <code>GET /api/uploads/file/:name</code> checks who is asking and rejects path traversal.</li>
+      <li class="gap"><span class="chip gap">gap</span><code>trust proxy</code> is hard-coded to 1 (<code>app.ts:72</code>), but production sits behind two proxies (campus and nginx). Until the deployment team changes it to 2, every user shares one IP for the rate limits.</li>
+    </ul>
+  </section>
+
+  <section id="modules">
+    <h2><span class="sn">03</span>Backend modules</h2>
+    <p class="claim">The backend has four layers, and calls only go downward. Controllers own HTTP and permission checks. Services own the rules, and are pure where they can be: the scoring, tracking and cadre engines do no I/O. Only Prisma touches the database.</p>
+    <figure>
+      <div class="scroll">
+      <svg class="dg" viewBox="0 0 1060 470" role="img" aria-label="Layered backend: router, five controller groups, six service groups with the scoring engine highlighted, shared utils, and Prisma client to PostgreSQL.">
+        <defs>
+          <marker id="m-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0L10,5L0,10z"/></marker>
+        </defs>
+        <rect class="n-key" x="16" y="16" width="1028" height="40" rx="4"/>
+        <text class="t" x="34" y="41">router</text>
+        <text class="s" x="100" y="41">routes/index.ts · 95 routes · [limiter] → authenticate → [roleGuard | reviewerGuard] → controller</text>
+        <line class="e" x1="530" y1="56" x2="530" y2="84" marker-end="url(#m-a)"/>
+
+        <text class="zl" x="16" y="80">CONTROLLERS · 17 FILES</text>
+        <rect class="n" x="16" y="86" width="190" height="96" rx="4"/>
+        <text class="t" x="30" y="110">Identity</text>
+        <text class="s" x="30" y="132">auth · user</text>
+        <text class="s" x="30" y="148">department</text>
+        <text class="s" x="30" y="164">academicYear</text>
+        <rect class="n" x="226" y="86" width="190" height="96" rx="4"/>
+        <text class="t" x="240" y="110">Appraisal</text>
+        <text class="s" x="240" y="132">appraisal · upload</text>
+        <text class="s" x="240" y="148">verification (proofs,</text>
+        <text class="s" x="240" y="164">red list, holds)</text>
+        <rect class="n" x="436" y="86" width="190" height="96" rx="4"/>
+        <text class="t" x="450" y="110">Review</text>
+        <text class="s" x="450" y="132">review (HoD) · unlock</text>
+        <text class="s" x="450" y="148">finalReview (dean's)</text>
+        <text class="s" x="450" y="164">feedback (annual)</text>
+        <rect class="n" x="646" y="86" width="190" height="96" rx="4"/>
+        <text class="t" x="660" y="110">Tracking</text>
+        <text class="s" x="660" y="132">tracking · tiers</text>
+        <text class="s" x="660" y="148">cadreTarget · cadreTier</text>
+        <text class="s" x="660" y="164">reviewWindow</text>
+        <rect class="n" x="856" y="86" width="188" height="96" rx="4"/>
+        <text class="t" x="870" y="110">Oversight</text>
+        <text class="s" x="870" y="132">report · email</text>
+        <text class="s" x="870" y="148">audit</text>
+        <text class="s" x="870" y="164">health (probes)</text>
+        <line class="e" x1="530" y1="182" x2="530" y2="212" marker-end="url(#m-a)"/>
+
+        <text class="zl" x="16" y="210">SERVICES</text>
+        <rect class="n-hot" x="16" y="218" width="160" height="96" rx="4"/>
+        <text class="t-hot" x="30" y="242">scoringEngine</text>
+        <text class="s" x="30" y="264">every rule, once</text>
+        <text class="s" x="30" y="280">row helpers · caps</text>
+        <text class="s" x="30" y="296">500-mark breakdown</text>
+        <rect class="n" x="189" y="218" width="160" height="96" rx="4"/>
+        <text class="t" x="203" y="242">Tracking engines</text>
+        <text class="s" x="203" y="264">trackingEngine</text>
+        <text class="s" x="203" y="280">cadre · tier engine</text>
+        <text class="s" x="203" y="296">trackingService</text>
+        <rect class="n" x="362" y="218" width="160" height="96" rx="4"/>
+        <text class="t" x="376" y="242">proofService</text>
+        <text class="s" x="376" y="264">find every proof</text>
+        <text class="s" x="376" y="280">sync verify rows</text>
+        <text class="s" x="376" y="296">section labels</text>
+        <rect class="n" x="535" y="218" width="160" height="96" rx="4"/>
+        <text class="t" x="549" y="242">pdfService</text>
+        <text class="s" x="549" y="264">HTML → puppeteer</text>
+        <text class="s" x="549" y="280">appraisal + feedback</text>
+        <text class="s" x="549" y="296">text escaped</text>
+        <rect class="n" x="708" y="218" width="160" height="96" rx="4"/>
+        <text class="t" x="722" y="242">Email</text>
+        <text class="s" x="722" y="264">emailService</text>
+        <text class="s" x="722" y="280">templates · keys</text>
+        <text class="s" x="722" y="296">emailWorker</text>
+        <rect class="n" x="881" y="218" width="163" height="96" rx="4"/>
+        <text class="t" x="895" y="242">Feedback text</text>
+        <text class="s" x="895" y="264">feedbackNarrative</text>
+        <text class="s" x="895" y="280">categoryRemarks</text>
+        <text class="s" x="895" y="296">targetStatus</text>
+        <line class="e" x1="530" y1="314" x2="530" y2="344" marker-end="url(#m-a)"/>
+
+        <rect class="n" x="16" y="350" width="1028" height="40" rx="4"/>
+        <text class="t" x="34" y="375">utils</text>
+        <text class="s" x="90" y="375">access (who may view) · reviewVisibility (Cat 6 and /550 by ownership) · blankRows · serializers · jwt · uploadPaths</text>
+        <line class="e" x1="530" y1="390" x2="530" y2="414" marker-end="url(#m-a)"/>
+
+        <rect class="n-key" x="16" y="418" width="1028" height="40" rx="4"/>
+        <text class="t" x="34" y="443">Prisma Client</text>
+        <text class="s" x="150" y="443">→ PostgreSQL · schema.prisma · changes via db push; migrate is blocked by a guard (history drifted)</text>
+      </svg>
+      </div>
+      <figcaption>A single arrow between layers stands for "calls into". The table below shows which controller group reaches which service. The scoring engine is highlighted because it is the one module every score on every screen, PDF and email must come from (section 05).</figcaption>
+    </figure>
+
+    <h3>Which controllers call which services</h3>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Controller</th><th>Scoring</th><th>Tracking</th><th>Proofs</th><th>PDF</th><th>Email</th><th>Feedback text</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td><code>auth</code> · <code>user</code></td><td></td><td></td><td></td><td></td><td class="c"><span class="dot"></span></td><td></td><td>Login, refresh, password OTP, user admin, bulk import, roles</td></tr>
+          <tr><td><code>appraisal</code></td><td class="c"><span class="dot hot"></span></td><td></td><td></td><td class="c"><span class="dot"></span></td><td class="c"><span class="dot"></span></td><td></td><td>Draft, save (blank rows dropped), submit, withdraw, score, PDF</td></tr>
+          <tr><td><code>verification</code></td><td></td><td></td><td class="c"><span class="dot"></span></td><td></td><td class="c"><span class="dot"></span></td><td></td><td>Verify or reject proofs, replace a rejected one, red list, clear hold</td></tr>
+          <tr><td><code>review</code></td><td class="c"><span class="dot hot"></span></td><td></td><td class="c"><span class="dot"></span></td><td></td><td class="c"><span class="dot"></span></td><td></td><td>HoD review (blocked until all proofs verified), unlock, reopen</td></tr>
+          <tr><td><code>finalReview</code></td><td class="c"><span class="dot hot"></span></td><td></td><td></td><td></td><td class="c"><span class="dot"></span></td><td></td><td>Dean assigns reviewers; one approval finalises, one reject holds</td></tr>
+          <tr><td><code>feedback</code></td><td class="c"><span class="dot hot"></span></td><td class="c"><span class="dot"></span></td><td></td><td class="c"><span class="dot"></span></td><td class="c"><span class="dot"></span></td><td class="c"><span class="dot"></span></td><td>Annual HoD feedback: auto-draft, save, issue, PDF</td></tr>
+          <tr><td><code>tracking</code> · <code>cadreTier</code></td><td></td><td class="c"><span class="dot"></span></td><td></td><td></td><td class="c"><span class="dot"></span></td><td></td><td>Tracking view, manual tier and eligibility, quarterly snapshot</td></tr>
+          <tr><td><code>report</code></td><td class="c"><span class="dot hot"></span></td><td class="c"><span class="dot"></span></td><td></td><td></td><td></td><td></td><td>Department, institute and per-criterion reports, Excel export</td></tr>
+          <tr><td><code>email</code></td><td></td><td></td><td></td><td></td><td class="c"><span class="dot"></span></td><td></td><td>Outbox list, retry one row, trigger reminders by hand</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Background jobs, all inside the backend process</h3>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Job</th><th>When</th><th>What it does</th><th>Safety</th></tr></thead>
+        <tbody>
+          <tr><td>Mail worker</td><td class="mono">every 30 s</td><td>Sends up to 10 queued mails per tick; each gets 3 attempts</td><td>Reserved test domains are closed out, never sent</td></tr>
+          <tr><td>Reminders</td><td class="mono">daily 09:00</td><td>Nudges faculty whose appraisal is still a draft; sends reviewers a digest of their queue</td><td>Respects each user's email opt-out</td></tr>
+          <tr><td>Review windows</td><td class="mono">daily 09:00</td><td>For any enabled window ending today: snapshot every faculty's standing and send the quarterly email</td><td>Kill switch <code>QUARTERLY_AUTOSEND=false</code>; opt-out respected</td></tr>
+          <tr><td>Proof deadline</td><td class="mono">daily 09:00</td><td>14 days after the first rejection, voids the marks of still-rejected proofs; the appraisal returns to the HoD queue</td><td>Faculty stays red-listed; the reason is kept</td></tr>
+          <tr><td>Run snapshot (admin)</td><td class="mono">on demand</td><td>Same as a review window, fired from the admin screen</td><td>Dry run unless the admin confirms</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="lifecycle">
+    <h2><span class="sn">04</span>Appraisal lifecycle</h2>
+    <p class="claim">Each faculty member files one appraisal per academic year, and it moves through eight statuses. The orange path is the normal route. A rejected proof parks the appraisal on HOLD until the faculty replaces the proof, the HoD clears the hold, or the 14-day deadline voids those marks.</p>
+    <figure>
+      <div class="scroll">
+      <svg class="dg" viewBox="0 0 1060 360" role="img" aria-label="Status machine: draft to submitted; HoD approves to final review or straight to approved; one final approval approves; HoD or final reject; proof rejection puts it on hold and back to the HoD queue; faculty may withdraw while submitted.">
+        <defs>
+          <marker id="s-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0L10,5L0,10z"/></marker>
+          <marker id="s-h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-hot" d="M0,0L10,5L0,10z"/></marker>
+        </defs>
+        <rect class="zone" x="235" y="86" width="190" height="200" rx="8"/>
+        <text class="zl" x="243" y="102">HoD queue</text>
+
+        <rect class="n-key" x="30" y="112" width="150" height="50" rx="25"/>
+        <text class="t" x="105" y="142" text-anchor="middle">DRAFT</text>
+        <rect class="n-key" x="255" y="112" width="150" height="50" rx="25"/>
+        <text class="t" x="330" y="142" text-anchor="middle">SUBMITTED</text>
+        <rect class="n-key" x="255" y="212" width="150" height="50" rx="25"/>
+        <text class="t" x="330" y="242" text-anchor="middle">UNDER_REVIEW</text>
+        <rect class="n" x="30" y="290" width="150" height="50" rx="25"/>
+        <text class="t" x="105" y="320" text-anchor="middle">WITHDRAWN</text>
+        <rect class="n-key" x="500" y="40" width="150" height="50" rx="25"/>
+        <text class="t" x="575" y="70" text-anchor="middle">FINAL_REVIEW</text>
+        <rect class="n-gap" x="500" y="290" width="150" height="50" rx="25"/>
+        <text class="t" x="575" y="320" text-anchor="middle">HOLD</text>
+        <rect class="n-hot" x="800" y="40" width="150" height="50" rx="25"/>
+        <text class="t-hot" x="875" y="70" text-anchor="middle">APPROVED</text>
+        <rect class="n" x="800" y="160" width="150" height="50" rx="25"/>
+        <text class="t" x="875" y="190" text-anchor="middle">REJECTED</text>
+
+        <line class="e-hot" x1="180" y1="137" x2="252" y2="137" marker-end="url(#s-h)"/>
+        <text class="l-hot" x="216" y="129" text-anchor="middle">submit</text>
+        <path class="e" d="M330,112 V20 H875 V37" marker-end="url(#s-a)"/>
+        <text class="l" x="600" y="14" text-anchor="middle">HoD approves · no final reviewers assigned</text>
+        <line class="e-hot" x1="405" y1="128" x2="497" y2="72" marker-end="url(#s-h)"/>
+        <text class="l-hot" x="505" y="108">HoD approves</text>
+        <text class="l" x="505" y="122">(reviewers set)</text>
+        <line class="e-hot" x1="650" y1="65" x2="797" y2="65" marker-end="url(#s-h)"/>
+        <text class="l-hot" x="724" y="57" text-anchor="middle">one final approval</text>
+        <line class="e" x1="405" y1="150" x2="797" y2="183" marker-end="url(#s-a)"/>
+        <text class="l" x="712" y="168" text-anchor="middle">HoD rejects</text>
+        <path class="e" d="M255,155 H215 V315 H183" marker-end="url(#s-a)"/>
+        <text class="l" x="209" y="238" text-anchor="end">withdraw</text>
+        <line class="e" x1="330" y1="162" x2="330" y2="209" marker-end="url(#s-a)"/>
+        <text class="l" x="337" y="190">reviewer assigned</text>
+        <line class="e" x1="405" y1="245" x2="497" y2="300" marker-end="url(#s-a)"/>
+        <text class="l" x="440" y="254">proof rejected</text>
+        <path class="e" d="M500,325 H330 V290" marker-end="url(#s-a)"/>
+        <text class="l" x="415" y="318" text-anchor="middle">replaced · day-14 void · cleared</text>
+        <line class="e" x1="620" y1="90" x2="620" y2="287" marker-end="url(#s-a)"/>
+        <text class="l" x="626" y="232">final reject</text>
+      </svg>
+      </div>
+      <figcaption>The faculty member is emailed only on a final decision (APPROVED or REJECTED). A HoD approval that hands off to final review sends nothing yet. Proofs can be verified or rejected only in SUBMITTED, UNDER_REVIEW, HOLD and FINAL_REVIEW. In DRAFT the form still belongs to the faculty, and a decided appraisal has to be reopened first.</figcaption>
+    </figure>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Override</th><th>From</th><th>To</th><th>Who · side effects</th></tr></thead>
+        <tbody>
+          <tr><td>Reopen review</td><td class="mono">APPROVED · REJECTED · FINAL_REVIEW</td><td class="mono">SUBMITTED</td><td>Dean. Final-review sign-offs reset to pending; reason audited.</td></tr>
+          <tr><td>Unlock</td><td class="mono">any</td><td class="mono">DRAFT</td><td>Dean. Faculty emailed once per submitted state.</td></tr>
+          <tr><td>Clear hold</td><td class="mono">HOLD</td><td class="mono">UNDER_REVIEW</td><td>HoD or dean of the department. Red-list flag removed.</td></tr>
+          <tr><td>Deadline void</td><td class="mono">HOLD</td><td class="mono">SUBMITTED</td><td>Daily job, 14 days after the first rejection. Voided sources score 0; red list kept.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="scoring">
+    <h2><span class="sn">05</span>Scoring: one engine, many readers</h2>
+    <p class="claim">Every score, whether a form badge, a PDF column, a review-page card, a tracking figure or an email remark, comes from <code>scoringEngine.ts</code>. The frontend keeps a pure copy for live badges, and a shared fixture proves the two agree. The HoD's Cat 6 marks are added only at review, then frozen.</p>
+    <figure>
+      <div class="scroll">
+      <svg class="dg" viewBox="0 0 1060 330" role="img" aria-label="Submission rows feed the backend scoring engine, mirrored by the frontend port under a parity fixture; the engine feeds the score API, PDF, review page, tracking engine and quarterly email; the HoD review freezes self, reviewed and grand totals, and the owner's view strips Cat 6 and the 550 total.">
+        <defs>
+          <marker id="c-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0L10,5L0,10z"/></marker>
+          <marker id="c-h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-hot" d="M0,0L10,5L0,10z"/></marker>
+        </defs>
+        <rect class="n" x="20" y="110" width="180" height="90" rx="4"/>
+        <text class="t" x="110" y="136" text-anchor="middle">Submission rows</text>
+        <text class="s" x="110" y="156" text-anchor="middle">~30 category tables</text>
+        <text class="s" x="110" y="172" text-anchor="middle">blank rows dropped</text>
+        <text class="s" x="110" y="188" text-anchor="middle">voided sources → 0</text>
+        <line class="e" x1="200" y1="155" x2="287" y2="155" marker-end="url(#c-a)"/>
+        <text class="l" x="244" y="147" text-anchor="middle">full include</text>
+
+        <rect class="n-hot" x="290" y="100" width="230" height="110" rx="4"/>
+        <text class="t-hot" x="405" y="126" text-anchor="middle">scoringEngine.ts</text>
+        <text class="s" x="405" y="148" text-anchor="middle">Cat 1 150 · Cat 2 150</text>
+        <text class="s" x="405" y="164" text-anchor="middle">Cat 3 100 · Cat 4 50 · Cat 5 50</text>
+        <text class="s" x="405" y="180" text-anchor="middle">= self total /500</text>
+        <text class="s" x="405" y="196" text-anchor="middle">row helpers exported</text>
+
+        <rect class="n" x="290" y="250" width="230" height="64" rx="4"/>
+        <text class="t" x="405" y="275" text-anchor="middle">scoring.ts · frontend</text>
+        <text class="s" x="405" y="295" text-anchor="middle">pure port · live form badges</text>
+        <line class="e" x1="405" y1="213" x2="405" y2="247" marker-start="url(#c-a)" marker-end="url(#c-a)"/>
+        <text class="l" x="412" y="235">parity fixture</text>
+
+        <rect class="n" x="640" y="16" width="200" height="44" rx="4"/>
+        <text class="t" x="740" y="34" text-anchor="middle">Score API</text>
+        <text class="s" x="740" y="51" text-anchor="middle">GET …/score</text>
+        <rect class="n" x="640" y="70" width="200" height="44" rx="4"/>
+        <text class="t" x="740" y="88" text-anchor="middle">Appraisal PDF</text>
+        <text class="s" x="740" y="105" text-anchor="middle">Score column per row</text>
+        <rect class="n-key" x="640" y="124" width="200" height="44" rx="4"/>
+        <text class="t" x="740" y="142" text-anchor="middle">HoD review page</text>
+        <text class="s" x="740" y="159" text-anchor="middle">row cards · seeds marks</text>
+        <rect class="n" x="640" y="178" width="200" height="44" rx="4"/>
+        <text class="t" x="740" y="196" text-anchor="middle">Tracking engine</text>
+        <text class="s" x="740" y="213" text-anchor="middle">total vs cadre targets</text>
+        <rect class="n" x="640" y="232" width="200" height="44" rx="4"/>
+        <text class="t" x="740" y="250" text-anchor="middle">Quarterly email</text>
+        <text class="s" x="740" y="267" text-anchor="middle">Cat 1–5 remarks</text>
+        <line class="e-hot" x1="520" y1="150" x2="637" y2="38" marker-end="url(#c-h)"/>
+        <line class="e-hot" x1="520" y1="152" x2="637" y2="92" marker-end="url(#c-h)"/>
+        <line class="e-hot" x1="520" y1="155" x2="637" y2="146" marker-end="url(#c-h)"/>
+        <line class="e-hot" x1="520" y1="158" x2="637" y2="200" marker-end="url(#c-h)"/>
+        <line class="e-hot" x1="520" y1="160" x2="637" y2="254" marker-end="url(#c-h)"/>
+
+        <rect class="n-key" x="880" y="100" width="160" height="110" rx="4"/>
+        <text class="t" x="960" y="126" text-anchor="middle">AppraisalReview</text>
+        <text class="s" x="960" y="148" text-anchor="middle">self /500 (frozen)</text>
+        <text class="s" x="960" y="164" text-anchor="middle">reviewed /500</text>
+        <text class="s" x="960" y="180" text-anchor="middle">+ Cat 6 by HoD /50</text>
+        <text class="s" x="960" y="196" text-anchor="middle">= grand /550</text>
+        <line class="e" x1="840" y1="146" x2="877" y2="150" marker-end="url(#c-a)"/>
+        <text class="l" x="859" y="139" text-anchor="middle">saves</text>
+
+        <rect class="n" x="880" y="240" width="160" height="74" rx="4"/>
+        <text class="t" x="960" y="264" text-anchor="middle">Owner's view</text>
+        <text class="s" x="960" y="282" text-anchor="middle">Cat 6 + /550 removed</text>
+        <text class="s" x="960" y="298" text-anchor="middle">JSON · PDF · email</text>
+        <line class="e" x1="960" y1="210" x2="960" y2="237" marker-end="url(#c-a)"/>
+        <text class="l" x="966" y="228">ownership</text>
+      </svg>
+      </div>
+      <figcaption>The orange fan is the rule "never re-derive a formula in a view": each reader calls an exported helper such as <code>consultancyRowScore</code> or <code>outcomeRowScore</code> instead of re-doing the arithmetic. The owner filter is keyed on who owns the appraisal, not on role, so a HoD filing their own appraisal sees the faculty view too.</figcaption>
+    </figure>
+    <ul class="notes">
+      <li>Four files move together: the engine, its frontend port, <code>scoring-fixture.json</code> and <code>scoring-expected.json</code>. Parity suites on both sides fail if one moves alone.</li>
+      <li>The review row stores the self total next to the reviewed total. A later rule change then cannot move one figure without the other.</li>
+      <li>The HoD may override any Cat 1–5 mark. Each category is clamped to its maximum, and both assessments reach HR separately.</li>
+      <li>Tracking measures the dean's view against the /550 grand total once a review exists. Everything a faculty member reads is measured against their own /500.</li>
+    </ul>
+  </section>
+
+  <section id="email">
+    <h2><span class="sn">06</span>Email: an outbox, not a send</h2>
+    <p class="claim">Nothing in a request sends mail. Code writes a row to an outbox table, and a worker inside the backend process sends it within 30 seconds. So a slow or failing mail server never slows a user's click, and every mail leaves a record.</p>
+    <figure>
+      <div class="scroll">
+      <svg class="dg" viewBox="0 0 1060 230" role="img" aria-label="Controllers and two daily jobs call enqueueEmail, which inserts a pending EmailNotification row; the worker polls every 30 seconds and ends each row as not sent for reserved domains, marked sent when email is disabled, sent over SMTP, or failed after three attempts.">
+        <defs>
+          <marker id="e-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0L10,5L0,10z"/></marker>
+          <marker id="e-h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-hot" d="M0,0L10,5L0,10z"/></marker>
+        </defs>
+        <rect class="n" x="16" y="20" width="200" height="50" rx="4"/>
+        <text class="t" x="116" y="42" text-anchor="middle">Controllers</text>
+        <text class="s" x="116" y="59" text-anchor="middle">submit · review · proofs</text>
+        <rect class="n" x="16" y="90" width="200" height="50" rx="4"/>
+        <text class="t" x="116" y="112" text-anchor="middle">Reminders · 09:00</text>
+        <text class="s" x="116" y="129" text-anchor="middle">drafts · reviewer digest</text>
+        <rect class="n" x="16" y="160" width="200" height="50" rx="4"/>
+        <text class="t" x="116" y="182" text-anchor="middle">Review windows · 09:00</text>
+        <text class="s" x="116" y="199" text-anchor="middle">quarterly feedback</text>
+        <line class="e" x1="216" y1="45" x2="253" y2="98" marker-end="url(#e-a)"/>
+        <line class="e" x1="216" y1="115" x2="253" y2="115" marker-end="url(#e-a)"/>
+        <line class="e" x1="216" y1="185" x2="253" y2="132" marker-end="url(#e-a)"/>
+
+        <rect class="n-key" x="256" y="80" width="160" height="70" rx="4"/>
+        <text class="t" x="336" y="106" text-anchor="middle">enqueueEmail</text>
+        <text class="s" x="336" y="124" text-anchor="middle">dedupe key check</text>
+        <text class="s" x="336" y="140" text-anchor="middle">opt-out (bulk only)</text>
+        <line class="e" x1="416" y1="115" x2="453" y2="115" marker-end="url(#e-a)"/>
+        <text class="l" x="435" y="107" text-anchor="middle">insert</text>
+
+        <rect class="n" x="456" y="80" width="170" height="70" rx="4"/>
+        <text class="t" x="541" y="106" text-anchor="middle">EmailNotification</text>
+        <text class="s" x="541" y="124" text-anchor="middle">status PENDING</text>
+        <text class="s" x="541" y="140" text-anchor="middle">dedupeKey unique</text>
+        <line class="e-hot" x1="626" y1="115" x2="663" y2="115" marker-end="url(#e-h)"/>
+        <text class="l-hot" x="645" y="107" text-anchor="middle">polls</text>
+
+        <rect class="n-hot" x="666" y="80" width="160" height="70" rx="4"/>
+        <text class="t-hot" x="746" y="106" text-anchor="middle">emailWorker</text>
+        <text class="s" x="746" y="124" text-anchor="middle">every 30 s · 10 rows</text>
+        <text class="s" x="746" y="140" text-anchor="middle">≤ 3 attempts</text>
+
+        <rect class="n-gap" x="866" y="10" width="178" height="44" rx="4"/>
+        <text class="t" x="955" y="29" text-anchor="middle">Reserved domain</text>
+        <text class="s" x="955" y="45" text-anchor="middle">FAILED · never sent</text>
+        <rect class="n" x="866" y="64" width="178" height="44" rx="4"/>
+        <text class="t" x="955" y="83" text-anchor="middle">EMAIL_DISABLED</text>
+        <text class="s" x="955" y="99" text-anchor="middle">marked SENT, no SMTP</text>
+        <rect class="n-hot" x="866" y="118" width="178" height="44" rx="4"/>
+        <text class="t-hot" x="955" y="137" text-anchor="middle">SMTP accepted</text>
+        <text class="s" x="955" y="153" text-anchor="middle">SENT · OTP redacted</text>
+        <rect class="n" x="866" y="172" width="178" height="44" rx="4"/>
+        <text class="t" x="955" y="191" text-anchor="middle">SMTP error × 3</text>
+        <text class="s" x="955" y="207" text-anchor="middle">FAILED · admin retry</text>
+        <line class="e" x1="826" y1="108" x2="863" y2="34" marker-end="url(#e-a)"/>
+        <line class="e" x1="826" y1="112" x2="863" y2="88" marker-end="url(#e-a)"/>
+        <line class="e-hot" x1="826" y1="118" x2="863" y2="140" marker-end="url(#e-h)"/>
+        <line class="e" x1="826" y1="122" x2="863" y2="194" marker-end="url(#e-a)"/>
+      </svg>
+      </div>
+      <figcaption>Dev runs with <code>EMAIL_DISABLED=false</code>, so mail is live and reaches real <code>@vnrvjiet.in</code> addresses. Test users get <code>@fixture.invalid</code> addresses, and the worker closes those rows without contacting SMTP.</figcaption>
+    </figure>
+    <ul class="notes">
+      <li>A dedupe key names one event: the proof URL, the hold's time, the submission time, the review time or a hash of the issued text. A double-click mails once, and a genuine repeat mails again.</li>
+      <li>Status mail (approvals, holds, OTPs) ignores the opt-out. Only reminders, digests and the quarterly email honour it.</li>
+      <li>Templates escape every faculty-typed value. The quarterly payload carries no cadre, tier, eligibility or /550 figure.</li>
+      <li>Once a mail is sent, or finally fails, the password-OTP code is redacted from the stored payload.</li>
+    </ul>
+  </section>
+
+  <section id="auth">
+    <h2><span class="sn">07</span>Sign-in and tokens</h2>
+    <p class="claim">A login returns a short-lived access token in the response body and a refresh token in a cookie the page's scripts cannot read. Every protected call re-checks a per-user version number. Logging out, or resetting or changing a password, bumps that number and kills every token already issued.</p>
+    <figure>
+      <div class="scroll">
+      <svg class="dg" viewBox="0 0 1060 400" role="img" aria-label="Sequence: browser posts login, API checks the password and records a login audit row, returns an access token and an httpOnly refresh cookie; later calls send the bearer token and the API checks the token version; on 401 the browser refreshes with the cookie; logout or password change increments the version.">
+        <defs>
+          <marker id="q-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0L10,5L0,10z"/></marker>
+          <marker id="q-h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-hot" d="M0,0L10,5L0,10z"/></marker>
+        </defs>
+        <rect class="n-key" x="60" y="16" width="180" height="40" rx="4"/>
+        <text class="t" x="150" y="41" text-anchor="middle">Browser · axios</text>
+        <rect class="n-hot" x="470" y="16" width="180" height="40" rx="4"/>
+        <text class="t-hot" x="560" y="41" text-anchor="middle">API · authController</text>
+        <rect class="n" x="850" y="16" width="160" height="40" rx="4"/>
+        <text class="t" x="930" y="41" text-anchor="middle">Postgres</text>
+        <line class="life" x1="150" y1="56" x2="150" y2="392"/>
+        <line class="life" x1="560" y1="56" x2="560" y2="392"/>
+        <line class="life" x1="930" y1="56" x2="930" y2="392"/>
+
+        <line class="e" x1="150" y1="92" x2="557" y2="92" marker-end="url(#q-a)"/>
+        <text class="l" x="355" y="85" text-anchor="middle">POST /auth/login · 10 tries per 15 min per IP</text>
+        <line class="e" x1="560" y1="126" x2="927" y2="126" marker-end="url(#q-a)"/>
+        <text class="l" x="745" y="119" text-anchor="middle">load user + roles · bcrypt (dummy hash if unknown)</text>
+        <line class="e" x1="560" y1="158" x2="927" y2="158" marker-end="url(#q-a)"/>
+        <text class="l" x="745" y="151" text-anchor="middle">write AuditLog LOGIN</text>
+        <line class="e-hot" x1="560" y1="198" x2="153" y2="198" marker-end="url(#q-h)"/>
+        <text class="l-hot" x="355" y="191" text-anchor="middle">access JWT in body + refresh cookie</text>
+        <text class="s" x="355" y="216" text-anchor="middle">httpOnly · SameSite=Lax · path /api/auth</text>
+
+        <line class="e" x1="150" y1="254" x2="557" y2="254" marker-end="url(#q-a)"/>
+        <text class="l" x="355" y="247" text-anchor="middle">any call · Authorization: Bearer &lt;access&gt;</text>
+        <line class="e" x1="560" y1="282" x2="927" y2="282" marker-end="url(#q-a)"/>
+        <text class="l" x="745" y="275" text-anchor="middle">tokenVersion still matches? active roles</text>
+
+        <line class="e-dash" x1="150" y1="322" x2="557" y2="322" marker-end="url(#q-a)"/>
+        <text class="l" x="355" y="315" text-anchor="middle">on 401 · POST /auth/refresh (cookie only)</text>
+        <line class="e-dash" x1="560" y1="350" x2="153" y2="350" marker-end="url(#q-a)"/>
+        <text class="l" x="355" y="343" text-anchor="middle">new access token</text>
+        <line class="e" x1="560" y1="382" x2="927" y2="382" marker-end="url(#q-a)"/>
+        <text class="l" x="745" y="375" text-anchor="middle">logout · reset · change password → tokenVersion + 1</text>
+      </svg>
+      </div>
+      <figcaption>The browser keeps the access token in <code>localStorage</code> through the zustand auth store. It is short-lived and revocable through the version number. The refresh token never reaches JavaScript: axios sends it only with <code>withCredentials</code> on <code>/api/auth</code>. The JWT algorithm is pinned on verify.</figcaption>
+    </figure>
+    <ul class="notes">
+      <li>Forgot password sends a 6-digit OTP from <code>crypto.randomInt</code>, limited to 3 requests a minute. It returns the same message whether or not the code exists.</li>
+      <li>Soft-deleted users cannot sign in. Reactivation restores the account but not its roles, which are re-assigned on purpose.</li>
+      <li>A HoD or reviewer role carries a department and is valid only in the user's own department. The dean (ADMIN) is the one cross-department role.</li>
+      <li>Default passwords (<code>Welcome@123</code> for imports) come from environment variables. The real install still has to set them and force a reset.</li>
+    </ul>
+  </section>
+
+  <section id="data">
+    <h2><span class="sn">08</span>Data model</h2>
+    <p class="claim">The schema has 54 Prisma models. At its centre is <code>AppraisalSubmission</code>: one per faculty member per academic year, carrying 32 category tables that mirror the official form, section by section. Reviews, proof checks and feedback hang off the submission. Tracking settings hang off the year.</p>
+    <figure>
+      <div class="scroll">
+      <svg class="dg" viewBox="0 0 1060 440" role="img" aria-label="Entity groups: people (User, UserRole, Department), year and targets, the appraisal submission with 32 category tables and uploaded files, review and feedback records, operations tables, and retired FPGP tables.">
+        <defs>
+          <marker id="x-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0L10,5L0,10z"/></marker>
+          <marker id="x-h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-hot" d="M0,0L10,5L0,10z"/></marker>
+        </defs>
+        <rect class="zone" x="16" y="16" width="230" height="250" rx="6"/>
+        <text class="zl" x="28" y="34">PEOPLE</text>
+        <rect class="n-key" x="32" y="46" width="198" height="46" rx="4"/>
+        <text class="t" x="44" y="66">User</text>
+        <text class="s" x="44" y="82">soft delete · tokenVersion</text>
+        <rect class="n" x="32" y="126" width="198" height="46" rx="4"/>
+        <text class="t" x="44" y="146">UserRole</text>
+        <text class="s" x="44" y="162">role + one department</text>
+        <rect class="n" x="32" y="206" width="198" height="46" rx="4"/>
+        <text class="t" x="44" y="226">Department</text>
+        <text class="s" x="44" y="242">CSE active · 3 switched off</text>
+        <line class="e" x1="131" y1="92" x2="131" y2="123" marker-end="url(#x-a)"/>
+        <text class="l" x="138" y="112">1 : n</text>
+        <line class="e" x1="131" y1="172" x2="131" y2="203" marker-end="url(#x-a)"/>
+        <text class="l" x="138" y="192">n : 1</text>
+
+        <rect class="zone" x="16" y="286" width="230" height="138" rx="6"/>
+        <text class="zl" x="28" y="304">YEAR &amp; TARGETS</text>
+        <rect class="n-key" x="32" y="314" width="198" height="46" rx="4"/>
+        <text class="t" x="44" y="334">AcademicYear</text>
+        <text class="s" x="44" y="350">2026-27 open</text>
+        <text class="s" x="32" y="380">ReviewWindow · CadreTarget</text>
+        <text class="s" x="32" y="396">CadreTierThreshold · FacultyTier</text>
+        <text class="s" x="32" y="412">TrackingSnapshot · AcademicYearDept</text>
+
+        <rect class="zone" x="280" y="16" width="330" height="408" rx="6"/>
+        <text class="zl" x="292" y="34">ONE APPRAISAL</text>
+        <rect class="n-hot" x="300" y="46" width="290" height="60" rx="4"/>
+        <text class="t-hot" x="314" y="70">AppraisalSubmission</text>
+        <text class="s" x="314" y="88">status · proofDeadlineAt · voidedSources</text>
+        <rect class="n" x="300" y="140" width="290" height="126" rx="4"/>
+        <text class="t" x="314" y="162">32 category tables</text>
+        <text class="s" x="314" y="184">Cat 1 × 5 · teaching &amp; learning</text>
+        <text class="s" x="314" y="200">Cat 2 × 14 · research &amp; consultancy</text>
+        <text class="s" x="314" y="216">Cat 3 × 7 · faculty development</text>
+        <text class="s" x="314" y="232">Cat 4 × 2 · governance</text>
+        <text class="s" x="314" y="248">Cat 5 × 4 · supplementary</text>
+        <line class="e" x1="445" y1="106" x2="445" y2="137" marker-end="url(#x-a)"/>
+        <text class="l" x="452" y="126">1 : n each · cascade</text>
+        <rect class="n" x="300" y="300" width="290" height="56" rx="4"/>
+        <text class="t" x="314" y="322">UploadedFile</text>
+        <text class="s" x="314" y="340">proof file on disk · row names owner</text>
+        <text class="s" x="300" y="386">Proofs are plain URL strings on the category</text>
+        <text class="s" x="300" y="402">rows: an uploaded file path or a pasted link.</text>
+
+        <rect class="zone" x="644" y="16" width="190" height="408" rx="6"/>
+        <text class="zl" x="656" y="34">REVIEW &amp; FEEDBACK</text>
+        <rect class="n-key" x="654" y="46" width="170" height="52" rx="4"/>
+        <text class="t" x="666" y="67">AppraisalReview</text>
+        <text class="s" x="666" y="84">HoD marks · frozen</text>
+        <rect class="n" x="654" y="126" width="170" height="52" rx="4"/>
+        <text class="t" x="666" y="147">FinalReview</text>
+        <text class="s" x="666" y="164">dean-assigned vote</text>
+        <rect class="n" x="654" y="206" width="170" height="52" rx="4"/>
+        <text class="t" x="666" y="227">ProofVerification</text>
+        <text class="s" x="666" y="244">one per proof URL</text>
+        <rect class="n" x="654" y="286" width="170" height="52" rx="4"/>
+        <text class="t" x="666" y="307">Feedback</text>
+        <text class="s" x="666" y="324">annual · snapshot</text>
+        <path class="e-hot" d="M590,70 H652" marker-end="url(#x-h)"/>
+        <path class="e" d="M600,76 V152 H651" marker-end="url(#x-a)"/>
+        <path class="e" d="M614,76 V232 H651" marker-end="url(#x-a)"/>
+        <path class="e" d="M628,76 V312 H651" marker-end="url(#x-a)"/>
+        <text class="l" x="621" y="63" text-anchor="middle">1 : 1</text>
+        <text class="l" x="640" y="146" text-anchor="middle">n</text>
+        <text class="l" x="640" y="226" text-anchor="middle">n</text>
+        <text class="l" x="640" y="306" text-anchor="middle">1</text>
+
+        <rect class="zone" x="858" y="16" width="186" height="240" rx="6"/>
+        <text class="zl" x="870" y="34">OPERATIONS</text>
+        <rect class="n" x="872" y="46" width="158" height="52" rx="4"/>
+        <text class="t" x="884" y="67">EmailNotification</text>
+        <text class="s" x="884" y="84">the outbox</text>
+        <rect class="n" x="872" y="116" width="158" height="52" rx="4"/>
+        <text class="t" x="884" y="137">AuditLog</text>
+        <text class="s" x="884" y="154">userId · RESTRICT</text>
+        <rect class="n" x="872" y="186" width="158" height="52" rx="4"/>
+        <text class="t" x="884" y="207">PasswordOtp</text>
+        <text class="s" x="884" y="224">one live code</text>
+
+        <rect class="zone" x="858" y="276" width="186" height="148" rx="6"/>
+        <text class="zl" x="870" y="294">RETIRED · DATA KEPT</text>
+        <text class="s" x="872" y="320">FPGPPlan</text>
+        <text class="s" x="872" y="338">FPGPSubsection</text>
+        <text class="s" x="872" y="356">FPGPReview</text>
+        <text class="s" x="872" y="386">code deleted 2026-09-13</text>
+
+        <line class="e" x1="230" y1="70" x2="297" y2="70" marker-end="url(#x-a)"/>
+        <text class="l" x="264" y="63" text-anchor="middle">1 : n</text>
+        <path class="e" d="M230,337 H263 V92 H297" marker-end="url(#x-a)"/>
+        <text class="l" x="257" y="220" text-anchor="end">1:n</text>
+      </svg>
+      </div>
+      <figcaption>Arrows point from the "one" side to the "many" side. Deleting a submission cascades to its category rows, proof checks and review. Users and departments are never hard-deleted, only deactivated, so their appraisals and audit trail survive. The three operations tables all point at <code>User</code>. Schema changes go through <code>prisma db push</code>, because the migration history drifted.</figcaption>
+    </figure>
+  </section>
+
+  <section id="frontend">
+    <h2><span class="sn">09</span>Frontend</h2>
+    <p class="claim">The frontend is one React single-page app. The routes a user can open depend on their roles, but that is navigation only. The server re-checks every request (section 02), so hiding a page never grants or denies anything by itself.</p>
+    <ul class="notes">
+      <li><strong>Routing:</strong> React Router 7. <code>ProtectedRoute</code> sends signed-out users to <code>/login</code> and hides pages outside the user's roles.</li>
+      <li><strong>Session:</strong> a zustand store persists the access token. One axios instance calls relative <code>/api</code> with credentials, and on a 401 it refreshes once and retries.</li>
+      <li><strong>The form:</strong> react-hook-form + zod, in 7 steps: Leave &amp; Info, Cat 1 to Cat 5, then Preview &amp; Submit. Live badges and the working under each row come from <code>utils/scoring.ts</code>.</li>
+      <li><strong>Views:</strong> recharts for dashboards, SheetJS for Excel export. Tailwind 4 tokens set the institutional palette: navy <code>#1e3a5f</code>, saffron <code>#e9a93a</code>, EB Garamond headings over Lato.</li>
+    </ul>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Role</th><th>Adds these screens</th></tr></thead>
+        <tbody>
+          <tr><td>Every user (faculty)</td><td class="mono">/dashboard · /appraisal/:id/edit · /appraisal/:id · /profile · /final-review (only when assigned)</td></tr>
+          <tr><td>Reviewer (incharge)</td><td class="mono">/reviews · /reviews/:id · /uploads · /uploads/:submissionId</td></tr>
+          <tr><td>HoD</td><td class="mono">everything a reviewer has · /tracking · /red-list · /reports/department</td></tr>
+          <tr><td>Admin (dean)</td><td class="mono">everything above · /admin/dashboard · users · departments · academic-years · cadre-targets · incharges · review-windows · appraisals · reports · emails · audit</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="gaps">
+    <h2><span class="sn">10</span>Known gaps</h2>
+    <p class="claim">The deployment wiring was fixed on 14 September 2026 (<code>090c1de</code>, <code>33bb98c</code>). What remains is either the deployment team's to do on the real host, or not code at all.</p>
+    <p class="claim"><span class="chip ok">closed</span>Only the frontend is published. Required settings are enforced by compose, and every setting is passed through. <code>TZ</code> defaults to IST. Prometheus scrapes <code>backend:5000</code>. Alloy ships logs to Loki. Grafana's password is required and its data sources are provisioned. A blank password setting no longer becomes an empty password. Node 20 is replaced by Node 24 in the images and CI.</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Still open</th><th>Where</th><th>Effect</th><th>Who · fix</th></tr></thead>
+        <tbody>
+          <tr><td><span class="chip gap">gap</span>Proxy hop count</td><td class="mono">backend/src/app.ts:72</td><td>Hard-coded to 1. Behind the campus proxy and nginx, every user shares one IP for the rate limits</td><td>Deployment team: change it to the real count (2) before building</td></tr>
+          <tr><td><span class="chip gap">gap</span>No forced password change</td><td class="mono">auth · users</td><td>The 73 imported accounts share one password until each person changes it</td><td>Developer: flag the account at import, redirect to change-password at first login</td></tr>
+          <tr><td><span class="chip gap">gap</span>Never run on a Docker host</td><td class="mono">compose · images · backup.sh</td><td>Compose validated offline and CI green on Node 24, but the images, the monitoring stack and the backup's compose mode have not run together</td><td>Deployment team: first build, then the restore drill (DEPLOYMENT.md §10)</td></tr>
+          <tr><td><span class="chip gap">gap</span>Backups not scheduled</td><td class="mono">host cron</td><td><code>scripts/backup.sh</code> runs only by hand</td><td>Deployment team: nightly cron and an off-host copy</td></tr>
+          <tr><td><span class="chip gap">gap</span>Loki keeps logs forever</td><td class="mono">bundled local-config</td><td>No retention limit, so disk use grows</td><td>Deployment team: a retention setting, or prune</td></tr>
+          <tr><td><span class="chip gap">gap</span>Hosting agreement</td><td class="mono">not code</td><td>Repository on a personal GitHub account; VJ Shield scan not run; no user-testing period yet</td><td>Project owner</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    Drawn from the code at <code>33bb98c</code> (14 Sep 2026), repository <code>FACULTY-APRRAISAL-PORTAL</code>. Sources: <code>backend/src/app.ts</code>, <code>routes/index.ts</code>, <code>prisma/schema.prisma</code>, the services and cron folders, <code>docker-compose.prod.yml</code>, <code>monitoring/</code>, <code>frontend/nginx.conf</code> and <code>frontend/src/App.tsx</code>. Every setting is listed in <code>ENV_SETUP.md</code>. Figures scroll sideways on narrow screens.
+  </footer>
+</div>
+</body>
+</html>

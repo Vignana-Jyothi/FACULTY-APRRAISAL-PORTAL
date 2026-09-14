@@ -7,6 +7,7 @@ needs no code changes — the public address is one setting, `FRONTEND_URL`.
 
 Related documents:
 - [IT_HANDOFF.md](IT_HANDOFF.md) — one-page brief for college IT
+- [docs/architecture.html](docs/architecture.html) — system map: deployment, request path, modules, lifecycle, scoring, email, auth, data model (open in a browser)
 - [ENV_SETUP.md](ENV_SETUP.md) — **filling `.env`**: every setting's format, example, source, what reads it, what breaks if it is wrong
 - [SECRETS.md](SECRETS.md) — security rules for those values (rotation, leaks, mail)
 - [GO_LIVE_CHECKLIST.md](GO_LIVE_CHECKLIST.md) — sign-off list
