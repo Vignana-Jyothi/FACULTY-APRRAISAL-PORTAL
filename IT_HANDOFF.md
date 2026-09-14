@@ -52,7 +52,10 @@ DEPLOYMENT.md §11).
 ## Required config (`.env`)
 
 Compose **refuses to start** while any value marked required is missing, so a
-blank secret can never reach the app. Every key is annotated in `.env.example`.
+blank secret can never reach the app. **Follow [ENV_SETUP.md](ENV_SETUP.md)**
+to fill it. It gives the exact format of every value, a command that generates
+the secrets, the traps (for example `EMAIL_DISABLED=TRUE` *sends* mail), and
+how to check the result.
 
 | Key | What |
 |-----|------|

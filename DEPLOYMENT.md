@@ -7,7 +7,8 @@ needs no code changes — the public address is one setting, `FRONTEND_URL`.
 
 Related documents:
 - [IT_HANDOFF.md](IT_HANDOFF.md) — one-page brief for college IT
-- [SECRETS.md](SECRETS.md) — every secret and setting, what reads it, how to generate it
+- [ENV_SETUP.md](ENV_SETUP.md) — **filling `.env`**: every setting's format, example, source, what reads it, what breaks if it is wrong
+- [SECRETS.md](SECRETS.md) — security rules for those values (rotation, leaks, mail)
 - [GO_LIVE_CHECKLIST.md](GO_LIVE_CHECKLIST.md) — sign-off list
 - [OBSERVABILITY.md](OBSERVABILITY.md) — metrics, logs, dashboards
 
@@ -74,6 +75,10 @@ write a `backend/.env` on the server.
 
 | Key | Value | Notes |
 |---|---|---|
+**[ENV_SETUP.md](ENV_SETUP.md) walks through this step by step**, including a
+command that generates the secrets and the format traps to avoid. The table
+below is the summary.
+
 Keys marked **required** are enforced by compose itself: `up` stops with
 `required variable X is missing a value` instead of starting the app with a
 blank secret.
