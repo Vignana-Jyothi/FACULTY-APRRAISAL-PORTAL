@@ -16,7 +16,7 @@ Legend: **[DEV]** = developer / repository · **[OPS]** = the deployment team.
 | 0.4 | Monitoring wired: Prometheus scrapes `backend:5000`, Alloy ships logs to Loki, Grafana data sources provisioned | ✅ files ready |
 | 0.5 | Domain set to `appraisal.vjstartup.com` in `.env.example` and the docs | ✅ |
 | 0.6 | Images built and run on a Docker host | ⚠️ last full build 2026-07-05; the deploy team's first build is the check |
-| 0.7 | Dockerfiles use `node:20-alpine`, end-of-life since April 2026 (dev runs Node 24) | ⬜ open — developer decision |
+| 0.7 | Node 24 (`node:24-alpine`) in both Dockerfiles and CI — Node 20 is end-of-life | ✅ |
 | 0.8 | Force a password change at first login (73 imported accounts share one password) | ⬜ open — not built |
 
 ---

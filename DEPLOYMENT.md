@@ -23,13 +23,13 @@ Browser ──HTTPS──▶ campus proxy (TLS) ──HTTP──▶ frontend (ng
                                                    ├─ /          → React app (static files)
                                                    ├─ /api/      → backend :5000
                                                    └─ /uploads/  → backend :5000
-                                               backend (Node 20 + Express) ──▶ postgres :5432
+                                               backend (Node 24 + Express) ──▶ postgres :5432
 ```
 
 | Service | Built from | Port in container | Public? |
 |---|---|---|---|
 | `frontend` | `./frontend` (Vite build served by nginx) | 80 | Yes — on `HTTP_BIND`, reached through the campus proxy |
-| `backend` | `./backend` (Node 20, Prisma, system Chromium for PDFs) | 5000 | No host port |
+| `backend` | `./backend` (Node 24, Prisma, system Chromium for PDFs) | 5000 | No host port |
 | `postgres` | `postgres:15-alpine` | 5432 | No host port |
 | `prometheus`, `loki`, `grafana` | `v3.5.5` / `3.7.7` / `13.2.1` | 9090 / 3100 / 3000 | `127.0.0.1` only, `--profile monitoring` |
 | `alloy` (ships logs to Loki) | `grafana/alloy:v1.19.2` | 12345 | No host port, `--profile monitoring` |
@@ -446,7 +446,9 @@ Closed on 2026-09-14: compose now passes every setting and enforces the required
 ones; only the frontend is published; `TZ` defaults to IST; Prometheus scrapes
 `backend:5000`; Alloy ships logs to Loki; Grafana's data sources are provisioned
 and its password is required; `frontend/.env.example` no longer advertises
-`VITE_API_URL`; the domain is `appraisal.vjstartup.com`.
+`VITE_API_URL`; the domain is `appraisal.vjstartup.com`; both images and CI
+moved from end-of-life Node 20 to Node 24, the version development and the
+tests run on.
 
 Still open — fix or accept before go-live:
 
@@ -455,8 +457,6 @@ Still open — fix or accept before go-live:
 - [ ] **Forced password change** at first login does not exist; the imported
       accounts share `DEFAULT_IMPORT_PASSWORD` (or `Welcome@123`) until each
       person changes it.
-- [ ] **Node 20** in both Dockerfiles is end-of-life (April 2026); development
-      and the test runs use Node 24.
 - [ ] **Not yet run on a Docker host:** the images with the new compose file,
       the pinned monitoring images, the Alloy config, and the backup script's
       compose mode with the restore commands (§10). The compose file itself is

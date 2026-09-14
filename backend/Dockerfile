@@ -1,5 +1,5 @@
 # ---------- Builder: full deps + TypeScript build ----------
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ RUN npm run build
 RUN npm prune --omit=dev
 
 # ---------- Runner: slim runtime + system Chromium for puppeteer ----------
-FROM node:20-alpine AS runner
+FROM node:24-alpine AS runner
 
 WORKDIR /app
 
