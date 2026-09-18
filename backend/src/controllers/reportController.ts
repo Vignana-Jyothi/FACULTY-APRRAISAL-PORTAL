@@ -5,6 +5,8 @@ import * as XLSX from 'xlsx';
 import { computeScore } from '../services/scoringEngine';
 import { TRACKING_INCLUDE } from '../services/trackingService';
 import { AuthUser } from '../middleware/auth';
+import { CONFIG, DEPT_REVIEW, deptIdsFor, hasAnyRole } from '../utils/roles';
+import { canSeeReviewerAssessment, stripReviewerAssessment } from '../utils/reviewVisibility';
 
 // Neutralise spreadsheet formula injection. A cell whose text begins with
 // = + - @ (or a leading tab/CR that Excel trims first) is run as a formula by
@@ -16,18 +18,15 @@ function csvSafe<T>(v: T): T | string {
   return v;
 }
 
-// Dept scoping for report reads. Admins see every department (or an optional
-// single-dept filter); a HoD is hard-scoped to their own dept(s), so a foreign
-// ?dept can't leak another department's data — and the default no longer spills
-// all departments when the caller supplies no filter. Mirrors getCriteriaReport.
+// Dept scoping for report reads. The dean and the principal see every
+// department (or an optional single-dept filter); a HoD is hard-scoped to their
+// own dept(s), so a foreign ?dept can't leak another department's data — and
+// the default no longer spills all departments when the caller supplies no
+// filter. The admin is no longer here: reports are appraisal content and a
+// maintenance account holds none. Mirrors getCriteriaReport.
 function reportUserWhere(user: AuthUser, deptFilter?: string) {
-  const isAdmin = user.roles.some((r) => r.role === RoleType.ADMIN);
-  if (isAdmin) return deptFilter ? { departmentId: deptFilter } : {};
-  const deptIds = user.roles
-    .filter((r) => r.role === RoleType.HOD)
-    .map((r) => r.departmentId)
-    .filter(Boolean) as string[];
-  return { departmentId: { in: deptIds } };
+  if (hasAnyRole(user, CONFIG)) return deptFilter ? { departmentId: deptFilter } : {};
+  return { departmentId: { in: deptIdsFor(user, [RoleType.HOD]) } };
 }
 
 export async function getDeptReport(req: Request, res: Response) {
@@ -57,7 +56,16 @@ export async function getDeptReport(req: Request, res: Response) {
     },
   });
 
-  return res.json(reviews);
+  // A review row IS the reviewer's assessment — Cat 6 and grandTotal are
+  // columns on it. The dean reads this report institute-wide and must not get
+  // them; the HoD of that faculty's department, and the principal, may.
+  const rows = reviews.map((r) =>
+    canSeeReviewerAssessment(req.user!, r.submission.userId, r.submission.user.departmentId)
+      ? r
+      : stripReviewerAssessment(r as any),
+  );
+
+  return res.json(rows);
 }
 
 export async function getInstituteReport(req: Request, res: Response) {
@@ -72,11 +80,15 @@ export async function getInstituteReport(req: Request, res: Response) {
     _count: { id: true },
   });
 
+  // /550 for the principal, /500 for the dean (utils/reviewVisibility). The
+  // select is chosen per caller rather than stripped afterwards so the dean's
+  // grand totals never leave the database.
+  const seesAssessment = hasAnyRole(req.user!, [RoleType.PRINCIPAL]);
   const deptStats = await prisma.appraisalSubmission.findMany({
     where: academicYear ? { academicYearId: academicYear.id } : {},
     include: {
       user: { include: { department: true } },
-      review: { select: { grandTotal: true } },
+      review: { select: { totalScore: true, grandTotal: seesAssessment } },
     },
   });
 
@@ -89,11 +101,8 @@ export async function getInstituteReport(req: Request, res: Response) {
 // submission when present, else the latest.
 export async function getCriteriaReport(req: Request, res: Response) {
   const user = req.user!;
-  const isAdmin = user.roles.some((r) => r.role === RoleType.ADMIN);
-  const deptIds = user.roles
-    .filter((r) => r.role === RoleType.HOD || r.role === RoleType.REVIEWER)
-    .map((r) => r.departmentId)
-    .filter(Boolean) as string[];
+  const seesAllDepts = hasAnyRole(user, CONFIG);
+  const deptIds = deptIdsFor(user, DEPT_REVIEW);
 
   const academicYearId = typeof req.query.academicYearId === 'string' ? req.query.academicYearId : undefined;
   const deptFilter = typeof req.query.dept === 'string' ? req.query.dept : undefined;
@@ -103,8 +112,9 @@ export async function getCriteriaReport(req: Request, res: Response) {
     : await prisma.academicYear.findFirst({ where: { submissionOpen: true }, orderBy: { startDate: 'desc' } });
   if (!year) return res.status(404).json({ error: 'Academic year not found' });
 
-  // Dept scope: HoD/reviewer limited to their dept(s); admin sees all (or a filter).
-  const deptWhere = isAdmin
+  // Dept scope: HoD/reviewer limited to their dept(s); dean and principal see
+  // all (or a filter).
+  const deptWhere = seesAllDepts
     ? (deptFilter ? { departmentId: deptFilter } : {})
     : { departmentId: { in: deptIds } };
 
@@ -129,7 +139,12 @@ export async function getCriteriaReport(req: Request, res: Response) {
         submissionId: sub.id,
         faculty: { id: u.id, name: u.name, employeeCode: u.employeeCode, department: u.department },
         status: sub.status,
-        grandTotal: (sub as any).review?.grandTotal ?? null,
+        // The /550 is the reviewer's assessment: principal and own-department
+        // HoD only. The dean ranks faculty on the /500 breakdown below.
+        grandTotal: canSeeReviewerAssessment(user, sub.userId, u.departmentId ?? null)
+          ? ((sub as any).review?.grandTotal ?? null)
+          : null,
+        reviewedTotal: (sub as any).review?.totalScore ?? null,
         breakdown: computeScore(sub as any),
       };
     })
@@ -155,30 +170,41 @@ export async function exportReport(req: Request, res: Response) {
     include: {
       submission: {
         include: {
-          user: { select: { name: true, employeeCode: true, designation: true, department: true } },
+          user: { select: { name: true, employeeCode: true, designation: true, departmentId: true, department: true } },
           academicYear: { select: { label: true } },
         },
       },
     },
   });
 
-  // Columns mirror the Faculty-wise Breakdown table.
-  const rows = reviews.map((r) => ({
-    'Name': csvSafe(r.submission.user.name),
-    'Employee Code': csvSafe(r.submission.user.employeeCode),
-    'Designation': csvSafe(r.submission.user.designation ?? ''),
-    'Department': csvSafe(r.submission.user.department?.name ?? ''),
-    'Academic Year': csvSafe(r.submission.academicYear.label),
-    'C1': r.cat1Score ?? '',
-    'C2': r.cat2Score ?? '',
-    'C3': r.cat3Score ?? '',
-    'C4': r.cat4Score ?? '',
-    'C5': r.cat5Score ?? '',
-    'Total': r.totalScore ?? '',
-    'Score by HoD': ((r.cat6Punctuality ?? 0) + (r.cat6Professionalism ?? 0) + (r.cat6Willingness ?? 0) + (r.cat6Cordiality ?? 0) + (r.cat6Classroom ?? 0)),
-    'Reviewed': r.grandTotal ?? '',
-    'Status': r.status,
-  }));
+  // Columns mirror the Faculty-wise Breakdown table. The two Cat 6 columns are
+  // blank for a caller who may not see the reviewer's assessment of that
+  // faculty — the dean exports institute-wide and gets the /500 only.
+  const rows = reviews.map((r) => {
+    const cat6Visible = canSeeReviewerAssessment(
+      req.user!,
+      r.submission.userId,
+      r.submission.user.departmentId,
+    );
+    return {
+      'Name': csvSafe(r.submission.user.name),
+      'Employee Code': csvSafe(r.submission.user.employeeCode),
+      'Designation': csvSafe(r.submission.user.designation ?? ''),
+      'Department': csvSafe(r.submission.user.department?.name ?? ''),
+      'Academic Year': csvSafe(r.submission.academicYear.label),
+      'C1': r.cat1Score ?? '',
+      'C2': r.cat2Score ?? '',
+      'C3': r.cat3Score ?? '',
+      'C4': r.cat4Score ?? '',
+      'C5': r.cat5Score ?? '',
+      'Total': r.totalScore ?? '',
+      'Score by HoD': cat6Visible
+        ? ((r.cat6Punctuality ?? 0) + (r.cat6Professionalism ?? 0) + (r.cat6Willingness ?? 0) + (r.cat6Cordiality ?? 0) + (r.cat6Classroom ?? 0))
+        : '',
+      'Reviewed': cat6Visible ? (r.grandTotal ?? '') : '',
+      'Status': r.status,
+    };
+  });
 
   if (format === 'excel') {
     const wb = XLSX.utils.book_new();

@@ -1,16 +1,17 @@
 ﻿import { Request, Response } from 'express';
 import { z } from 'zod';
-import { RoleType, SubmissionStatus } from '@prisma/client';
+import { SubmissionStatus } from '@prisma/client';
 import prisma from '../utils/prismaClient';
 import { computeScore } from '../services/scoringEngine';
 import { enqueueEmail } from '../services/emailService';
 import {
   serializeSubmissionForFaculty,
   serializeSubmissionForReviewer,
-  serializeSubmissionForAdmin,
+  serializeSubmissionStripped,
 } from '../utils/serializers';
 import { canViewUserResource } from '../utils/access';
-import { isOwnerView, stripReviewerAssessment } from '../utils/reviewVisibility';
+import { isOwnerView, stripReviewerAssessment, canSeeReviewerAssessment } from '../utils/reviewVisibility';
+import { DEPT_REVIEW, INSTITUTE_READ, SCRUTINY_POOL, deptIdsFor, hasAnyRole } from '../utils/roles';
 import { dropBlankRows } from '../utils/blankRows';
 import { normalizePublicationAuthors } from '../utils/publicationAuthors';
 
@@ -52,10 +53,6 @@ const FULL_INCLUDE = {
   academicYear: { select: { id: true, label: true } },
 };
 
-function hasRole(req: Request, role: RoleType) {
-  return req.user!.roles.some((r) => r.role === role);
-}
-
 // Convert empty strings to null for date fields, otherwise pass through.
 // Date fields (LLD): dateOfPub, dateOfGrant, dateOfApplication, dateOfFiling
 export const DATE_KEYS = new Set(['dateOfPub', 'dateOfGrant', 'dateOfApplication', 'dateOfFiling']);
@@ -85,9 +82,12 @@ function serializeByRole(req: Request, sub: any) {
   // Ownership first: a HoD or incharge looking at their OWN appraisal is the
   // faculty here, whatever roles they hold elsewhere (utils/reviewVisibility).
   if (isOwnerView(req.user!, sub.userId)) return serializeSubmissionForFaculty(sub, review);
-  if (hasRole(req, RoleType.ADMIN)) return serializeSubmissionForAdmin(sub, review);
-  if (hasRole(req, RoleType.HOD) || hasRole(req, RoleType.REVIEWER)) return serializeSubmissionForReviewer(sub, review);
-  return serializeSubmissionForFaculty(sub, review);
+  // Cat 6 + /550 go to the principal and to the faculty's own department
+  // reviewers. Dean, scrutinizers and admin get the same appraisal out of 500.
+  if (canSeeReviewerAssessment(req.user!, sub.userId, sub.user?.departmentId ?? null)) {
+    return serializeSubmissionForReviewer(sub, review);
+  }
+  return serializeSubmissionStripped(sub, review);
 }
 
 export async function listAppraisals(req: Request, res: Response) {
@@ -105,15 +105,19 @@ export async function listAppraisals(req: Request, res: Response) {
     whereClause.status = status;
   }
 
-  if (hasRole(req, RoleType.ADMIN)) {
+  if (hasAnyRole(user, INSTITUTE_READ)) {
+    // Principal and dean: institute-wide, with the optional filters.
     if (dept) whereClause.user = { departmentId: dept };
     if (userId) whereClause.userId = userId;
-  } else if (hasRole(req, RoleType.HOD) || hasRole(req, RoleType.REVIEWER)) {
-    const deptIds = user.roles
-      .filter((r) => r.role === RoleType.HOD || r.role === RoleType.REVIEWER)
-      .map((r) => r.departmentId)
-      .filter(Boolean) as string[];
-    whereClause.user = { departmentId: { in: deptIds } };
+  } else if (hasAnyRole(user, SCRUTINY_POOL)) {
+    // A scrutinizer's cross-department reach is per submission: only the ones
+    // the dean assigned them to, plus their own.
+    whereClause.OR = [
+      { finalReviews: { some: { reviewerId: user.id } } },
+      { userId: user.id },
+    ];
+  } else if (hasAnyRole(user, DEPT_REVIEW)) {
+    whereClause.user = { departmentId: { in: deptIdsFor(user) } };
   } else {
     whereClause.userId = user.id;
   }
@@ -509,6 +513,10 @@ export async function downloadAppraisalPdf(req: Request, res: Response) {
   if (isOwnerView(req.user!, sub.userId)) {
     const decided = ([SubmissionStatus.APPROVED, SubmissionStatus.REJECTED] as SubmissionStatus[]).includes(sub.status);
     review = decided ? stripReviewerAssessment(review) : null;
+  } else if (!canSeeReviewerAssessment(req.user!, sub.userId, (sub.user as any)?.departmentId ?? null)) {
+    // Dean / scrutinizer / admin copy: the same document out of 500, with
+    // Category 6 and the grand total left off (utils/reviewVisibility).
+    review = stripReviewerAssessment(review);
   }
 
   const { renderAppraisalHtml, renderHtmlToPdf } = await import('../services/pdfService');

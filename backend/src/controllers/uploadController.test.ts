@@ -12,8 +12,14 @@ describe('canAccess — proof file authorization (IDOR guard)', () => {
     expect(canAccess(u(OWNER), OWNER, DEPT)).toBe(true);
   });
 
-  it('admin can access any file', () => {
-    expect(canAccess(u('admin', [{ role: 'ADMIN', departmentId: null }]), OWNER, DEPT)).toBe(true);
+  // 2026-09-18 role rework: proof files are appraisal content, so the
+  // maintenance admin no longer reaches them. The principal does.
+  it('the maintenance admin cannot access a proof file', () => {
+    expect(canAccess(u('admin', [{ role: 'ADMIN', departmentId: null }]), OWNER, DEPT)).toBe(false);
+  });
+
+  it('the principal can access any file', () => {
+    expect(canAccess(u('principal', [{ role: 'PRINCIPAL', departmentId: null }]), OWNER, DEPT)).toBe(true);
   });
 
   it('HoD of the same department can access', () => {

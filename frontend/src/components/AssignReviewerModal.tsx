@@ -4,6 +4,10 @@ import toast from 'react-hot-toast';
 import { userApi } from '../api/users';
 import { finalReviewApi } from '../api/appraisals';
 
+// The dean assigns from the standing scrutinizer pool — cross-department, and
+// never the HoD layer below or the maintenance admin.
+const SCRUTINIZER_ROLES = ['SCRUTINIZER', 'SPECIAL_SCRUTINIZER'];
+
 interface Props {
   open: boolean;
   submission: any | null;
@@ -24,7 +28,7 @@ export default function AssignReviewerModal({ open, submission, onClose, onAssig
         .then((all: any[]) => {
           const filtered = all.filter((u) =>
             u.userRoles?.some((r: any) =>
-              ['REVIEWER', 'HOD', 'ADMIN'].includes(r.role)
+              SCRUTINIZER_ROLES.includes(r.role)
             )
           );
           setReviewers(filtered);
@@ -110,7 +114,7 @@ export default function AssignReviewerModal({ open, submission, onClose, onAssig
             ) : (
               filtered.map((r) => {
                 const roles = (r.userRoles ?? [])
-                  .filter((ur: any) => ['REVIEWER', 'HOD', 'ADMIN'].includes(ur.role))
+                  .filter((ur: any) => SCRUTINIZER_ROLES.includes(ur.role))
                   .map((ur: any) => ur.role)
                   .join(', ');
                 return (

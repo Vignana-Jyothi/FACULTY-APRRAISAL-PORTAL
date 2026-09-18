@@ -9,15 +9,16 @@ import { createFixture, type Fixture } from './helpers/fixtures';
 // GET /departments hides inactive departments from every form and picker. That
 // also hid anything still attached to one: an incharge assigned before a
 // department was switched off disappeared from the Incharges page and could no
-// longer be revoked. An admin may now ask for the full list — and only an admin,
-// whatever anyone else passes.
+// longer be revoked. The admin and the dean may now ask for the full list — and
+// nobody else, whatever they pass.
+
 
 const bearer = (t: string) => ({ Authorization: `Bearer ${t}` });
 const PW = 'DeptTest@123';
 
 let ready = false;
 let fixture: Fixture | null = null;
-let adminTok = '';
+let deanTok = '';
 let facultyTok = '';
 let deadDeptId = '';
 let liveDeptId = '';
@@ -28,8 +29,8 @@ beforeAll(async () => {
     // A throwaway dean, not the seed ADMIN001: every login is audited, and so
     // is each reactivation below — the fixture removes both with the admin.
     fixture = await createFixture('IDP');
-    adminTok = (await fixture.addUser({ name: 'ADM', role: RoleType.ADMIN })).token;
-    if (!adminTok) return;
+    deanTok = (await fixture.addUser({ name: 'DEA', role: RoleType.DEAN })).token;
+    if (!deanTok) return;
 
     const stamp = Date.now() % 100000;
     // Own both fixtures rather than borrowing a real department.
@@ -89,26 +90,26 @@ describe('GET /departments — inactive departments', () => {
     expect(facultyTok).not.toBe('');
   });
 
-  it('hides inactive departments by default, even from an admin', async () => {
+  it('hides inactive departments by default, even from the dean', async () => {
     if (!ready) return;
-    const res = await request(app).get('/api/departments').set(bearer(adminTok));
+    const res = await request(app).get('/api/departments').set(bearer(deanTok));
     expect(res.status).toBe(200);
     expect(ids(res.body)).toContain(liveDeptId);
     expect(ids(res.body)).not.toContain(deadDeptId);
   });
 
-  it('includes them for an admin who asks', async () => {
+  it('includes them for a dean who asks', async () => {
     if (!ready) return;
     const res = await request(app)
       .get('/api/departments?includeInactive=true')
-      .set(bearer(adminTok));
+      .set(bearer(deanTok));
     expect(res.status).toBe(200);
     expect(ids(res.body)).toContain(deadDeptId);
     expect(ids(res.body)).toContain(liveDeptId);
     expect(res.body.find((d: any) => d.id === deadDeptId).isActive).toBe(false);
   });
 
-  it('ignores the flag for a non-admin', async () => {
+  it('ignores the flag for a plain faculty', async () => {
     if (!ready) return;
     const res = await request(app)
       .get('/api/departments?includeInactive=true')
@@ -132,12 +133,12 @@ describe('POST /admin/departments/:id/reactivate', () => {
     if (!ready) return;
     const res = await request(app)
       .post(`/api/admin/departments/${deadDeptId}/reactivate`)
-      .set(bearer(adminTok));
+      .set(bearer(deanTok));
     expect(res.status).toBe(200);
     expect(res.body.department.isActive).toBe(true);
 
     // It is now in the plain list, with no flag needed.
-    const list = await request(app).get('/api/departments').set(bearer(adminTok));
+    const list = await request(app).get('/api/departments').set(bearer(deanTok));
     expect(ids(list.body)).toContain(deadDeptId);
   });
 
@@ -153,7 +154,7 @@ describe('POST /admin/departments/:id/reactivate', () => {
     if (!ready) return;
     const res = await request(app)
       .post(`/api/admin/departments/${liveDeptId}/reactivate`)
-      .set(bearer(adminTok));
+      .set(bearer(deanTok));
     expect(res.status).toBe(200);
     expect(res.body.message).toMatch(/already active/i);
   });
@@ -162,11 +163,11 @@ describe('POST /admin/departments/:id/reactivate', () => {
     if (!ready) return;
     const res = await request(app)
       .post('/api/admin/departments/00000000-0000-0000-0000-000000000000/reactivate')
-      .set(bearer(adminTok));
+      .set(bearer(deanTok));
     expect(res.status).toBe(404);
   });
 
-  it('refuses a non-admin', async () => {
+  it('refuses a plain faculty', async () => {
     if (!ready) return;
     const res = await request(app)
       .post(`/api/admin/departments/${deadDeptId}/reactivate`)

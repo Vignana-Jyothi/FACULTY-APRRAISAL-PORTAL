@@ -8,10 +8,25 @@ import Card from '../../components/Card';
 import StatusBadge from '../../components/StatusBadge';
 import FeedbackSection from '../../components/FeedbackSection';
 import RejectedProofsCard from '../../components/RejectedProofsCard';
+import { useAuthStore } from '../../store/authStore';
+
+const CAT6_FIELDS: [key: string, label: string][] = [
+  ['cat6Punctuality', 'Punctuality'],
+  ['cat6Professionalism', 'Professionalism'],
+  ['cat6Willingness', 'Willingness'],
+  ['cat6Cordiality', 'Cordiality'],
+  ['cat6Classroom', 'Classroom Conduct'],
+];
 
 export default function AppraisalViewPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  // This page is reached by the owning faculty, by the department review layer
+  // and by scrutinizers following the link out of their queue. Category 6 and
+  // the /550 grand total render only for the roles allowed to see them; the
+  // server strips them from the payload for everyone else as well.
+  const canSeeCoreValues = useAuthStore((s) => s.canSeeCoreValues);
+  const showCoreValues = canSeeCoreValues();
   const [submission, setSubmission] = useState<any>(null);
   const [score, setScore] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -181,6 +196,30 @@ export default function AppraisalViewPage() {
           </div>
           <p className="text-[10px] text-ink-muted mt-3">
             Your reviewed score, as awarded by the reviewer against the evidence submitted.
+          </p>
+        </Card>
+      )}
+
+      {/* Category 6 + the /550 grand total — withheld from the faculty who owns
+          this appraisal, from the dean, from scrutinizers and from the
+          maintenance admin. */}
+      {showCoreValues && review && review.grandTotal != null && (
+        <Card className="mb-4">
+          <h2 className="text-sm font-semibold text-ink-primary mb-3">Category 6 — Core Values</h2>
+          <div className="space-y-1">
+            {CAT6_FIELDS.map(([key, label]) => (
+              <div key={key} className="flex items-center justify-between text-xs">
+                <span className="text-ink-secondary">{label}</span>
+                <span className="text-ink-primary font-medium">{(review[key] ?? 0).toFixed(1)} / 10</span>
+              </div>
+            ))}
+            <div className="border-t border-surface-border pt-2 mt-2 flex items-center justify-between font-medium">
+              <span className="text-sm text-ink-secondary">Grand Total</span>
+              <span className="text-sm text-primary-700">{review.grandTotal.toFixed(1)} / 550</span>
+            </div>
+          </div>
+          <p className="text-[10px] text-ink-muted mt-3">
+            Not visible to the faculty member, and not included in any email or export sent to them.
           </p>
         </Card>
       )}

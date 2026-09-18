@@ -96,7 +96,7 @@ export default function AdminDepartmentsPage() {
       <PageHeader
         title="Departments"
         subtitle={`${depts.filter((d) => d.isActive !== false).length} active department(s)`}
-        breadcrumbs={[{ label: 'Admin', to: '/admin/dashboard' }, { label: 'Departments' }]}
+        breadcrumbs={[{ label: 'Dean' }, { label: 'Departments' }]}
         actions={
           <div className="flex items-center gap-3">
             <label className="flex items-center gap-2 text-xs text-ink-secondary whitespace-nowrap cursor-pointer">

@@ -51,13 +51,20 @@ export async function loadTrackingContext(academicYearId: string): Promise<Track
 
 // Compute one faculty's tracking row from a submission (loaded with
 // TRACKING_INCLUDE) and the AY context. `yearStart` is the experience reference.
-export function computeRow(sub: any, ctx: TrackingContext, yearStart: Date) {
+export function computeRow(sub: any, ctx: TrackingContext, yearStart: Date, maskCoreValues = false) {
   const u = sub.user;
   const expYears = computeExperienceYears(u.dateOfJoining, yearStart);
   const cadre = deriveCadre(u.designation);
   const actuals = computeActuals(sub, sub.review?.grandTotal ?? null);
   const target = cadre ? pickCadreTarget(ctx.cadreTargets, cadre, expYears) : null;
+  // Eligibility is always decided on the full grand total, so the verdict does
+  // not change with who is looking. Only the number shown is masked: a reader
+  // who may not see Cat 6 (dean, special scrutinizer) gets the reviewed /500
+  // instead of the /550 (utils/reviewVisibility is the rule this mirrors).
   const eligibility = checkEligibility(actuals, target);
+  const shownActuals = maskCoreValues && actuals.totalScoreSource === 'HOD'
+    ? { ...actuals, totalScore: sub.review?.totalScore ?? 0 }
+    : actuals;
 
   return {
     submissionId: sub.id,
@@ -68,7 +75,7 @@ export function computeRow(sub: any, ctx: TrackingContext, yearStart: Date) {
     cadre,
     cadreLabel: cadre ? CADRE_LABEL[cadre] : null,
     expYears: Math.round(expYears * 10) / 10,
-    actuals,
+    actuals: shownActuals,
     // Computed actuals-vs-cadre-targets detail. Kept as the reference the dean
     // reads when deciding, but it no longer decides eligibility itself.
     eligibility,
@@ -89,7 +96,7 @@ export type TrackingRow = ReturnType<typeof computeRow>;
 
 // Resolve the AY + build the sorted per-faculty rows for a scope. Returns null
 // if the year can't be resolved.
-export async function buildTrackingRows(opts: { isAdmin: boolean; deptIds: string[]; academicYearId?: string }) {
+export async function buildTrackingRows(opts: { allDepartments: boolean; deptIds: string[]; academicYearId?: string; maskCoreValues?: boolean }) {
   const year = opts.academicYearId
     ? await prisma.academicYear.findUnique({ where: { id: opts.academicYearId } })
     : await prisma.academicYear.findFirst({ where: { submissionOpen: true }, orderBy: { startDate: 'desc' } });
@@ -98,14 +105,14 @@ export async function buildTrackingRows(opts: { isAdmin: boolean; deptIds: strin
   const [ctx, submissions] = await Promise.all([
     loadTrackingContext(year.id),
     prisma.appraisalSubmission.findMany({
-      where: { academicYearId: year.id, ...(opts.isAdmin ? {} : { user: { departmentId: { in: opts.deptIds } } }) },
+      where: { academicYearId: year.id, ...(opts.allDepartments ? {} : { user: { departmentId: { in: opts.deptIds } } }) },
       include: TRACKING_INCLUDE,
       orderBy: { submissionNumber: 'desc' },
     }),
   ]);
 
   const rows = latestPerFaculty(submissions)
-    .map((sub) => computeRow(sub, ctx, year.startDate))
+    .map((sub) => computeRow(sub, ctx, year.startDate, opts.maskCoreValues ?? false))
     .sort((a, b) => a.faculty.name.localeCompare(b.faculty.name));
 
   return { year, ctx, rows };

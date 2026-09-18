@@ -19,6 +19,7 @@ const bearer = (t: string) => ({ Authorization: `Bearer ${t}` });
 
 let ready = false;
 let fixture: Fixture | null = null;
+let principalTok = '';
 let adminTok = '';
 let hodTok = '';
 let facTok = '';
@@ -28,14 +29,15 @@ let openYearId = '';
 beforeAll(async () => {
   try {
     fixture = await createFixture('V2C');
+    principalTok = (await fixture.addUser({ name: 'PRI', role: RoleType.PRINCIPAL })).token;
     adminTok = (await fixture.addUser({ name: 'ADM', role: RoleType.ADMIN })).token;
     hodTok = (await fixture.addUser({ name: 'HOD', role: RoleType.HOD, designation: 'Professor' })).token;
     faculty = await fixture.addUser({ name: 'FAC' });
     facTok = faculty.token;
-    if (!adminTok || !hodTok || !facTok) return;
+    if (!principalTok || !hodTok || !facTok) return;
     // A draft in the open year, so the faculty has a row on /tracking.
     await fixture.createSubmission(faculty);
-    const years = await request(app).get('/api/academic-years').set(bearer(adminTok));
+    const years = await request(app).get('/api/academic-years').set(bearer(principalTok));
     const open = years.body.find((y: any) => y.submissionOpen) ?? years.body[0];
     openYearId = open?.id ?? '';
     ready = !!openYearId;
@@ -91,13 +93,40 @@ describe('V2 auth & role gating', () => {
       expect(res.status).toBe(403);
     });
   }
+
+  // The admin is a maintenance account — accounts, roles, email queue, audit
+  // log. Every appraisal-content route below moved to the principal or the dean
+  // in the 2026-09-18 role rework.
+  const adminForbidden: Array<[string, string]> = [
+    ['get', '/api/admin/cadre-targets'],
+    ['get', '/api/admin/cadre-tiers'],
+    ['get', '/api/admin/review-windows'],
+    ['get', '/api/tracking'],
+    ['get', '/api/tracking/export'],
+    ['put', '/api/admin/faculty-tiers'],
+    ['post', '/api/admin/tracking/snapshot'],
+    ['get', '/api/red-list'],
+    ['get', '/api/proofs/overview'],
+    ['get', '/api/reports/criteria'],
+    ['get', '/api/reports/department'],
+    ['get', '/api/reports/institute'],
+    ['get', '/api/reports/export'],
+    ['get', '/api/reviews/pending'],
+  ];
+  for (const [method, path] of adminForbidden) {
+    it(`ADMIN ${method.toUpperCase()} ${path} → 403 (holds no appraisal content)`, async () => {
+      if (!ready || !adminTok) return;
+      const res = await (request(app) as any)[method](path).set(bearer(adminTok));
+      expect(res.status).toBe(403);
+    });
+  }
 });
 
-// ─── W1: cadre eligibility targets (admin CRUD) ─────────────────────────────
+// ─── W1: cadre eligibility targets (dean/principal CRUD) ───────────────────
 describe('W1 cadre targets', () => {
-  it('admin can list targets for the open year', async () => {
+  it('principal can list targets for the open year', async () => {
     if (!ready) return;
-    const res = await request(app).get(`/api/admin/cadre-targets?academicYearId=${openYearId}`).set(bearer(adminTok));
+    const res = await request(app).get(`/api/admin/cadre-targets?academicYearId=${openYearId}`).set(bearer(principalTok));
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
   });
@@ -106,9 +135,9 @@ describe('W1 cadre targets', () => {
     if (!ready) return;
     // Self-heal: drop any leftover 99-band row from a crashed prior run so the
     // POST (which is create, not upsert) doesn't hit a P2002 duplicate.
-    const existing = await request(app).get(`/api/admin/cadre-targets?academicYearId=${openYearId}`).set(bearer(adminTok));
+    const existing = await request(app).get(`/api/admin/cadre-targets?academicYearId=${openYearId}`).set(bearer(principalTok));
     for (const r of existing.body.filter((x: any) => x.cadre === 'ASSISTANT_PROFESSOR' && x.minExpYears === 99)) {
-      await request(app).delete(`/api/admin/cadre-targets/${r.id}`).set(bearer(adminTok));
+      await request(app).delete(`/api/admin/cadre-targets/${r.id}`).set(bearer(principalTok));
     }
     const payload = {
       academicYearId: openYearId,
@@ -123,7 +152,7 @@ describe('W1 cadre targets', () => {
       ppcRule: 'DESIRABLE',
       ppcCount: 0,
     };
-    const created = await request(app).post('/api/admin/cadre-targets').set(bearer(adminTok)).send(payload);
+    const created = await request(app).post('/api/admin/cadre-targets').set(bearer(principalTok)).send(payload);
     expect(created.status).toBe(201);
     expect(created.body.id).toBeTruthy();
     const id = created.body.id;
@@ -132,7 +161,7 @@ describe('W1 cadre targets', () => {
     // (updateTargetSchema has no Zod defaults, so omitted keys are untouched.)
     const updated = await request(app)
       .put(`/api/admin/cadre-targets/${id}`)
-      .set(bearer(adminTok))
+      .set(bearer(principalTok))
       .send({ totalScoreTarget: 320 });
     expect(updated.status).toBe(200);
     expect(updated.body.totalScoreTarget).toBe(320);
@@ -142,13 +171,13 @@ describe('W1 cadre targets', () => {
     expect(updated.body.indexedCount).toBe(1);
     expect(updated.body.feedbackTarget).toBe(3.5);
 
-    const del = await request(app).delete(`/api/admin/cadre-targets/${id}`).set(bearer(adminTok));
+    const del = await request(app).delete(`/api/admin/cadre-targets/${id}`).set(bearer(principalTok));
     expect(del.status).toBe(204);
   });
 
   it('rejects maxExpYears <= minExpYears with 400', async () => {
     if (!ready) return;
-    const res = await request(app).post('/api/admin/cadre-targets').set(bearer(adminTok)).send({
+    const res = await request(app).post('/api/admin/cadre-targets').set(bearer(principalTok)).send({
       academicYearId: openYearId,
       cadre: 'PROFESSOR',
       minExpYears: 5,
@@ -164,15 +193,15 @@ describe('W1 cadre targets', () => {
 
   it('rejects invalid body with 400 (zod)', async () => {
     if (!ready) return;
-    const res = await request(app).post('/api/admin/cadre-targets').set(bearer(adminTok)).send({ cadre: 'NOPE' });
+    const res = await request(app).post('/api/admin/cadre-targets').set(bearer(principalTok)).send({ cadre: 'NOPE' });
     expect(res.status).toBe(400);
   });
 
   it('update / delete of a nonexistent id → 404', async () => {
     if (!ready) return;
-    const upd = await request(app).put('/api/admin/cadre-targets/does-not-exist').set(bearer(adminTok)).send({ totalScoreTarget: 1 });
+    const upd = await request(app).put('/api/admin/cadre-targets/does-not-exist').set(bearer(principalTok)).send({ totalScoreTarget: 1 });
     expect(upd.status).toBe(404);
-    const del = await request(app).delete('/api/admin/cadre-targets/does-not-exist').set(bearer(adminTok));
+    const del = await request(app).delete('/api/admin/cadre-targets/does-not-exist').set(bearer(principalTok));
     expect(del.status).toBe(404);
   });
 });
@@ -181,9 +210,9 @@ describe('W1 cadre targets', () => {
 
 // ─── W3/W5: tracking ────────────────────────────────────────────────────────
 describe('W3/W5 tracking', () => {
-  it('admin GET /tracking returns the segregation payload', async () => {
+  it('principal GET /tracking returns the segregation payload', async () => {
     if (!ready) return;
-    const res = await request(app).get(`/api/tracking?academicYearId=${openYearId}`).set(bearer(adminTok));
+    const res = await request(app).get(`/api/tracking?academicYearId=${openYearId}`).set(bearer(principalTok));
     expect(res.status).toBe(200);
     expect(res.body.year?.id).toBe(openYearId);
     expect(typeof res.body.hasTargets).toBe('boolean');
@@ -191,71 +220,71 @@ describe('W3/W5 tracking', () => {
     expect(res.body.aggregates).toBeTruthy();
   });
 
-  it('admin sets a manual tier by hand and tracking reflects it', async () => {
+  it('principal sets a manual tier by hand and tracking reflects it', async () => {
     if (!ready) return;
-    const track1 = await request(app).get(`/api/tracking?academicYearId=${openYearId}`).set(bearer(adminTok));
+    const track1 = await request(app).get(`/api/tracking?academicYearId=${openYearId}`).set(bearer(principalTok));
     // The suite's own faculty — never a real one.
     const row = track1.body.rows?.find((r: any) => r.faculty.id === faculty.id);
     expect(row).toBeTruthy();
     if (!row) return; // no faculty in scope
     const userId = row.faculty.id;
 
-    const set = await request(app).put('/api/admin/faculty-tiers').set(bearer(adminTok))
+    const set = await request(app).put('/api/admin/faculty-tiers').set(bearer(principalTok))
       .send({ userId, academicYearId: openYearId, tier: 'T2' });
     expect(set.status).toBe(200);
     expect(set.body.tier).toBe('T2');
 
-    const track2 = await request(app).get(`/api/tracking?academicYearId=${openYearId}`).set(bearer(adminTok));
+    const track2 = await request(app).get(`/api/tracking?academicYearId=${openYearId}`).set(bearer(principalTok));
     expect(track2.body.rows.find((r: any) => r.faculty.id === userId).tier).toBe('T2');
 
     // Clear it back to unassigned (restore).
-    const clr = await request(app).put('/api/admin/faculty-tiers').set(bearer(adminTok))
+    const clr = await request(app).put('/api/admin/faculty-tiers').set(bearer(principalTok))
       .send({ userId, academicYearId: openYearId, tier: null });
     expect(clr.status).toBe(200);
-    const track3 = await request(app).get(`/api/tracking?academicYearId=${openYearId}`).set(bearer(adminTok));
+    const track3 = await request(app).get(`/api/tracking?academicYearId=${openYearId}`).set(bearer(principalTok));
     expect(track3.body.rows.find((r: any) => r.faculty.id === userId).tier).toBeNull();
   });
 
-  it('admin sets eligibility by hand and tracking + aggregates reflect it', async () => {
+  it('principal sets eligibility by hand and tracking + aggregates reflect it', async () => {
     if (!ready) return;
-    const track1 = await request(app).get(`/api/tracking?academicYearId=${openYearId}`).set(bearer(adminTok));
+    const track1 = await request(app).get(`/api/tracking?academicYearId=${openYearId}`).set(bearer(principalTok));
     // The suite's own faculty — never a real one.
     const row = track1.body.rows?.find((r: any) => r.faculty.id === faculty.id);
     expect(row).toBeTruthy();
     if (!row) return;
     const userId = row.faculty.id;
 
-    const on = await request(app).put('/api/admin/faculty-tiers').set(bearer(adminTok))
+    const on = await request(app).put('/api/admin/faculty-tiers').set(bearer(principalTok))
       .send({ userId, academicYearId: openYearId, eligible: true });
     expect(on.status).toBe(200);
     expect(on.body.eligible).toBe(true);
 
-    const t2 = await request(app).get(`/api/tracking?academicYearId=${openYearId}`).set(bearer(adminTok));
+    const t2 = await request(app).get(`/api/tracking?academicYearId=${openYearId}`).set(bearer(principalTok));
     expect(t2.body.rows.find((r: any) => r.faculty.id === userId).eligible).toBe(true);
     expect(t2.body.aggregates.eligible).toBeGreaterThanOrEqual(1);
 
     // Toggling off is distinct from never having decided.
-    const off = await request(app).put('/api/admin/faculty-tiers').set(bearer(adminTok))
+    const off = await request(app).put('/api/admin/faculty-tiers').set(bearer(principalTok))
       .send({ userId, academicYearId: openYearId, eligible: false });
     expect(off.status).toBe(200);
-    const t3 = await request(app).get(`/api/tracking?academicYearId=${openYearId}`).set(bearer(adminTok));
+    const t3 = await request(app).get(`/api/tracking?academicYearId=${openYearId}`).set(bearer(principalTok));
     expect(t3.body.rows.find((r: any) => r.faculty.id === userId).eligible).toBe(false);
 
     // Clearing restores the undecided state, and leaves the tier untouched.
-    await request(app).put('/api/admin/faculty-tiers').set(bearer(adminTok))
+    await request(app).put('/api/admin/faculty-tiers').set(bearer(principalTok))
       .send({ userId, academicYearId: openYearId, eligible: null });
-    const t4 = await request(app).get(`/api/tracking?academicYearId=${openYearId}`).set(bearer(adminTok));
+    const t4 = await request(app).get(`/api/tracking?academicYearId=${openYearId}`).set(bearer(principalTok));
     expect(t4.body.rows.find((r: any) => r.faculty.id === userId).eligible).toBeNull();
   });
 
   it('rejects a faculty-tiers call carrying neither tier nor eligible (400)', async () => {
     if (!ready) return;
-    const res = await request(app).put('/api/admin/faculty-tiers').set(bearer(adminTok))
+    const res = await request(app).put('/api/admin/faculty-tiers').set(bearer(principalTok))
       .send({ userId: 'x', academicYearId: openYearId });
     expect(res.status).toBe(400);
   });
 
-  it('non-admin cannot set a manual tier (403)', async () => {
+  it('non-principal cannot set a manual tier (403)', async () => {
     if (!ready || !hodTok) return;
     const res = await request(app).put('/api/admin/faculty-tiers').set(bearer(hodTok))
       .send({ userId: 'x', academicYearId: openYearId, tier: 'T1' });
@@ -264,7 +293,7 @@ describe('W3/W5 tracking', () => {
 
   it('GET /proofs/overview returns per-faculty upload counts, dept-scoped', async () => {
     if (!ready) return;
-    const res = await request(app).get(`/api/proofs/overview?academicYearId=${openYearId}`).set(bearer(adminTok));
+    const res = await request(app).get(`/api/proofs/overview?academicYearId=${openYearId}`).set(bearer(principalTok));
     expect(res.status).toBe(200);
     expect(res.body.year?.id).toBe(openYearId);
     expect(Array.isArray(res.body.rows)).toBe(true);
@@ -289,16 +318,16 @@ describe('W3/W5 tracking', () => {
     expect(res.status).toBe(403);
   });
 
-  it('admin GET /tracking/export?format=excel returns an xlsx buffer', async () => {
+  it('principal GET /tracking/export?format=excel returns an xlsx buffer', async () => {
     if (!ready) return;
-    const res = await request(app).get(`/api/tracking/export?academicYearId=${openYearId}&format=excel`).set(bearer(adminTok));
+    const res = await request(app).get(`/api/tracking/export?academicYearId=${openYearId}&format=excel`).set(bearer(principalTok));
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('spreadsheetml');
   });
 
-  it('admin GET /tracking/export (json default) returns rows', async () => {
+  it('principal GET /tracking/export (json default) returns rows', async () => {
     if (!ready) return;
-    const res = await request(app).get(`/api/tracking/export?academicYearId=${openYearId}`).set(bearer(adminTok));
+    const res = await request(app).get(`/api/tracking/export?academicYearId=${openYearId}`).set(bearer(principalTok));
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
   });
@@ -312,16 +341,16 @@ describe('W3/W5 tracking', () => {
 
   it('unknown academic year → 404', async () => {
     if (!ready) return;
-    const res = await request(app).get('/api/tracking?academicYearId=no-such-year').set(bearer(adminTok));
+    const res = await request(app).get('/api/tracking?academicYearId=no-such-year').set(bearer(principalTok));
     expect(res.status).toBe(404);
   });
 });
 
 // ─── W2: verification / red-list ────────────────────────────────────────────
 describe('W2 verification & red-list', () => {
-  it('admin GET /red-list returns an array', async () => {
+  it('principal GET /red-list returns an array', async () => {
     if (!ready) return;
-    const res = await request(app).get('/api/red-list').set(bearer(adminTok));
+    const res = await request(app).get('/api/red-list').set(bearer(principalTok));
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
   });
@@ -335,7 +364,7 @@ describe('W2 verification & red-list', () => {
 
   it('GET proofs of a nonexistent submission → 404', async () => {
     if (!ready) return;
-    const res = await request(app).get('/api/appraisals/no-such-sub/proofs').set(bearer(adminTok));
+    const res = await request(app).get('/api/appraisals/no-such-sub/proofs').set(bearer(principalTok));
     expect(res.status).toBe(404);
   });
 
@@ -350,7 +379,7 @@ describe('W2 verification & red-list', () => {
 
   it('clear-hold on a nonexistent submission → 404', async () => {
     if (!ready) return;
-    const res = await request(app).post('/api/appraisals/no-such-sub/clear-hold').set(bearer(adminTok));
+    const res = await request(app).post('/api/appraisals/no-such-sub/clear-hold').set(bearer(principalTok));
     expect(res.status).toBe(404);
   });
 });
@@ -359,7 +388,7 @@ describe('W2 verification & red-list', () => {
 describe('W6 feedback', () => {
   it('GET feedback of a nonexistent submission → 404', async () => {
     if (!ready) return;
-    const res = await request(app).get('/api/appraisals/no-such-sub/feedback').set(bearer(adminTok));
+    const res = await request(app).get('/api/appraisals/no-such-sub/feedback').set(bearer(principalTok));
     expect(res.status).toBe(404);
   });
 
@@ -367,7 +396,7 @@ describe('W6 feedback', () => {
     if (!ready) return;
     const res = await request(app)
       .put('/api/appraisals/no-such-sub/feedback')
-      .set(bearer(adminTok))
+      .set(bearer(principalTok))
       .send({ strengths: 'x' });
     expect(res.status).toBe(404);
   });
@@ -384,9 +413,9 @@ describe('W6 feedback', () => {
 
 // ─── A1–A3: criteria report ─────────────────────────────────────────────────
 describe('reports/criteria', () => {
-  it('admin GET /reports/criteria returns ranked rows', async () => {
+  it('principal GET /reports/criteria returns ranked rows', async () => {
     if (!ready) return;
-    const res = await request(app).get(`/api/reports/criteria?academicYearId=${openYearId}`).set(bearer(adminTok));
+    const res = await request(app).get(`/api/reports/criteria?academicYearId=${openYearId}`).set(bearer(principalTok));
     expect(res.status).toBe(200);
     expect(res.body.year?.id).toBe(openYearId);
     expect(Array.isArray(res.body.rows)).toBe(true);
@@ -403,7 +432,7 @@ describe('reports/criteria', () => {
 // getDeptReport / exportReport used to read ?dept straight from the query with no
 // ownership check: a HoD could pass a foreign dept id (cross-dept read), and the
 // no-filter default returned EVERY department. Now a HoD is hard-scoped to their
-// own dept(s); admin keeps the optional filter.
+// own dept(s); the dean and principal keep the optional filter.
 describe('reports/department dept-scope', () => {
   const bogus = '00000000-0000-0000-0000-000000000000';
 
@@ -421,11 +450,11 @@ describe('reports/department dept-scope', () => {
     expect(deptIds.size).toBeLessThanOrEqual(1);
   });
 
-  it('admin report still honours an explicit dept filter', async () => {
+  it('principal report still honours an explicit dept filter', async () => {
     if (!ready) return;
-    const filtered = await request(app).get(`/api/reports/department?dept=${bogus}`).set(bearer(adminTok));
+    const filtered = await request(app).get(`/api/reports/department?dept=${bogus}`).set(bearer(principalTok));
     expect(filtered.status).toBe(200);
-    // Admin has no own-dept scoping, so a bogus filter is honoured → empty.
+    // The principal has no own-dept scoping, so a bogus filter is honoured → empty.
     expect(filtered.body.length).toBe(0);
   });
 });
@@ -445,7 +474,7 @@ describe('quarterly snapshot send-gate', () => {
 
     const res = await request(app)
       .post('/api/admin/tracking/snapshot')
-      .set(bearer(adminTok))
+      .set(bearer(principalTok))
       .send({ academicYearId: openYearId });
 
     expect(res.status).toBe(200);
@@ -464,7 +493,7 @@ describe('quarterly snapshot send-gate', () => {
 
     const res = await request(app)
       .post('/api/admin/tracking/snapshot')
-      .set(bearer(adminTok))
+      .set(bearer(principalTok))
       .send({ academicYearId: openYearId, confirm: 'yes' });
 
     expect(res.status).toBe(200);

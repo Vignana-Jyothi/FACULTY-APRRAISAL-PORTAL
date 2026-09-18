@@ -20,7 +20,7 @@ let fixture: Fixture | null = null;
 let hodTok = '';
 // A throwaway dean. The seed ADMIN001 used to be logged in here, and every
 // login (and every admin action) leaves an audit row the fixture can't reach.
-let fixtureAdminTok = '';
+let fixtureDeanTok = '';
 let faculty: FixtureUser;
 
 // A submission can only be approved once ("Already approved"), so each test
@@ -35,8 +35,8 @@ beforeAll(async () => {
     faculty = await fixture.addUser({ name: 'FAC' });
     const hod = await fixture.addUser({ name: 'HOD', role: RoleType.HOD, designation: 'Professor' });
     hodTok = hod.token;
-    fixtureAdminTok = (await fixture.addUser({ name: 'ADM', role: RoleType.ADMIN })).token;
-    ready = Boolean(hodTok && faculty.token && fixtureAdminTok);
+    fixtureDeanTok = (await fixture.addUser({ name: 'DEA', role: RoleType.DEAN })).token;
+    ready = Boolean(hodTok && faculty.token && fixtureDeanTok);
   } catch {
     ready = false;
   }
@@ -77,11 +77,11 @@ describe('review score — reviewer marks for categories 1-5', () => {
     expect(stored!.grandTotal).toBe(350);
   });
 
-  it('admin can reopen an approved appraisal so the marks can be corrected', async () => {
+  it('the dean can reopen an approved appraisal so the marks can be corrected', async () => {
     if (!ready) return;
     const subId = await makeSubmission();
-    const adminTok = fixtureAdminTok;
-    if (!adminTok) return;
+    const deanTok = fixtureDeanTok;
+    if (!deanTok) return;
 
     // Approve with a wrong mark.
     const first = await request(app).post(`/api/appraisals/${subId}/review`)
@@ -95,15 +95,15 @@ describe('review score — reviewer marks for categories 1-5', () => {
 
     // A reason is required, and the HoD cannot reopen.
     const noReason = await request(app).post(`/api/admin/appraisals/${subId}/reopen-review`)
-      .set(bearer(adminTok)).send({});
+      .set(bearer(deanTok)).send({});
     expect(noReason.status).toBe(400);
-    const notAdmin = await request(app).post(`/api/admin/appraisals/${subId}/reopen-review`)
+    const notAllowed = await request(app).post(`/api/admin/appraisals/${subId}/reopen-review`)
       .set(bearer(hodTok)).send({ reason: 'let me back in' });
-    expect(notAdmin.status).toBe(403);
+    expect(notAllowed.status).toBe(403);
 
-    // Admin reopens; the HoD can now correct the mark.
+    // The dean reopens; the HoD can now correct the mark.
     const reopen = await request(app).post(`/api/admin/appraisals/${subId}/reopen-review`)
-      .set(bearer(adminTok)).send({ reason: 'Cat 1 keyed in wrong' });
+      .set(bearer(deanTok)).send({ reason: 'Cat 1 keyed in wrong' });
     expect(reopen.status).toBe(200);
 
     const sub = await prisma.appraisalSubmission.findUnique({ where: { id: subId } });
@@ -127,8 +127,8 @@ describe('review score — reviewer marks for categories 1-5', () => {
   it('does not re-email the faculty when a reopened appraisal is approved unchanged', async () => {
     if (!ready) return;
     const subId = await makeSubmission();
-    const adminTok = fixtureAdminTok;
-    if (!adminTok) return;
+    const deanTok = fixtureDeanTok;
+    if (!deanTok) return;
 
     const approve = () => request(app).post(`/api/appraisals/${subId}/review`)
       .set(bearer(hodTok)).send({ cat1Score: 50, cat6Punctuality: 5, status: 'APPROVED' });
@@ -141,7 +141,7 @@ describe('review score — reviewer marks for categories 1-5', () => {
     // Reopen and approve again with the SAME marks — nothing changed for the
     // faculty, so nothing should land in their inbox a second time.
     await request(app).post(`/api/admin/appraisals/${subId}/reopen-review`)
-      .set(bearer(adminTok)).send({ reason: 'no-op reopen' });
+      .set(bearer(deanTok)).send({ reason: 'no-op reopen' });
     expect((await approve()).status).toBe(200);
 
     expect(await prisma.emailNotification.count({
@@ -150,7 +150,7 @@ describe('review score — reviewer marks for categories 1-5', () => {
 
     // A corrected decision is a different outcome and does notify them.
     await request(app).post(`/api/admin/appraisals/${subId}/reopen-review`)
-      .set(bearer(adminTok)).send({ reason: 'correcting the mark' });
+      .set(bearer(deanTok)).send({ reason: 'correcting the mark' });
     const corrected = await request(app).post(`/api/appraisals/${subId}/review`)
       .set(bearer(hodTok)).send({ cat1Score: 140, cat6Punctuality: 5, status: 'APPROVED' });
     expect(corrected.status).toBe(200);
@@ -195,11 +195,11 @@ describe('review score — reviewer marks for categories 1-5', () => {
   it('refuses to reopen a submission that was never decided', async () => {
     if (!ready) return;
     const subId = await makeSubmission();
-    const adminTok = fixtureAdminTok;
-    if (!adminTok) return;
+    const deanTok = fixtureDeanTok;
+    if (!deanTok) return;
 
     const res = await request(app).post(`/api/admin/appraisals/${subId}/reopen-review`)
-      .set(bearer(adminTok)).send({ reason: 'nothing to reopen' });
+      .set(bearer(deanTok)).send({ reason: 'nothing to reopen' });
     expect(res.status).toBe(400);
   });
 

@@ -1,4 +1,5 @@
 import { SubmissionStatus } from '@prisma/client';
+import { stripReviewerAssessment } from './reviewVisibility';
 
 type ReviewData = {
   cat1Score?: number | null;
@@ -60,10 +61,17 @@ export function serializeSubmissionForFaculty(submission: Record<string, unknown
   return { ...submission, review: safeReview };
 }
 
+/** Full review: the principal, and the HoD/incharge of the faculty's own department. */
 export function serializeSubmissionForReviewer(submission: Record<string, unknown>, review: ReviewData | null) {
   return { ...submission, review };
 }
 
-export function serializeSubmissionForAdmin(submission: Record<string, unknown>, review: ReviewData | null) {
-  return { ...submission, review };
+/**
+ * The reviewed appraisal out of 500, with the reviewer's assessment of the
+ * person removed. This is what the dean, the scrutinizer pool and the admin get
+ * — everything the department reviewer sees except Category 6 and the /550
+ * grand total (utils/reviewVisibility).
+ */
+export function serializeSubmissionStripped(submission: Record<string, unknown>, review: ReviewData | null) {
+  return { ...submission, review: stripReviewerAssessment(review) };
 }

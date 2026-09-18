@@ -135,7 +135,7 @@ export default function AdminCadreTargetsPage() {
     <div>
       <PageHeader
         title="Cadre Targets"
-        breadcrumbs={[{ label: 'Admin', to: '/admin/dashboard' }, { label: 'Cadre Targets' }]}
+        breadcrumbs={[{ label: 'Dean', to: '/dean/appraisals' }, { label: 'Cadre Targets' }]}
         actions={
           <div className="flex items-center gap-2">
             <button

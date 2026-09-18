@@ -6,7 +6,8 @@ import { RoleType } from '@prisma/client';
  * An appraisal carries two halves. Categories 1-5 and the total out of 500 are
  * the faculty's score and they are entitled to it. Category 6 (core values) and
  * the /550 grand total are the reviewer's assessment OF them, and belong to the
- * HoD and the dean.
+ * HoD (and incharge) of their own department and to the principal. The dean,
+ * the scrutinizer pool and the admin see the /500 only.
  *
  * The check is on OWNERSHIP, not role. Every HoD files their own appraisal, and
  * a role-only test ("is this caller a reviewer anywhere?") hands them the
@@ -28,13 +29,46 @@ export const REVIEWER_ASSESSMENT_FIELDS = [
   'grandTotal',
 ] as const;
 
-type Viewer = { id: string; roles: { role: RoleType }[] };
+type Viewer = { id: string; roles: { role: RoleType; departmentId?: string | null }[] };
+
+/** Roles whose holders are not plain faculty when looking at someone else's appraisal. */
+const PRIVILEGED: RoleType[] = [
+  RoleType.ADMIN,
+  RoleType.HOD,
+  RoleType.REVIEWER,
+  RoleType.PRINCIPAL,
+  RoleType.DEAN,
+  RoleType.SCRUTINIZER,
+  RoleType.SPECIAL_SCRUTINIZER,
+];
 
 /** True when this caller must be shown the faculty's view of the appraisal. */
 export function isOwnerView(viewer: Viewer, ownerId: string): boolean {
   if (viewer.id === ownerId) return true;
-  return !viewer.roles.some((r) =>
-    ([RoleType.ADMIN, RoleType.HOD, RoleType.REVIEWER] as RoleType[]).includes(r.role),
+  return !viewer.roles.some((r) => PRIVILEGED.includes(r.role));
+}
+
+/**
+ * True when this caller may see Category 6 and the /550 grand total for this
+ * faculty. The single gate for the reviewer's assessment (2026-09-18 rework).
+ *
+ * - Owner: never, whatever else they are.
+ * - Principal: everywhere — the only institute-wide holder of this.
+ * - HoD / incharge of the faculty's OWN department: yes, they entered it.
+ * - Dean, scrutinizers, special scrutinizers, admin, everyone else: no. /500 only.
+ */
+export function canSeeReviewerAssessment(
+  viewer: Viewer,
+  ownerId: string,
+  ownerDepartmentId: string | null,
+): boolean {
+  if (viewer.id === ownerId) return false;
+  if (viewer.roles.some((r) => r.role === RoleType.PRINCIPAL)) return true;
+  return viewer.roles.some(
+    (r) =>
+      (r.role === RoleType.HOD || r.role === RoleType.REVIEWER) &&
+      r.departmentId != null &&
+      r.departmentId === ownerDepartmentId,
   );
 }
 

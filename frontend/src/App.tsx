@@ -15,6 +15,7 @@ import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import AdminUsersPage from './pages/admin/AdminUsersPage';
 import AdminAcademicYearsPage from './pages/admin/AdminAcademicYearsPage';
 import AdminCadreTargetsPage from './pages/admin/AdminCadreTargetsPage';
+import AdminCadreTiersPage from './pages/admin/AdminCadreTiersPage';
 import AdminInchargesPage from './pages/admin/AdminInchargesPage';
 import AdminReviewWindowsPage from './pages/admin/AdminReviewWindowsPage';
 import AdminAppraisalsPage from './pages/admin/AdminAppraisalsPage';
@@ -26,6 +27,21 @@ import TrackingPage from './pages/reviewer/TrackingPage';
 import AdminEmailsPage from './pages/admin/AdminEmailsPage';
 import AdminAuditPage from './pages/admin/AdminAuditPage';
 import ProfilePage from './pages/faculty/ProfilePage';
+
+// Role sets, mirroring backend/src/utils/roles.ts. The routes below are the
+// UI's half of P2: maintenance (/admin/*) never overlaps appraisal content.
+const MAINTENANCE = ['ADMIN'] as const;                       // accounts, roles, mail, audit
+const CONFIG = ['DEAN', 'PRINCIPAL'] as const;                // dean-owned configuration
+const SEES_ALL = ['PRINCIPAL'] as const;                      // institute-wide content
+// Cross-department readers of tracking; HoD is scoped to their own department
+// server-side.
+const TRACKING = ['HOD', 'DEAN', 'SPECIAL_SCRUTINIZER', 'PRINCIPAL'] as const;
+const DEPT_REVIEW = ['HOD', 'REVIEWER'] as const;
+const DEPT_REPORTS = ['HOD', 'PRINCIPAL'] as const;
+// The red list is the department's proof workflow, not a tracking view. The
+// people who chase a faculty's rejected proofs are the HoD and the incharge
+// reviewer; the principal reads it institute-wide.
+const RED_LIST = ['HOD', 'REVIEWER', 'PRINCIPAL'] as const;
 
 export default function App() {
   return (
@@ -43,72 +59,91 @@ export default function App() {
         <Route path="/appraisal/:id" element={<ProtectedRoute><AppraisalViewPage /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
 
-        {/* Dean-assigned final review (above the HoD) — any user may be assigned. */}
+        {/* Scrutinizer sign-off above the HoD. Assignment is per submission, so
+            role alone does not grant entry — the queue is empty for everyone
+            who has not been assigned. */}
         <Route path="/final-review" element={<ProtectedRoute><FinalReviewPage /></ProtectedRoute>} />
 
-        {/* Faculty-wise uploads (admin / HoD / incharge verify here) */}
+        {/* Faculty-wise uploads — proof verification lives with the department. */}
         <Route path="/uploads" element={
-          <ProtectedRoute roles={['HOD', 'REVIEWER', 'ADMIN']}><UploadsPage /></ProtectedRoute>
+          <ProtectedRoute roles={DEPT_REVIEW}><UploadsPage /></ProtectedRoute>
         } />
         <Route path="/uploads/:submissionId" element={
-          <ProtectedRoute roles={['HOD', 'REVIEWER', 'ADMIN']}><FacultyUploadsPage /></ProtectedRoute>
+          <ProtectedRoute roles={DEPT_REVIEW}><FacultyUploadsPage /></ProtectedRoute>
         } />
 
         {/* Reviewer / HoD */}
         <Route path="/reviews" element={
-          <ProtectedRoute roles={['HOD', 'REVIEWER', 'ADMIN']}>
-            <ReviewQueuePage />
-          </ProtectedRoute>
+          <ProtectedRoute roles={DEPT_REVIEW}><ReviewQueuePage /></ProtectedRoute>
         } />
         <Route path="/reviews/:id" element={
-          <ProtectedRoute roles={['HOD', 'REVIEWER', 'ADMIN']}>
-            <ReviewAppraisalPage />
-          </ProtectedRoute>
-        } />
-
-        {/* Admin */}
-        <Route path="/admin/dashboard" element={
-          <ProtectedRoute roles={['ADMIN']}><AdminDashboardPage /></ProtectedRoute>
-        } />
-        <Route path="/admin/users" element={
-          <ProtectedRoute roles={['ADMIN']}><AdminUsersPage /></ProtectedRoute>
-        } />
-        <Route path="/admin/academic-years" element={
-          <ProtectedRoute roles={['ADMIN']}><AdminAcademicYearsPage /></ProtectedRoute>
-        } />
-        <Route path="/admin/cadre-targets" element={
-          <ProtectedRoute roles={['ADMIN']}><AdminCadreTargetsPage /></ProtectedRoute>
-        } />
-        <Route path="/admin/incharges" element={
-          <ProtectedRoute roles={['ADMIN']}><AdminInchargesPage /></ProtectedRoute>
-        } />
-        <Route path="/admin/review-windows" element={
-          <ProtectedRoute roles={['ADMIN']}><AdminReviewWindowsPage /></ProtectedRoute>
-        } />
-        <Route path="/admin/appraisals" element={
-          <ProtectedRoute roles={['ADMIN']}><AdminAppraisalsPage /></ProtectedRoute>
-        } />
-        <Route path="/admin/departments" element={
-          <ProtectedRoute roles={['ADMIN']}><AdminDepartmentsPage /></ProtectedRoute>
-        } />
-        <Route path="/admin/reports" element={
-          <ProtectedRoute roles={['ADMIN']}><AdminReportsPage /></ProtectedRoute>
+          <ProtectedRoute roles={DEPT_REVIEW}><ReviewAppraisalPage /></ProtectedRoute>
         } />
         <Route path="/reports/department" element={
-          <ProtectedRoute roles={['HOD', 'ADMIN']}><DeptReportsPage /></ProtectedRoute>
+          <ProtectedRoute roles={DEPT_REPORTS}><DeptReportsPage /></ProtectedRoute>
         } />
         <Route path="/red-list" element={
-          <ProtectedRoute roles={['HOD', 'ADMIN']}><RedListPage /></ProtectedRoute>
+          <ProtectedRoute roles={RED_LIST}><RedListPage /></ProtectedRoute>
         } />
         <Route path="/tracking" element={
-          <ProtectedRoute roles={['HOD', 'ADMIN']}><TrackingPage /></ProtectedRoute>
+          <ProtectedRoute roles={TRACKING}><TrackingPage /></ProtectedRoute>
+        } />
+
+        {/* Maintenance admin — accounts and plumbing, no appraisal content. */}
+        <Route path="/admin/dashboard" element={
+          <ProtectedRoute roles={MAINTENANCE}><AdminDashboardPage /></ProtectedRoute>
+        } />
+        <Route path="/admin/users" element={
+          <ProtectedRoute roles={MAINTENANCE}><AdminUsersPage /></ProtectedRoute>
+        } />
+        <Route path="/admin/incharges" element={
+          <ProtectedRoute roles={MAINTENANCE}><AdminInchargesPage /></ProtectedRoute>
         } />
         <Route path="/admin/emails" element={
-          <ProtectedRoute roles={['ADMIN']}><AdminEmailsPage /></ProtectedRoute>
+          <ProtectedRoute roles={MAINTENANCE}><AdminEmailsPage /></ProtectedRoute>
         } />
         <Route path="/admin/audit" element={
-          <ProtectedRoute roles={['ADMIN']}><AdminAuditPage /></ProtectedRoute>
+          <ProtectedRoute roles={MAINTENANCE}><AdminAuditPage /></ProtectedRoute>
         } />
+
+        {/* Dean — configuration and scrutinizer assignment. */}
+        <Route path="/dean/academic-years" element={
+          <ProtectedRoute roles={CONFIG}><AdminAcademicYearsPage /></ProtectedRoute>
+        } />
+        <Route path="/dean/cadre-targets" element={
+          <ProtectedRoute roles={CONFIG}><AdminCadreTargetsPage /></ProtectedRoute>
+        } />
+        <Route path="/dean/cadre-tiers" element={
+          <ProtectedRoute roles={CONFIG}><AdminCadreTiersPage /></ProtectedRoute>
+        } />
+        <Route path="/dean/review-windows" element={
+          <ProtectedRoute roles={CONFIG}><AdminReviewWindowsPage /></ProtectedRoute>
+        } />
+        {/* Departments belong to the dean. The admin only picks from the
+            existing list when creating a user — it never edits it. */}
+        <Route path="/dean/departments" element={
+          <ProtectedRoute roles={CONFIG}><AdminDepartmentsPage /></ProtectedRoute>
+        } />
+        <Route path="/dean/appraisals" element={
+          <ProtectedRoute roles={CONFIG}><AdminAppraisalsPage /></ProtectedRoute>
+        } />
+
+        {/* Principal — institute-wide content. */}
+        <Route path="/principal/appraisals" element={
+          <ProtectedRoute roles={SEES_ALL}><AdminAppraisalsPage /></ProtectedRoute>
+        } />
+        <Route path="/principal/reports" element={
+          <ProtectedRoute roles={SEES_ALL}><AdminReportsPage /></ProtectedRoute>
+        } />
+
+        {/* Pages that moved off /admin/*: keep old links working. */}
+        <Route path="/admin/academic-years" element={<Navigate to="/dean/academic-years" replace />} />
+        <Route path="/admin/cadre-targets" element={<Navigate to="/dean/cadre-targets" replace />} />
+        <Route path="/admin/cadre-tiers" element={<Navigate to="/dean/cadre-tiers" replace />} />
+        <Route path="/admin/review-windows" element={<Navigate to="/dean/review-windows" replace />} />
+        <Route path="/admin/appraisals" element={<Navigate to="/dean/appraisals" replace />} />
+        <Route path="/admin/departments" element={<Navigate to="/dean/departments" replace />} />
+        <Route path="/admin/reports" element={<Navigate to="/principal/reports" replace />} />
       </Routes>
     </BrowserRouter>
   );

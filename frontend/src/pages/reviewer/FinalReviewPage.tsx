@@ -6,9 +6,10 @@ import PageHeader from '../../components/PageHeader';
 import Card from '../../components/Card';
 import { finalReviewApi, type FinalReviewRow } from '../../api/appraisals';
 
-// The dean-assigned final reviewer's queue — the review layer above the HoD.
-// One approval from any assigned reviewer finalises the appraisal; a rejection
-// (with a reason) sends it back on hold.
+// The scrutinizer's queue — the review layer above the HoD. The dean assigns
+// scrutinizers per submission from the standing pool; one approval from any of
+// them finalises the appraisal, and a rejection (with a reason) sends it back
+// on hold. Scrutinizers read /500 only.
 export default function FinalReviewPage() {
   const [rows, setRows] = useState<FinalReviewRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +73,11 @@ export default function FinalReviewPage() {
                     </div>
                     <div className="text-xs text-ink-muted mt-0.5">
                       {s?.user?.department?.name ?? '—'} · {s?.academicYear?.label ?? '—'} · Submission #{s?.submissionNumber}
-                      {s?.review?.grandTotal != null && <> · HoD total <strong>{s.review.grandTotal}</strong>/550</>}
+                      {/* /500 only. Category 6 and the /550 grand total are the
+                          department's assessment and are stripped for
+                          scrutinizers exactly as they are for faculty — never
+                          read `review.grandTotal` on this page. */}
+                      {s?.review?.totalScore != null && <> · Reviewed total <strong>{s.review.totalScore}</strong>/500</>}
                     </div>
                   </div>
                   <Link

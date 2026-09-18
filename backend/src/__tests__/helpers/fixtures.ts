@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { RoleType } from '@prisma/client';
 import app from '../../app';
 import prisma from '../../utils/prismaClient';
+import { DEPARTMENT_SCOPED } from '../../utils/roles';
 
 /**
  * Throwaway users and departments for suites that need to write.
@@ -43,6 +44,8 @@ export interface AddUserOpts {
   /** Short suffix, e.g. 'FAC' or 'HOD'. Combined with the fixture's tag. */
   name: string;
   role?: RoleType;
+  /** Extra roles beyond `role` — e.g. a HoD who is also a scrutinizer. */
+  roles?: RoleType[];
   designation?: string;
   dateOfJoining?: Date;
   /** Put this user in a different department (for cross-department cases). */
@@ -86,13 +89,17 @@ export async function createFixture(tag: string): Promise<Fixture> {
           dateOfJoining: opts.dateOfJoining ?? new Date('2018-07-01'),
         },
       });
-      if (opts.role) {
+      const wanted = [...(opts.role ? [opts.role] : []), ...(opts.roles ?? [])];
+      for (const role of wanted) {
         await prisma.userRole.create({
           data: {
             userId: user.id,
-            role: opts.role,
-            // A HoD or reviewer role is only valid in the user's own department.
-            departmentId: opts.deptId ?? dept.id,
+            role,
+            // HOD and REVIEWER are the only department-scoped roles, and only in
+            // the user's own department. PRINCIPAL, DEAN, SCRUTINIZER,
+            // SPECIAL_SCRUTINIZER, ADMIN and FACULTY are institute-wide and must
+            // carry no department (utils/roles.ts).
+            departmentId: DEPARTMENT_SCOPED.includes(role) ? (opts.deptId ?? dept.id) : null,
             assignedBy: user.id,
           },
         });

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { RoleType } from '@prisma/client';
 import prisma from '../utils/prismaClient';
 import { canViewUserResource } from '../utils/access';
+import { SEES_ALL, hasAnyRole } from '../utils/roles';
 import { enqueueEmail } from '../services/emailService';
 import { feedbackIssuedKey } from '../services/emailKeys';
 import { TRACKING_INCLUDE, loadTrackingContext } from '../services/trackingService';
@@ -11,10 +12,12 @@ import { computeActuals } from '../services/trackingEngine';
 import { deriveCadre, computeExperienceYears, pickCadreTarget, checkEligibility, CADRE_LABEL } from '../services/cadreEngine';
 import { generateNarrative } from '../services/feedbackNarrative';
 
-// Author of feedback: HoD of the faculty's dept, or admin — never the owner.
+// Author of feedback: the HoD of the faculty's own department, or the principal
+// institute-wide — never the owner. The admin lost this with the rest of the
+// appraisal content in the 2026-09-18 role rework.
 function canAuthor(user: NonNullable<Request['user']>, ownerId: string, ownerDept: string | null): boolean {
   if (user.id === ownerId) return false;
-  if (user.roles.some((r) => r.role === RoleType.ADMIN)) return true;
+  if (hasAnyRole(user, SEES_ALL)) return true;
   return user.roles.some((r) => r.role === RoleType.HOD && r.departmentId != null && r.departmentId === ownerDept);
 }
 

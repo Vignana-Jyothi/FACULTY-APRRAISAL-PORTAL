@@ -2,14 +2,14 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import {
-  BarChart2, FileText, BookOpen, User, Users, Settings, LayoutDashboard, Mail, Activity, Menu, X, Target, ShieldCheck, AlertTriangle, Gauge, CalendarClock, Gavel, UploadCloud,
+  BarChart2, FileText, BookOpen, User, Users, Settings, LayoutDashboard, Mail, Activity, Menu, X, Target, ShieldCheck, AlertTriangle, Gauge, CalendarClock, Gavel, UploadCloud, Layers,
 } from 'lucide-react';
 import BrandHeader from './BrandHeader';
 import Footer from './Footer';
 import { finalReviewApi } from '../api/appraisals';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { isAdmin, isHodOrReviewer, hasRole } = useAuthStore();
+  const { isAdmin, isPrincipal, isDean, isHodOrReviewer, canAllocateTier, hasRole } = useAuthStore();
   const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Any user can be a dean-assigned final reviewer, so surface the link only to
@@ -34,6 +34,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     const active = location.pathname.startsWith(to);
     return (
       <Link
+        key={to}
         to={to}
         className={`flex items-center gap-2.5 px-3 py-2 rounded text-sm font-medium transition-colors ${
           active
@@ -47,46 +48,72 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     );
   };
 
+  // Roles stack (the bootstrap account is ADMIN + PRINCIPAL), so the menu is
+  // built additively per role and de-duplicated by path rather than chosen by
+  // a single "most powerful role" branch.
+  const entries: [to: string, label: string, Icon: any][] = [];
+  const add = (to: string, label: string, Icon: any) => {
+    if (!entries.some(([t]) => t === to)) entries.push([to, label, Icon]);
+  };
+
+  // Maintenance admin: accounts and plumbing. No appraisal content at all.
+  if (isAdmin()) {
+    add('/admin/dashboard', 'Dashboard', LayoutDashboard);
+    add('/admin/users', 'Users', Users);
+    add('/admin/incharges', 'Incharges', ShieldCheck);
+    add('/admin/emails', 'Emails', Mail);
+    add('/admin/audit', 'Audit Log', Activity);
+  }
+
+  // Principal: institute-wide content, the only role that sees Cat 6 / 550.
+  if (isPrincipal()) {
+    add('/principal/reports', 'Institute Reports', BarChart2);
+    add('/principal/appraisals', 'All Appraisals', FileText);
+  }
+
+  // Dean: configuration + scrutinizer assignment.
+  if (isDean()) {
+    add('/dean/appraisals', 'Appraisals', FileText);
+    add('/dean/academic-years', 'Academic Years', BookOpen);
+    add('/dean/cadre-targets', 'Cadre Targets', Target);
+    add('/dean/cadre-tiers', 'Cadre Tiers', Layers);
+    add('/dean/review-windows', 'Review Windows', CalendarClock);
+    add('/dean/departments', 'Departments', Settings);
+  }
+
+  // Tier allocation (dean, special scrutinizer, principal) and the HoD's own
+  // department both land on Tracking.
+  if (canAllocateTier() || hasRole('HOD')) {
+    add('/tracking', 'Tracking', Gauge);
+  }
+
+  // Red List is the department's proof-chasing workflow, so it follows the
+  // review layer (HoD + incharge reviewer) rather than the tracking roles. The
+  // principal reads it institute-wide.
+  if (isHodOrReviewer() || isPrincipal()) {
+    add('/red-list', 'Red List', AlertTriangle);
+  }
+
+  // Department review layer. A plain REVIEWER (incharge) verifies uploads only.
+  if (isHodOrReviewer()) {
+    add('/dashboard', 'Dashboard', LayoutDashboard);
+    add('/reviews', 'Review Queue', FileText);
+    add('/uploads', 'Uploads', UploadCloud);
+    if (hasRole('HOD')) add('/reports/department', 'Reports', BarChart2);
+  }
+
+  // Everyone without a staff menu above — faculty, and scrutinizers whose only
+  // work arrives through the final-review queue.
+  if (entries.length === 0) {
+    add('/dashboard', 'Dashboard', LayoutDashboard);
+    add('/appraisal', 'Appraisals', FileText);
+    add('/profile', 'Profile', User);
+  }
+
   const navItems = (
     <>
-      {isAdmin() ? (
-        <>
-          {navLink('/admin/dashboard', 'Dashboard', LayoutDashboard)}
-          {navLink('/admin/users', 'Users', Users)}
-          {navLink('/admin/departments', 'Departments', Settings)}
-          {navLink('/admin/academic-years', 'Academic Years', BookOpen)}
-          {navLink('/admin/cadre-targets', 'Cadre Targets', Target)}
-          {navLink('/admin/incharges', 'Incharges', ShieldCheck)}
-          {navLink('/admin/review-windows', 'Review Windows', CalendarClock)}
-          {navLink('/tracking', 'Tracking', Gauge)}
-          {navLink('/uploads', 'Uploads', UploadCloud)}
-          {navLink('/red-list', 'Red List', AlertTriangle)}
-          {navLink('/admin/appraisals', 'All Appraisals', FileText)}
-          {navLink('/admin/reports', 'Reports', BarChart2)}
-          {navLink('/admin/emails', 'Emails', Mail)}
-          {navLink('/admin/audit', 'Audit Log', Activity)}
-          {finalCount > 0 && navLink('/final-review', `Final Review (${finalCount})`, Gavel)}
-        </>
-      ) : isHodOrReviewer() ? (
-        <>
-          {/* Incharge (REVIEWER, not HOD) verifies uploads only — Dashboard +
-              Review Queue. Tracking / Red List / Reports are HoD-only. */}
-          {navLink('/dashboard', 'Dashboard', LayoutDashboard)}
-          {navLink('/reviews', 'Review Queue', FileText)}
-          {navLink('/uploads', 'Uploads', UploadCloud)}
-          {hasRole('HOD') && navLink('/tracking', 'Tracking', Gauge)}
-          {hasRole('HOD') && navLink('/red-list', 'Red List', AlertTriangle)}
-          {hasRole('HOD') && navLink('/reports/department', 'Reports', BarChart2)}
-          {finalCount > 0 && navLink('/final-review', `Final Review (${finalCount})`, Gavel)}
-        </>
-      ) : (
-        <>
-          {navLink('/dashboard', 'Dashboard', LayoutDashboard)}
-          {navLink('/appraisal', 'Appraisals', FileText)}
-          {finalCount > 0 && navLink('/final-review', `Final Review (${finalCount})`, Gavel)}
-          {navLink('/profile', 'Profile', User)}
-        </>
-      )}
+      {entries.map(([to, label, Icon]) => navLink(to, label, Icon))}
+      {finalCount > 0 && navLink('/final-review', `Final Review (${finalCount})`, Gavel)}
     </>
   );
 

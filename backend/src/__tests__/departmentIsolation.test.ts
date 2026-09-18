@@ -6,9 +6,13 @@ import prisma from '../utils/prismaClient';
 import { createFixture, type Fixture, type FixtureUser } from './helpers/fixtures';
 
 // Departments are isolated. A HoD or reviewer holds that role only in the
-// department they belong to. Cross-department authority belongs to the dean
-// (ADMIN) and to dean-level final reviewers, who are assigned per submission
-// through the final-review layer rather than by a standing role.
+// department they belong to. Cross-department authority belongs to the
+// principal and the dean, and to the scrutinizers the dean assigns per
+// submission through the final-review layer rather than by a standing role.
+//
+// The institute-wide roles are the mirror image: PRINCIPAL, DEAN, SCRUTINIZER,
+// SPECIAL_SCRUTINIZER, ADMIN and FACULTY must carry NO department, or the role
+// would silently be narrowed to one.
 //
 // Every subject is the suite's own: a throwaway dean, a faculty in a private
 // department, and a second department. It used to borrow the seed account
@@ -73,6 +77,31 @@ describe('role assignment respects department isolation', () => {
     expect([200, 201]).toContain(res.status);
     const row = await prisma.userRole.findFirst({
       where: { userId: faculty.id, role: 'REVIEWER', departmentId: fixture!.deptId },
+    });
+    expect(row).toBeTruthy();
+  });
+
+  it('refuses an institute-wide role carrying a department', async () => {
+    if (!ready) return;
+    for (const role of ['PRINCIPAL', 'DEAN', 'SCRUTINIZER', 'SPECIAL_SCRUTINIZER', 'ADMIN']) {
+      const res = await request(app)
+        .post(`/api/admin/users/${faculty.id}/roles`)
+        .set(bearer(admin.token))
+        .send({ role, departmentId: fixture!.deptId });
+      expect(res.status, `${role} with a department`).toBe(400);
+      expect(res.body.error).toMatch(/institute-wide/i);
+    }
+  });
+
+  it('accepts an institute-wide role with no department', async () => {
+    if (!ready) return;
+    const res = await request(app)
+      .post(`/api/admin/users/${faculty.id}/roles`)
+      .set(bearer(admin.token))
+      .send({ role: 'SCRUTINIZER' });
+    expect([200, 201]).toContain(res.status);
+    const row = await prisma.userRole.findFirst({
+      where: { userId: faculty.id, role: 'SCRUTINIZER', departmentId: null },
     });
     expect(row).toBeTruthy();
   });

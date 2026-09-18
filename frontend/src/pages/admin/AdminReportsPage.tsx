@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { reportApi } from '../../api/reports';
 import { userApi } from '../../api/users';
 import toast from 'react-hot-toast';
-import { Users, FileText, CheckCircle2, TrendingUp, Download } from 'lucide-react';
+import { Users, FileText, CheckCircle2, TrendingUp, Download, XCircle } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Card from '../../components/Card';
 import StatTile from '../../components/StatTile';
+import StatusBadge from '../../components/StatusBadge';
 import CriteriaCompare from '../../components/CriteriaCompare';
 
 export default function AdminReportsPage() {
@@ -60,7 +61,14 @@ export default function AdminReportsPage() {
       avgScore: d.scores.length ? d.scores.reduce((a: number, b: number) => a + b, 0) / d.scores.length : 0,
     }));
 
-    return { total, approved, rejected, submitted, avgScore, deptArr };
+    // Newest first; a draft that was never submitted falls back to its last edit.
+    const recent = [...subs]
+      .sort((a: any, b: any) =>
+        new Date(b.submittedAt ?? b.updatedAt ?? 0).getTime() -
+        new Date(a.submittedAt ?? a.updatedAt ?? 0).getTime())
+      .slice(0, 15);
+
+    return { total, approved, rejected, submitted, avgScore, deptArr, recent };
   }, [data]);
 
   const exportExcel = async () => {
@@ -85,7 +93,7 @@ export default function AdminReportsPage() {
       <PageHeader
         title="Institute Reports"
         subtitle="Aggregate statistics across all departments"
-        breadcrumbs={[{ label: 'Admin', to: '/admin/dashboard' }, { label: 'Reports' }]}
+        breadcrumbs={[{ label: 'Institute' }, { label: 'Reports' }]}
         actions={
           <div className="flex items-center gap-2">
             <select
@@ -115,12 +123,50 @@ export default function AdminReportsPage() {
         </Card>
       ) : (
         <>
-          <div className="grid grid-cols-4 gap-4 mb-5">
+          {/* Submission overview. This used to sit on the admin dashboard; the
+              maintenance admin is off appraisal content entirely, so the
+              institute-wide picture belongs to the principal, who lands here. */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-5">
             <StatTile icon={<FileText size={18} />} label="Total Submissions" value={stats.total} color="primary" />
             <StatTile icon={<CheckCircle2 size={18} />} label="Approved" value={stats.approved} hint={`${stats.total ? ((stats.approved / stats.total) * 100).toFixed(0) : 0}%`} color="success" />
             <StatTile icon={<Users size={18} />} label="Pending Review" value={stats.submitted} color="warning" />
+            <StatTile icon={<XCircle size={18} />} label="Rejected" value={stats.rejected} color="danger" />
             <StatTile icon={<TrendingUp size={18} />} label="Avg Grand Total" value={stats.avgScore.toFixed(1)} hint="/ 550" color="accent" />
           </div>
+
+          {/* Recent submissions */}
+          <Card padding="none" className="mb-5">
+            <div className="px-5 py-3 border-b border-surface-border">
+              <h2 className="text-sm font-semibold text-ink-primary">Recent Submissions</h2>
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-primary-700 text-white text-xs">
+                  <th className="text-left px-5 py-2 font-medium">Faculty</th>
+                  <th className="text-left px-5 py-2 font-medium">Department</th>
+                  <th className="text-left px-5 py-2 font-medium">Submission</th>
+                  <th className="text-left px-5 py-2 font-medium">Submitted</th>
+                  <th className="text-left px-5 py-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-surface-border">
+                {stats.recent.map((s: any, i: number) => (
+                  <tr key={s.id} className={i % 2 === 1 ? 'bg-surface-muted/50' : ''}>
+                    <td className="px-5 py-2.5 font-medium text-ink-primary">{s.user?.name ?? '—'}</td>
+                    <td className="px-5 py-2.5 text-ink-secondary">{s.user?.department?.code ?? '—'}</td>
+                    <td className="px-5 py-2.5 text-ink-secondary">#{s.submissionNumber}</td>
+                    <td className="px-5 py-2.5 text-ink-muted text-xs">
+                      {s.submittedAt ? new Date(s.submittedAt).toLocaleDateString() : '—'}
+                    </td>
+                    <td className="px-5 py-2.5"><StatusBadge status={s.status} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {stats.recent.length === 0 && (
+              <div className="p-8 text-center text-ink-muted text-sm">No submissions yet.</div>
+            )}
+          </Card>
 
           {/* Department breakdown */}
           <Card padding="none">

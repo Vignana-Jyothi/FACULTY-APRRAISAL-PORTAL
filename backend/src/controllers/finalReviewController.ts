@@ -7,18 +7,49 @@ import { finalApprovedKey } from '../services/emailKeys';
 import { computeScore } from '../services/scoringEngine';
 import { FULL_INCLUDE } from './reviewController';
 import { canViewUserResource } from '../utils/access';
+import { SCRUTINY_POOL, CONFIG, hasAnyRole } from '../utils/roles';
 
-// The review layer ABOVE the HoD. The admin/dean assigns any number of final
-// reviewers to an annual appraisal, drawn from ANY department. After the HoD
-// approves, ONE approval from any assigned reviewer finalises it; a REJECT sends
-// it back (HOLD). A second opinion is allowed but never required.
+// The review layer ABOVE the HoD — the scrutinizers. The DEAN (or the
+// principal) assigns any number of them to an annual appraisal, drawn from the
+// standing pool and from ANY department. After the HoD approves, ONE approval
+// from any assigned scrutinizer finalises it; a REJECT sends it back (HOLD). A
+// second opinion is allowed but never required.
+//
+// Assignment moved off the ADMIN in the 2026-09-18 role rework.
 
-function isAdmin(req: Request) {
-  return req.user!.roles.some((r) => r.role === RoleType.ADMIN);
+// GET /final-reviewers/pool — the standing scrutinizer pool, for the dean's
+// assignment picker. Deactivated accounts are left out.
+export async function listScrutinizerPool(_req: Request, res: Response) {
+  const users = await prisma.user.findMany({
+    where: {
+      isActive: true,
+      userRoles: { some: { isActive: true, role: { in: SCRUTINY_POOL } } },
+    },
+    select: {
+      id: true,
+      name: true,
+      employeeCode: true,
+      designation: true,
+      department: { select: { id: true, name: true, code: true } },
+      userRoles: {
+        where: { isActive: true, role: { in: SCRUTINY_POOL } },
+        select: { role: true },
+      },
+    },
+    orderBy: { name: 'asc' },
+  });
+
+  return res.json(
+    users.map(({ userRoles, ...u }) => ({
+      ...u,
+      roles: userRoles.map((r) => r.role),
+      special: userRoles.some((r) => r.role === RoleType.SPECIAL_SCRUTINIZER),
+    })),
+  );
 }
 
-// POST /admin/appraisals/:id/final-reviewers  { reviewerIds: [...] }
-// Any number of reviewers (at least one), from any department.
+// POST /appraisals/:id/final-reviewers  { reviewerIds: [...] }
+// Any number of scrutinizers (at least one), from any department.
 export async function assignFinalReviewers(req: Request, res: Response) {
   const parsed = z.object({
     reviewerIds: z.array(z.string().min(1)).min(1),
@@ -32,8 +63,19 @@ export async function assignFinalReviewers(req: Request, res: Response) {
   if (reviewerIds.includes(sub.userId)) {
     return res.status(400).json({ error: 'A faculty cannot be a reviewer of their own appraisal' });
   }
-  const users = await prisma.user.findMany({ where: { id: { in: reviewerIds } }, select: { id: true } });
-  if (users.length !== reviewerIds.length) return res.status(400).json({ error: 'One or more reviewers not found' });
+  // Only the standing pool may be assigned — the point of the pool is that
+  // final review is not handed to an arbitrary account.
+  const users = await prisma.user.findMany({
+    where: {
+      id: { in: reviewerIds },
+      isActive: true,
+      userRoles: { some: { isActive: true, role: { in: SCRUTINY_POOL } } },
+    },
+    select: { id: true },
+  });
+  if (users.length !== reviewerIds.length) {
+    return res.status(400).json({ error: 'One or more reviewers are not in the scrutinizer pool' });
+  }
 
   const rows = await prisma.$transaction(async (tx) => {
     await tx.finalReview.deleteMany({ where: { submissionId: sub.id } });
@@ -95,7 +137,9 @@ export async function getPendingFinalReviews(req: Request, res: Response) {
           id: true, submissionNumber: true, status: true,
           user: { select: { name: true, employeeCode: true, department: { select: { name: true } } } },
           academicYear: { select: { label: true } },
-          review: { select: { grandTotal: true } },
+          // /500, never /550: a scrutinizer does not see the reviewer's
+          // assessment of the person (utils/reviewVisibility).
+          review: { select: { totalScore: true } },
         },
       },
     },
@@ -117,12 +161,13 @@ export async function submitFinalReview(req: Request, res: Response) {
   });
   if (!sub) return res.status(404).json({ error: 'Not found' });
 
-  // Only an assigned final reviewer (or admin) may act, and only in FINAL_REVIEW.
+  // Only an assigned scrutinizer may act, and only in FINAL_REVIEW. The dean
+  // and the principal assign the panel; they do not vote in it.
   const mine = await prisma.finalReview.findUnique({
     where: { submissionId_reviewerId: { submissionId: sub.id, reviewerId: req.user!.id } },
   });
-  if (!mine && !isAdmin(req)) return res.status(403).json({ error: 'Not an assigned final reviewer' });
-  if (!mine) return res.status(400).json({ error: 'Admins do not cast a final-review vote' });
+  if (!mine && !hasAnyRole(req.user!, CONFIG)) return res.status(403).json({ error: 'Not an assigned final reviewer' });
+  if (!mine) return res.status(400).json({ error: 'The dean does not cast a final-review vote' });
   if (sub.status !== SubmissionStatus.FINAL_REVIEW) {
     return res.status(400).json({ error: 'Submission is not awaiting final review' });
   }
