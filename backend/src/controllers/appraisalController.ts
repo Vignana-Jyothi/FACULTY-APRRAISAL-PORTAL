@@ -480,7 +480,15 @@ export async function getScore(req: Request, res: Response) {
   if (!sub) return res.status(404).json({ error: 'Not found' });
 
   if (!canViewUserResource(req.user!, sub.userId, (sub.user as any)?.departmentId ?? null)) {
-    return res.status(403).json({ error: 'Forbidden' });
+    // A dean-assigned scrutinizer must be able to score the submission in their
+    // queue, so the same per-submission assignment that opens getAppraisal and
+    // downloadAppraisalPdf opens this. Assignment only — an unassigned
+    // scrutinizer still gets 403. The breakdown is Cat 1-5 / 500 and carries no
+    // Cat 6 or grand total, so nothing further needs stripping here.
+    const assigned = await prisma.finalReview.findUnique({
+      where: { submissionId_reviewerId: { submissionId: sub.id, reviewerId: req.user!.id } },
+    });
+    if (!assigned) return res.status(403).json({ error: 'Forbidden' });
   }
 
   const score = computeScore(sub as any);
@@ -500,7 +508,13 @@ export async function downloadAppraisalPdf(req: Request, res: Response) {
   if (!sub) return res.status(404).json({ error: 'Not found' });
 
   if (!canViewUserResource(req.user!, sub.userId, (sub.user as any)?.departmentId ?? null)) {
-    return res.status(403).json({ error: 'Forbidden' });
+    // A dean-assigned scrutinizer signs off on this submission, so they may
+    // download it too — stripped of Category 6 and the /550 like every other
+    // reader outside the faculty's own department. Same rule as getAppraisal.
+    const assigned = await prisma.finalReview.findUnique({
+      where: { submissionId_reviewerId: { submissionId: sub.id, reviewerId: req.user!.id } },
+    });
+    if (!assigned) return res.status(403).json({ error: 'Forbidden' });
   }
 
   const score = computeScore(sub as any);

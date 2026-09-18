@@ -129,9 +129,10 @@ export async function deleteProof(req: Request, res: Response) {
   const record = await prisma.uploadedFile.findUnique({ where: { filename } });
   if (!record) return res.json({ message: 'Deleted' }); // already gone / unknown
 
-  // Only the uploader or an admin may delete.
-  const isAdmin = req.user!.roles.some((r) => r.role === RoleType.ADMIN);
-  if (record.uploaderId !== req.user!.id && !isAdmin) {
+  // Only the uploader or the principal may delete. A proof file is appraisal
+  // content, so the maintenance admin lost this with the 2026-09-18 role
+  // rework — orphaned files are cleaned up on disk, not through this route.
+  if (record.uploaderId !== req.user!.id && !hasAnyRole(req.user!, SEES_ALL)) {
     return res.status(403).json({ error: 'Forbidden' });
   }
 

@@ -112,7 +112,7 @@ export async function verifyProof(req: Request, res: Response) {
   });
   if (!sub) return res.status(404).json({ error: 'Not found' });
   if (!canVerifyProof(req.user!, sub.userId, sub.user.departmentId)) {
-    return res.status(403).json({ error: 'Only the admin, HoD or incharge can verify uploads' });
+    return res.status(403).json({ error: 'Only the HoD or incharge can verify uploads' });
   }
   if (!PROOF_REVIEW_STATUSES.includes(sub.status)) {
     return res.status(400).json({

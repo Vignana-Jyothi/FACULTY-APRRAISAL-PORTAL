@@ -9,7 +9,7 @@ import Footer from './Footer';
 import { finalReviewApi } from '../api/appraisals';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { isAdmin, isPrincipal, isDean, isHodOrReviewer, canAllocateTier, hasRole } = useAuthStore();
+  const { isAdmin, isPrincipal, isDean, isScrutinizer, isHodOrReviewer, canAllocateTier, hasRole } = useAuthStore();
   const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Any user can be a dean-assigned final reviewer, so surface the link only to
@@ -67,13 +67,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   // Principal: institute-wide content, the only role that sees Cat 6 / 550.
   if (isPrincipal()) {
-    add('/principal/reports', 'Institute Reports', BarChart2);
     add('/principal/appraisals', 'All Appraisals', FileText);
   }
 
-  // Dean: configuration + scrutinizer assignment.
-  if (isDean()) {
-    add('/dean/appraisals', 'Appraisals', FileText);
+  // Dean: configuration + scrutinizer assignment. The principal outranks the
+  // dean and may open the same configuration pages, so they get these too —
+  // minus the dean's appraisal list, which duplicates /principal/appraisals.
+  if (isDean() || isPrincipal()) {
+    if (isDean()) add('/dean/appraisals', 'Appraisals', FileText);
+    // The institute report is open to both (backend /reports/institute is
+    // guarded with CONFIG), hence the role-neutral path.
+    add('/reports/institute', 'Institute Reports', BarChart2);
     add('/dean/academic-years', 'Academic Years', BookOpen);
     add('/dean/cadre-targets', 'Cadre Targets', Target);
     add('/dean/cadre-tiers', 'Cadre Tiers', Layers);
@@ -102,17 +106,31 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     if (hasRole('HOD')) add('/reports/department', 'Reports', BarChart2);
   }
 
-  // Everyone without a staff menu above — faculty, and scrutinizers whose only
-  // work arrives through the final-review queue.
-  if (entries.length === 0) {
-    add('/dashboard', 'Dashboard', LayoutDashboard);
-    add('/appraisal', 'Appraisals', FileText);
-    add('/profile', 'Profile', User);
+  // Scrutinizers work only through the final-review queue, so it is a standing
+  // menu item for them even when nothing is assigned yet.
+  if (isScrutinizer()) {
+    add('/final-review', 'Final Review', Gavel);
   }
+
+  // Filing one's own appraisal. /dashboard is the personal filing page, so it
+  // is offered to anyone holding FACULTY and, as a fallback, to an account that
+  // would otherwise have an empty menu. The dean/principal deliberately do not
+  // get it — their appraisal lists are /dean/appraisals and
+  // /principal/appraisals.
+  if (hasRole('FACULTY') || entries.length === 0) {
+    add('/dashboard', 'Dashboard', LayoutDashboard);
+    if (hasRole('FACULTY')) add('/appraisal', 'Appraisals', FileText);
+  }
+
+  // Every role has an account, so every role gets Profile — last, so it sits at
+  // the bottom of the menu.
+  add('/profile', 'Profile', User);
 
   const navItems = (
     <>
-      {entries.map(([to, label, Icon]) => navLink(to, label, Icon))}
+      {entries
+        .filter(([to]) => !(to === '/final-review' && finalCount > 0))
+        .map(([to, label, Icon]) => navLink(to, label, Icon))}
       {finalCount > 0 && navLink('/final-review', `Final Review (${finalCount})`, Gavel)}
     </>
   );

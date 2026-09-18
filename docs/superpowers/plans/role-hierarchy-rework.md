@@ -20,6 +20,11 @@
 4. Dean owns review windows, cadre targets/eligibility rules, AY open/close, departments.
 5. "Quartile date sets" = cadre tier thresholds + the date windows for tier decisions. Not journal quartiles.
 6. Scrutinizers see /500 — Cat 6 and /550 stripped exactly as for faculty.
+7. (2026-09-19) Red list and clear-hold admit `REVIEWER` as well as `HOD` — it is
+   the department's proof-chasing workflow and the incharge does that work. The
+   dean and special scrutinizers stay out: they allocate tiers, not proofs.
+8. (2026-09-19) An assigned scrutinizer may read the appraisal, its `/review`,
+   its `/score` and its PDF — all stripped. Unassigned pool members get 403.
 
 ## Phases
 

@@ -19,7 +19,7 @@ type FormData = z.infer<typeof schema>;
 // PRINCIPAL), so the first match in this order wins — widest remit first, with
 // the maintenance admin last because it owns no appraisal content.
 const LANDING: [role: string, path: string][] = [
-  ['PRINCIPAL', '/principal/reports'],
+  ['PRINCIPAL', '/reports/institute'],
   ['DEAN', '/dean/appraisals'],
   ['SPECIAL_SCRUTINIZER', '/final-review'],
   ['SCRUTINIZER', '/final-review'],

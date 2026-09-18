@@ -5,8 +5,12 @@ import * as XLSX from 'xlsx';
 import { computeScore } from '../services/scoringEngine';
 import { TRACKING_INCLUDE } from '../services/trackingService';
 import { AuthUser } from '../middleware/auth';
-import { CONFIG, DEPT_REVIEW, deptIdsFor, hasAnyRole } from '../utils/roles';
-import { canSeeReviewerAssessment, stripReviewerAssessment } from '../utils/reviewVisibility';
+import { CONFIG, deptIdsFor, hasAnyRole } from '../utils/roles';
+import {
+  canSeeReviewerAssessment,
+  seesReviewerAssessmentEverywhere,
+  stripReviewerAssessment,
+} from '../utils/reviewVisibility';
 
 // Neutralise spreadsheet formula injection. A cell whose text begins with
 // = + - @ (or a leading tab/CR that Excel trims first) is run as a formula by
@@ -19,11 +23,18 @@ function csvSafe<T>(v: T): T | string {
 }
 
 // Dept scoping for report reads. The dean and the principal see every
-// department (or an optional single-dept filter); a HoD is hard-scoped to their
-// own dept(s), so a foreign ?dept can't leak another department's data — and
-// the default no longer spills all departments when the caller supplies no
-// filter. The admin is no longer here: reports are appraisal content and a
-// maintenance account holds none. Mirrors getCriteriaReport.
+// department (or an optional single-dept filter); a department caller is
+// hard-scoped to their own dept(s), so a foreign ?dept can't leak another
+// department's data — and the default no longer spills all departments when the
+// caller supplies no filter. The admin is no longer here: reports are appraisal
+// content and a maintenance account holds none.
+//
+// THE RULE (one, for every report route): the department scope is the HoD —
+// HoD only. It has to match the `DEPT_CONTENT_READ` route guard on
+// /reports/department, /reports/criteria and /reports/export, which admits the
+// incharge: scoping on [HOD] alone let a REVIEWER past the guard and then
+// handed them an empty report instead of either data or a 403.
+// getCriteriaReport applies the same set.
 function reportUserWhere(user: AuthUser, deptFilter?: string) {
   if (hasAnyRole(user, CONFIG)) return deptFilter ? { departmentId: deptFilter } : {};
   return { departmentId: { in: deptIdsFor(user, [RoleType.HOD]) } };
@@ -80,10 +91,14 @@ export async function getInstituteReport(req: Request, res: Response) {
     _count: { id: true },
   });
 
-  // /550 for the principal, /500 for the dean (utils/reviewVisibility). The
-  // select is chosen per caller rather than stripped afterwards so the dean's
-  // grand totals never leave the database.
-  const seesAssessment = hasAnyRole(req.user!, [RoleType.PRINCIPAL]);
+  // /550 for the principal, /500 for the dean. The select is chosen per caller
+  // rather than stripped afterwards so the dean's grand totals never leave the
+  // database. This report is institute-wide and aggregated, so there is no one
+  // row owner to key on: ask the one gate (utils/reviewVisibility) whether this
+  // caller may see the assessment of ANY faculty in ANY department, which only
+  // the principal can. Routed through the helper rather than re-testing for
+  // PRINCIPAL here, so the Cat 6 rule lives in one place.
+  const seesAssessment = seesReviewerAssessmentEverywhere(req.user!);
   const deptStats = await prisma.appraisalSubmission.findMany({
     where: academicYear ? { academicYearId: academicYear.id } : {},
     include: {
@@ -102,7 +117,7 @@ export async function getInstituteReport(req: Request, res: Response) {
 export async function getCriteriaReport(req: Request, res: Response) {
   const user = req.user!;
   const seesAllDepts = hasAnyRole(user, CONFIG);
-  const deptIds = deptIdsFor(user, DEPT_REVIEW);
+  const deptIds = deptIdsFor(user, [RoleType.HOD]);
 
   const academicYearId = typeof req.query.academicYearId === 'string' ? req.query.academicYearId : undefined;
   const deptFilter = typeof req.query.dept === 'string' ? req.query.dept : undefined;
@@ -113,7 +128,8 @@ export async function getCriteriaReport(req: Request, res: Response) {
   if (!year) return res.status(404).json({ error: 'Academic year not found' });
 
   // Dept scope: HoD/reviewer limited to their dept(s); dean and principal see
-  // all (or a filter).
+  // all (or a filter). HoD — the same set reportUserWhere uses, and the
+  // one the DEPT_CONTENT_READ route guard admits. See the note there.
   const deptWhere = seesAllDepts
     ? (deptFilter ? { departmentId: deptFilter } : {})
     : { departmentId: { in: deptIds } };

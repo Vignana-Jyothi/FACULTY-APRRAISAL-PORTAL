@@ -24,12 +24,14 @@ export default function AppraisalViewPage() {
   // This page is reached by the owning faculty, by the department review layer
   // and by scrutinizers following the link out of their queue. Category 6 and
   // the /550 grand total render only for the roles allowed to see them; the
-  // server strips them from the payload for everyone else as well.
+  // server strips them from the payload for everyone else as well. Ownership
+  // wins over role, so the owner's id is passed in — an HoD reading back their
+  // own appraisal stays on the /500 scale.
   const canSeeCoreValues = useAuthStore((s) => s.canSeeCoreValues);
-  const showCoreValues = canSeeCoreValues();
   const [submission, setSubmission] = useState<any>(null);
   const [score, setScore] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const showCoreValues = canSeeCoreValues(submission?.userId ?? submission?.user?.id ?? null);
 
   const load = useCallback(() => {
     Promise.all([

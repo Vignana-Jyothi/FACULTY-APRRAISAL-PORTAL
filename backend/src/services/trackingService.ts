@@ -49,9 +49,26 @@ export async function loadTrackingContext(academicYearId: string): Promise<Track
   };
 }
 
+/**
+ * Per-row decision: may the caller see the reviewer's assessment (Cat 6 and the
+ * /550) of THIS row's owner? Decided per row, never once per request — a HoD is
+ * entitled to the /550 of the faculty in their department but not to the one
+ * recorded against themselves. Callers build this from
+ * `utils/reviewVisibility.canSeeReviewerAssessment`, which is the one gate.
+ * Omitted = nobody is looking (the cron), so nothing is masked.
+ */
+export type AssessmentVisibility = (ownerId: string, ownerDepartmentId: string | null) => boolean;
+
+const SEES_EVERYTHING: AssessmentVisibility = () => true;
+
 // Compute one faculty's tracking row from a submission (loaded with
 // TRACKING_INCLUDE) and the AY context. `yearStart` is the experience reference.
-export function computeRow(sub: any, ctx: TrackingContext, yearStart: Date, maskCoreValues = false) {
+export function computeRow(
+  sub: any,
+  ctx: TrackingContext,
+  yearStart: Date,
+  canSeeAssessment: AssessmentVisibility = SEES_EVERYTHING,
+) {
   const u = sub.user;
   const expYears = computeExperienceYears(u.dateOfJoining, yearStart);
   const cadre = deriveCadre(u.designation);
@@ -59,9 +76,11 @@ export function computeRow(sub: any, ctx: TrackingContext, yearStart: Date, mask
   const target = cadre ? pickCadreTarget(ctx.cadreTargets, cadre, expYears) : null;
   // Eligibility is always decided on the full grand total, so the verdict does
   // not change with who is looking. Only the number shown is masked: a reader
-  // who may not see Cat 6 (dean, special scrutinizer) gets the reviewed /500
-  // instead of the /550 (utils/reviewVisibility is the rule this mirrors).
+  // who may not see Cat 6 for THIS faculty (the dean, a special scrutinizer, or
+  // an owner reading back their own row) gets the reviewed /500 instead of the
+  // /550. `utils/reviewVisibility` is the rule, passed in per row.
   const eligibility = checkEligibility(actuals, target);
+  const maskCoreValues = !canSeeAssessment(u.id, u.departmentId ?? null);
   const shownActuals = maskCoreValues && actuals.totalScoreSource === 'HOD'
     ? { ...actuals, totalScore: sub.review?.totalScore ?? 0 }
     : actuals;
@@ -96,7 +115,12 @@ export type TrackingRow = ReturnType<typeof computeRow>;
 
 // Resolve the AY + build the sorted per-faculty rows for a scope. Returns null
 // if the year can't be resolved.
-export async function buildTrackingRows(opts: { allDepartments: boolean; deptIds: string[]; academicYearId?: string; maskCoreValues?: boolean }) {
+export async function buildTrackingRows(opts: {
+  allDepartments: boolean;
+  deptIds: string[];
+  academicYearId?: string;
+  canSeeAssessment?: AssessmentVisibility;
+}) {
   const year = opts.academicYearId
     ? await prisma.academicYear.findUnique({ where: { id: opts.academicYearId } })
     : await prisma.academicYear.findFirst({ where: { submissionOpen: true }, orderBy: { startDate: 'desc' } });
@@ -112,7 +136,7 @@ export async function buildTrackingRows(opts: { allDepartments: boolean; deptIds
   ]);
 
   const rows = latestPerFaculty(submissions)
-    .map((sub) => computeRow(sub, ctx, year.startDate, opts.maskCoreValues ?? false))
+    .map((sub) => computeRow(sub, ctx, year.startDate, opts.canSeeAssessment ?? SEES_EVERYTHING))
     .sort((a, b) => a.faculty.name.localeCompare(b.faculty.name));
 
   return { year, ctx, rows };

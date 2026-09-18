@@ -134,7 +134,12 @@ export default function TrackingPage() {
   const [loading, setLoading] = useState(true);
   const [snapshotting, setSnapshotting] = useState(false);
   const [snapshotPreview, setSnapshotPreview] = useState<SnapshotResult | null>(null);
-  const { canAllocateTier } = useAuthStore();
+  const { canAllocateTier, isDean, isPrincipal } = useAuthStore();
+  // Tier/eligibility editing follows canAllocateTier (dean, special
+  // scrutinizer, principal). The quarterly snapshot route is guarded with
+  // CONFIG server-side, so a special scrutinizer pressing it would only get a
+  // 403 — that button is dean/principal only.
+  const canRunSnapshot = isDean() || isPrincipal();
 
   // Two-step. The button only ever asks the server for a dry run; the real
   // send goes out from the confirm dialog, because it mails every opted-in
@@ -247,7 +252,7 @@ export default function TrackingPage() {
             >
               <Download size={16} /> {exporting ? 'Exporting…' : 'Export'}
             </button>
-            {canAllocateTier() && (
+            {canRunSnapshot && (
               <button
                 onClick={previewSnapshot}
                 disabled={snapshotting || !yearId}

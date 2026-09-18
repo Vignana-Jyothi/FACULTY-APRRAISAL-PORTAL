@@ -4,6 +4,7 @@ import { Download } from 'lucide-react';
 import Card from './Card';
 import FacultyUploadsButton from './FacultyUploadsButton';
 import { reportApi, type CriteriaReport, type CriteriaRow } from '../api/reports';
+import { useAuthStore } from '../store/authStore';
 
 type Crit = { group: string; key: string; label: string; max?: number; get: (r: CriteriaRow) => number | null };
 
@@ -50,12 +51,20 @@ const CATALOG: Crit[] = [
   { group: 'Cat 5 — Supplementary', key: 'c5_int', label: 'Internships', get: (r) => r.breakdown.cat5.internships },
 ];
 
-const GROUPS = Array.from(new Set(CATALOG.map((c) => c.group)));
-
 export default function CriteriaCompare({ academicYearId }: { academicYearId?: string }) {
   const [data, setData] = useState<CriteriaReport | null>(null);
   const [loading, setLoading] = useState(true);
-  const [key, setKey] = useState('grand');
+  // The grand total carries Category 6, so the server nulls it for anyone who
+  // may not see core values — offering it as a criterion would rank everyone
+  // blank. Drop it from the catalogue instead.
+  const canSeeCoreValues = useAuthStore((s) => s.canSeeCoreValues);
+  const showGrand = canSeeCoreValues();
+  const catalog = useMemo(
+    () => (showGrand ? CATALOG : CATALOG.filter((c) => c.key !== 'grand')),
+    [showGrand],
+  );
+  const groups = useMemo(() => Array.from(new Set(catalog.map((c) => c.group))), [catalog]);
+  const [key, setKey] = useState(showGrand ? 'grand' : 'self');
 
   useEffect(() => {
     setLoading(true);
@@ -66,7 +75,7 @@ export default function CriteriaCompare({ academicYearId }: { academicYearId?: s
       .finally(() => setLoading(false));
   }, [academicYearId]);
 
-  const crit = CATALOG.find((c) => c.key === key)!;
+  const crit = catalog.find((c) => c.key === key) ?? catalog[0];
 
   const ranked = useMemo(() => {
     if (!data) return [];
@@ -102,9 +111,9 @@ export default function CriteriaCompare({ academicYearId }: { academicYearId?: s
         <h2 className="text-sm font-semibold text-ink-primary">Compare by criterion</h2>
         <div className="flex items-center gap-2">
           <select value={key} onChange={(e) => setKey(e.target.value)} className={selectCls}>
-            {GROUPS.map((g) => (
+            {groups.map((g) => (
               <optgroup key={g} label={g}>
-                {CATALOG.filter((c) => c.group === g).map((c) => (
+                {catalog.filter((c) => c.group === g).map((c) => (
                   <option key={c.key} value={c.key}>{c.label}</option>
                 ))}
               </optgroup>

@@ -58,9 +58,10 @@ export default function ReviewAppraisalPage() {
   const [loading, setLoading] = useState(true);
   // Category 6 and the /550 grand total belong to the department's own
   // assessment. Only the roles allowed to see core values get those blocks —
-  // everyone else stays on the /500 scale.
+  // everyone else stays on the /500 scale. Ownership wins over role: a
+  // reviewer looking at their own appraisal is treated as the owner.
   const canSeeCoreValues = useAuthStore((s) => s.canSeeCoreValues);
-  const showCoreValues = canSeeCoreValues();
+  const showCoreValues = canSeeCoreValues(submission?.userId ?? submission?.user?.id ?? null);
 
   const { register, handleSubmit, watch, reset, formState: { isSubmitting } } = useForm({
     defaultValues: {

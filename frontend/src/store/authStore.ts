@@ -62,8 +62,11 @@ interface AuthState {
   isScrutinizer: () => boolean;
   /** May set a faculty's tier / eligibility and run the quarterly snapshot. */
   canAllocateTier: () => boolean;
-  /** May see Category 6 and the /550 grand total. */
-  canSeeCoreValues: () => boolean;
+  /** May see Category 6 and the /550 grand total.
+   *  Ownership beats role: pass the id of the faculty the appraisal belongs to
+   *  and an owner viewing their own appraisal is refused, exactly as the server
+   *  strips the payload. Called with no argument it answers on role alone. */
+  canSeeCoreValues: (ownerId?: string | null) => boolean;
   isHodOrReviewer: () => boolean;
 }
 
@@ -83,7 +86,14 @@ export const useAuthStore = create<AuthState>()(
       isDean: () => get().hasRole('DEAN'),
       isScrutinizer: () => get().hasAnyRole(['SCRUTINIZER', 'SPECIAL_SCRUTINIZER']),
       canAllocateTier: () => get().hasAnyRole(TIER_ROLES),
-      canSeeCoreValues: () => get().hasAnyRole(CORE_VALUE_ROLES),
+      canSeeCoreValues: (ownerId) => {
+        const me = get().user;
+        if (!me) return false;
+        // The check keys on ownership first: staff filing their own appraisal
+        // are restricted too, however senior their role.
+        if (ownerId && ownerId === me.id) return false;
+        return get().hasAnyRole(CORE_VALUE_ROLES);
+      },
       isHodOrReviewer: () => get().hasAnyRole(['HOD', 'REVIEWER']),
     }),
     { name: 'auth-storage' }

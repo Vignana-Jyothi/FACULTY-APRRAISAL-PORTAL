@@ -37,8 +37,24 @@ export interface FinalReviewRow {
   submission?: any;
 }
 
+/** A member of the standing scrutinizer pool, as `GET /final-reviewers/pool`
+ *  returns it — already filtered to SCRUTINIZER / SPECIAL_SCRUTINIZER. */
+export interface ScrutinizerPoolRow {
+  id: string;
+  name: string;
+  employeeCode: string;
+  designation: string | null;
+  department: { id: string; name: string; code: string } | null;
+  roles: string[];
+  special: boolean;
+}
+
 // The dean-assigned 2-reviewer layer above the HoD.
 export const finalReviewApi = {
+  // Dean/principal only. Replaces listing every user via the admin route,
+  // which is maintenance-admin-only and 403s for the dean.
+  pool: (): Promise<ScrutinizerPoolRow[]> =>
+    api.get('/final-reviewers/pool').then((r) => r.data),
   assign: (id: string, reviewerIds: string[]) =>
     api.post(`/admin/appraisals/${id}/final-reviewers`, { reviewerIds }).then((r) => r.data),
   list: (id: string): Promise<FinalReviewRow[]> =>

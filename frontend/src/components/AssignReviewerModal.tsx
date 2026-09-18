@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
 import { X, UserCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { userApi } from '../api/users';
-import { finalReviewApi } from '../api/appraisals';
+import { finalReviewApi, type ScrutinizerPoolRow } from '../api/appraisals';
 
 // The dean assigns from the standing scrutinizer pool — cross-department, and
-// never the HoD layer below or the maintenance admin.
-const SCRUTINIZER_ROLES = ['SCRUTINIZER', 'SPECIAL_SCRUTINIZER'];
+// never the HoD layer below or the maintenance admin. The pool endpoint does
+// that filtering server-side, so there is no role filter here.
 
 interface Props {
   open: boolean;
@@ -16,7 +15,7 @@ interface Props {
 }
 
 export default function AssignReviewerModal({ open, submission, onClose, onAssigned }: Props) {
-  const [reviewers, setReviewers] = useState<any[]>([]);
+  const [reviewers, setReviewers] = useState<ScrutinizerPoolRow[]>([]);
   // Any number of final reviewers (the layer above the HoD), from any department.
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -24,15 +23,8 @@ export default function AssignReviewerModal({ open, submission, onClose, onAssig
 
   useEffect(() => {
     if (open) {
-      userApi.listUsers()
-        .then((all: any[]) => {
-          const filtered = all.filter((u) =>
-            u.userRoles?.some((r: any) =>
-              SCRUTINIZER_ROLES.includes(r.role)
-            )
-          );
-          setReviewers(filtered);
-        })
+      finalReviewApi.pool()
+        .then(setReviewers)
         .catch(() => toast.error('Failed to load reviewers'));
       setSelected([]);
       setSearch('');
@@ -113,10 +105,7 @@ export default function AssignReviewerModal({ open, submission, onClose, onAssig
               <div className="text-center text-sm text-ink-muted py-6">No reviewers found.</div>
             ) : (
               filtered.map((r) => {
-                const roles = (r.userRoles ?? [])
-                  .filter((ur: any) => SCRUTINIZER_ROLES.includes(ur.role))
-                  .map((ur: any) => ur.role)
-                  .join(', ');
+                const roles = (r.roles ?? []).join(', ');
                 return (
                   <label
                     key={r.id}

@@ -11,7 +11,7 @@ import { ALL_ROLES, type Role } from '../../store/authStore';
 
 // Accounts and plumbing only. The maintenance admin is off every appraisal
 // route, so nothing here reads submission content — that overview now lives on
-// the principal's landing page (/principal/reports).
+// the institute report (/reports/institute), which the principal lands on.
 export default function AdminDashboardPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [emails, setEmails] = useState<any[]>([]);

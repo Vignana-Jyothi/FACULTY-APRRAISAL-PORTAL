@@ -68,7 +68,7 @@ export function serializeSubmissionForReviewer(submission: Record<string, unknow
 
 /**
  * The reviewed appraisal out of 500, with the reviewer's assessment of the
- * person removed. This is what the dean, the scrutinizer pool and the admin get
+ * person removed. This is what the dean and the scrutinizer pool get
  * — everything the department reviewer sees except Category 6 and the /550
  * grand total (utils/reviewVisibility).
  */

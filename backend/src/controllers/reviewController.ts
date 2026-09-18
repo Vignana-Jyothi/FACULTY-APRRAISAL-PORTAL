@@ -105,7 +105,7 @@ export async function submitReview(req: Request, res: Response) {
   const isHod = req.user!.roles.some((r) => r.role === RoleType.HOD);
   const reviewerRole: ReviewerRole = isHod ? ReviewerRole.HOD : ReviewerRole.REVIEWER;
 
-  // If the admin/dean has assigned final reviewers, an APPROVE by the HoD does
+  // If the dean has assigned final reviewers, an APPROVE by the HoD does
   // NOT finalise — it hands off to the 2-reviewer layer above the HoD.
   const finalReviewerCount = data.status === 'APPROVED'
     ? await prisma.finalReview.count({ where: { submissionId: sub.id } })

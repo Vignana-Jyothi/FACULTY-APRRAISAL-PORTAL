@@ -48,7 +48,10 @@ export const INSTITUTE_READ: RoleType[] = [RoleType.PRINCIPAL, RoleType.DEAN];
 export const SCRUTINY_POOL: RoleType[] = [RoleType.SCRUTINIZER, RoleType.SPECIAL_SCRUTINIZER];
 
 /** Reads of a whole department's appraisal content: reports, red list, tracking. */
-export const DEPT_CONTENT_READ: RoleType[] = [...DEPT_REVIEW, ...CONFIG];
+// Reading a department's SCORE report is the HoD's, not the incharge's: an
+// incharge verifies proofs and reviews, but the per-faculty totals and the
+// criteria ranking stay with the HoD (owner decision 2026-09-19).
+export const DEPT_CONTENT_READ: RoleType[] = [RoleType.HOD, ...CONFIG];
 
 /** Roles that carry a departmentId. Everything else is institute-wide. */
 export const DEPARTMENT_SCOPED: RoleType[] = [RoleType.HOD, RoleType.REVIEWER];

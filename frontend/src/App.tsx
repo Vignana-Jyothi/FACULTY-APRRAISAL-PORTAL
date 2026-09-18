@@ -37,7 +37,10 @@ const SEES_ALL = ['PRINCIPAL'] as const;                      // institute-wide 
 // server-side.
 const TRACKING = ['HOD', 'DEAN', 'SPECIAL_SCRUTINIZER', 'PRINCIPAL'] as const;
 const DEPT_REVIEW = ['HOD', 'REVIEWER'] as const;
-const DEPT_REPORTS = ['HOD', 'PRINCIPAL'] as const;
+// Reports: the backend guards /reports/department, /criteria and /export with
+// DEPT_CONTENT_READ, which includes the dean. The dean's rows come back
+// institute-wide and stripped of Cat 6 / the /550 total.
+const DEPT_REPORTS = ['HOD', 'DEAN', 'PRINCIPAL'] as const;
 // The red list is the department's proof workflow, not a tracking view. The
 // people who chase a faculty's rejected proofs are the HoD and the incharge
 // reviewer; the principal reads it institute-wide.
@@ -132,8 +135,10 @@ export default function App() {
         <Route path="/principal/appraisals" element={
           <ProtectedRoute roles={SEES_ALL}><AdminAppraisalsPage /></ProtectedRoute>
         } />
-        <Route path="/principal/reports" element={
-          <ProtectedRoute roles={SEES_ALL}><AdminReportsPage /></ProtectedRoute>
+        {/* Institute report — dean and principal both, so the path is
+            role-neutral. /principal/reports redirects below. */}
+        <Route path="/reports/institute" element={
+          <ProtectedRoute roles={CONFIG}><AdminReportsPage /></ProtectedRoute>
         } />
 
         {/* Pages that moved off /admin/*: keep old links working. */}
@@ -143,7 +148,8 @@ export default function App() {
         <Route path="/admin/review-windows" element={<Navigate to="/dean/review-windows" replace />} />
         <Route path="/admin/appraisals" element={<Navigate to="/dean/appraisals" replace />} />
         <Route path="/admin/departments" element={<Navigate to="/dean/departments" replace />} />
-        <Route path="/admin/reports" element={<Navigate to="/principal/reports" replace />} />
+        <Route path="/admin/reports" element={<Navigate to="/reports/institute" replace />} />
+        <Route path="/principal/reports" element={<Navigate to="/reports/institute" replace />} />
       </Routes>
     </BrowserRouter>
   );

@@ -5,7 +5,8 @@ import * as XLSX from 'xlsx';
 import prisma from '../utils/prismaClient';
 import { buildTrackingRows, summarize, type TrackingRow } from '../services/trackingService';
 import { triggerQuarterlySnapshot, previewQuarterlySnapshot } from '../cron/quarterlySnapshot';
-import { DEPT_REVIEW, TIER, SEES_ALL, deptIdsFor, hasAnyRole } from '../utils/roles';
+import { DEPT_REVIEW, TIER, deptIdsFor, hasAnyRole } from '../utils/roles';
+import { canSeeReviewerAssessment } from '../utils/reviewVisibility';
 
 // Tracking is institute-wide for the roles that allocate tiers (dean, special
 // scrutinizer, principal) and department-scoped for a HoD or incharge.
@@ -14,10 +15,14 @@ function scope(req: Request) {
   return {
     allDepartments: hasAnyRole(user, TIER),
     deptIds: deptIdsFor(user, DEPT_REVIEW),
-    // The dean and special scrutinizers allocate tiers but never see Cat 6, so
-    // their rows carry the reviewed /500. The principal and a department's own
-    // HoD/incharge see the /550 they are entitled to.
-    maskCoreValues: !hasAnyRole(user, [...SEES_ALL, ...DEPT_REVIEW]),
+    // Decided PER ROW, not once per caller. The dean and special scrutinizers
+    // allocate tiers but never see Cat 6, so their rows carry the reviewed
+    // /500; the principal and a department's own HoD/incharge see the /550.
+    // A role-only test handed a HoD the /550 recorded against THEMSELVES —
+    // the gate keys on ownership, and `canSeeReviewerAssessment` is the one
+    // place that rule lives.
+    canSeeAssessment: (ownerId: string, ownerDepartmentId: string | null) =>
+      canSeeReviewerAssessment(user, ownerId, ownerDepartmentId),
   };
 }
 
