@@ -130,12 +130,12 @@
   <header class="top">
     <div class="eyebrow">VNRVJIET · Faculty Appraisal Portal · architecture</div>
     <h1>Appraisal Portal System Map</h1>
-    <p class="lede">How a faculty self-appraisal travels from the browser to the database and back out as a score, a PDF, a HoD review and an email. Public address: <code>https://appraisal.vjstartup.com</code>. Every box and arrow below is drawn from the code at <code>33bb98c</code>, not from the design documents. Places where the running system and the intended one disagree are marked <span class="chip gap">gap</span>.</p>
+    <p class="lede">How a faculty self-appraisal travels from the browser to the database and back out as a score, a PDF, a HoD review and an email. Public address: <code>https://appraisal.vjstartup.com</code>. Every box and arrow below is drawn from the code at <code>feat/role-hierarchy</code>, not from the design documents. Places where the running system and the intended one disagree are marked <span class="chip gap">gap</span>.</p>
     <dl class="facts">
       <div><dt>Client</dt><dd>React 19 · Vite 8 · Tailwind 4</dd></div>
       <div><dt>Server</dt><dd>Node 24 · Express 4 · Prisma 6 · Postgres 15</dd></div>
-      <div><dt>Marks</dt><dd>500 self-appraisal + 50 HoD = 550</dd></div>
-      <div><dt>Scope</dt><dd>CSE only · 4 roles · AY 2026-27 open</dd></div>
+      <div><dt>Marks</dt><dd>500 self-appraisal + 50 HoD = 550 (the /550 is the principal's to see)</dd></div>
+      <div><dt>Scope</dt><dd>CSE only · 7 roles · AY 2026-27 open</dd></div>
     </dl>
     <nav class="toc" aria-label="Sections">
       <a href="#deploy">Deployment</a><a href="#request">Request path</a><a href="#modules">Backend modules</a>
@@ -161,7 +161,7 @@
         <rect class="n" x="20" y="186" width="140" height="84" rx="5"/>
         <text class="t" x="90" y="216" text-anchor="middle">Browser</text>
         <text class="s" x="90" y="236" text-anchor="middle">React SPA</text>
-        <text class="s" x="90" y="252" text-anchor="middle">faculty · HoD · dean</text>
+        <text class="s" x="90" y="252" text-anchor="middle">faculty · HoD · dean · principal</text>
 
         <rect class="n-key" x="215" y="180" width="180" height="96" rx="5"/>
         <text class="t" x="305" y="208" text-anchor="middle">frontend</text>
@@ -314,7 +314,10 @@
         <text class="s" x="941" y="258" text-anchor="middle">→ JSON status + msg</text>
       </svg>
       </div>
-      <figcaption>The controller stage calls services and Prisma (section 03). A role check alone is never enough: a HoD holds the role for one department, so each controller then checks, via <code>utils/access</code>, that the caller owns the record, is its department's HoD or incharge, or is the dean.</figcaption>
+      <figcaption>The controller stage calls services and Prisma (section 03). A role check alone is never enough: a HoD holds the role for one department, so each controller then checks, via <code>utils/access</code>, that the caller owns the record, is its department's HoD or incharge, or is the principal or the dean. Since the
+        2026-09-18 role rework the sets live in <code>utils/roles</code> and the admin is a
+        maintenance account that holds no appraisal content; a scrutinizer reaches a submission
+        only through its <code>FinalReview</code> assignment.</figcaption>
     </figure>
     <ul class="notes">
       <li><code>authenticate</code> verifies the access JWT (HS algorithm pinned), loads the user's active roles, and rejects any token whose <code>tokenVersion</code> no longer matches the user row.</li>

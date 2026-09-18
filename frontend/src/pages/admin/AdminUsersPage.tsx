@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { userApi } from '../../api/users';
 import toast from 'react-hot-toast';
 import { Plus, Search, Upload, Shield, UserMinus, RotateCcw } from 'lucide-react';
@@ -12,10 +11,7 @@ import { SkeletonTable } from '../../components/Skeleton';
 
 const PAGE_SIZE = 50;
 
-const CREATE_NEW_DEPT = '__CREATE_NEW__';
-
 export default function AdminUsersPage() {
-  const navigate = useNavigate();
   const [users, setUsers] = useState<any[]>([]);
   const [depts, setDepts] = useState<any[]>([]);
   const [search, setSearch] = useState('');
@@ -82,16 +78,6 @@ export default function AdminUsersPage() {
   useEffect(() => {
     userApi.listDepartments().then(setDepts).catch(() => {});
   }, []);
-
-  const onDeptChange = (val: string) => {
-    if (val === CREATE_NEW_DEPT) {
-      toast('Redirecting to create new department...');
-      setShowCreate(false);
-      navigate('/admin/departments');
-      return;
-    }
-    setForm({ ...form, departmentId: val });
-  };
 
   const createUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -217,16 +203,17 @@ export default function AdminUsersPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-ink-secondary mb-1">Department</label>
+              {/* Pick only. Departments are the dean's to create and edit
+                  (/dean/departments) — the admin never adds one from here. */}
               <select
                 value={form.departmentId}
-                onChange={(e) => onDeptChange(e.target.value)}
+                onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
                 className={inputCls}
               >
                 <option value="">— Select Department —</option>
                 {depts.map((d) => (
                   <option key={d.id} value={d.id}>{d.code} — {d.name}</option>
                 ))}
-                <option value={CREATE_NEW_DEPT} className="font-semibold text-primary-600">+ Create new department…</option>
               </select>
             </div>
             <div className="col-span-2 flex gap-2 justify-end pt-2">

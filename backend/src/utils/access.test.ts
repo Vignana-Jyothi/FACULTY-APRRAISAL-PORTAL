@@ -9,8 +9,16 @@ describe('canViewUserResource — object-level authz (IDOR guard)', () => {
   it('owner sees own resource', () => {
     expect(canViewUserResource(u(OWNER), OWNER, DEPT)).toBe(true);
   });
-  it('admin sees any resource', () => {
-    expect(canViewUserResource(u('a', [{ role: 'ADMIN', departmentId: null }]), OWNER, DEPT)).toBe(true);
+  it('principal and dean see any resource', () => {
+    expect(canViewUserResource(u('p', [{ role: 'PRINCIPAL', departmentId: null }]), OWNER, DEPT)).toBe(true);
+    expect(canViewUserResource(u('d', [{ role: 'DEAN', departmentId: null }]), OWNER, DEPT)).toBe(true);
+  });
+  it('admin is denied — a maintenance account holds no appraisal content', () => {
+    expect(canViewUserResource(u('a', [{ role: 'ADMIN', departmentId: null }]), OWNER, DEPT)).toBe(false);
+  });
+  it('a scrutinizer has no standing read — assignment grants it per submission', () => {
+    expect(canViewUserResource(u('s', [{ role: 'SCRUTINIZER', departmentId: null }]), OWNER, DEPT)).toBe(false);
+    expect(canViewUserResource(u('s2', [{ role: 'SPECIAL_SCRUTINIZER', departmentId: null }]), OWNER, DEPT)).toBe(false);
   });
   it('HoD/Reviewer of same dept sees it', () => {
     expect(canViewUserResource(u('h', [{ role: 'HOD', departmentId: DEPT }]), OWNER, DEPT)).toBe(true);

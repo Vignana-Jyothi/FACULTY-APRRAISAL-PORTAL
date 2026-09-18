@@ -15,6 +15,22 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
+// Where each role starts. Roles stack (the bootstrap account is ADMIN +
+// PRINCIPAL), so the first match in this order wins — widest remit first, with
+// the maintenance admin last because it owns no appraisal content.
+const LANDING: [role: string, path: string][] = [
+  ['PRINCIPAL', '/reports/institute'],
+  ['DEAN', '/dean/appraisals'],
+  ['SPECIAL_SCRUTINIZER', '/final-review'],
+  ['SCRUTINIZER', '/final-review'],
+  ['HOD', '/reviews'],
+  ['REVIEWER', '/reviews'],
+  ['ADMIN', '/admin/dashboard'],
+];
+
+const landingFor = (roles: { role: string }[]) =>
+  LANDING.find(([role]) => roles.some((r) => r.role === role))?.[1] ?? '/dashboard';
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
@@ -27,11 +43,7 @@ export default function LoginPage() {
     try {
       const res = await authApi.login(data.employeeCode, data.password);
       login(res.accessToken, res.user);
-      const isAdmin = res.user.roles.some((r: any) => r.role === 'ADMIN');
-      const isHodOrReviewer = res.user.roles.some((r: any) => r.role === 'HOD' || r.role === 'REVIEWER');
-      if (isAdmin) navigate('/admin/dashboard');
-      else if (isHodOrReviewer) navigate('/reviews');
-      else navigate('/dashboard');
+      navigate(landingFor(res.user.roles));
     } catch {
       toast.error('Invalid credentials');
     }

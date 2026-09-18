@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { RoleType } from '@prisma/client';
-import { isOwnerView, stripReviewerAssessment, REVIEWER_ASSESSMENT_FIELDS } from './reviewVisibility';
+import {
+  isOwnerView,
+  stripReviewerAssessment,
+  canSeeReviewerAssessment,
+  REVIEWER_ASSESSMENT_FIELDS,
+} from './reviewVisibility';
 import { renderAppraisalHtml } from '../services/pdfService';
 
 const OWNER = 'user-owner';
@@ -24,8 +29,16 @@ describe('isOwnerView', () => {
     expect(isOwnerView({ id: OWNER, roles: roles(RoleType.ADMIN) }, OWNER)).toBe(true);
   });
 
-  it('is false for a HoD, reviewer or admin looking at someone else', () => {
-    for (const r of [RoleType.HOD, RoleType.REVIEWER, RoleType.ADMIN]) {
+  it('is false for any privileged role looking at someone else', () => {
+    for (const r of [
+      RoleType.HOD,
+      RoleType.REVIEWER,
+      RoleType.ADMIN,
+      RoleType.PRINCIPAL,
+      RoleType.DEAN,
+      RoleType.SCRUTINIZER,
+      RoleType.SPECIAL_SCRUTINIZER,
+    ]) {
       expect(isOwnerView({ id: 'staff', roles: roles(r) }, OWNER)).toBe(false);
     }
   });
@@ -34,6 +47,41 @@ describe('isOwnerView', () => {
     // They should not reach the resource at all; if they do, they get the
     // restricted view rather than the reviewer's assessment.
     expect(isOwnerView({ id: 'nobody', roles: [] }, OWNER)).toBe(true);
+  });
+});
+
+describe('canSeeReviewerAssessment — the Cat 6 / grand-total gate', () => {
+  const DEPT = 'dept-cse';
+  const OTHER = 'dept-ece';
+  const at = (role: RoleType, departmentId: string | null = null) => ({ role, departmentId });
+
+  it('the owner never sees it, whatever else they hold', () => {
+    for (const r of [RoleType.HOD, RoleType.REVIEWER, RoleType.PRINCIPAL, RoleType.DEAN]) {
+      expect(canSeeReviewerAssessment({ id: OWNER, roles: [at(r, DEPT)] }, OWNER, DEPT)).toBe(false);
+    }
+  });
+
+  it('the principal sees it in every department', () => {
+    const principal = { id: 'p', roles: [at(RoleType.PRINCIPAL)] };
+    expect(canSeeReviewerAssessment(principal, OWNER, DEPT)).toBe(true);
+    expect(canSeeReviewerAssessment(principal, OWNER, OTHER)).toBe(true);
+    expect(canSeeReviewerAssessment(principal, OWNER, null)).toBe(true);
+  });
+
+  it('the HoD and incharge see it in their own department only', () => {
+    expect(canSeeReviewerAssessment({ id: 'h', roles: [at(RoleType.HOD, DEPT)] }, OWNER, DEPT)).toBe(true);
+    expect(canSeeReviewerAssessment({ id: 'r', roles: [at(RoleType.REVIEWER, DEPT)] }, OWNER, DEPT)).toBe(true);
+    expect(canSeeReviewerAssessment({ id: 'h', roles: [at(RoleType.HOD, OTHER)] }, OWNER, DEPT)).toBe(false);
+  });
+
+  it('the dean, the scrutinizers and the admin never see it', () => {
+    for (const r of [RoleType.DEAN, RoleType.SCRUTINIZER, RoleType.SPECIAL_SCRUTINIZER, RoleType.ADMIN]) {
+      expect(canSeeReviewerAssessment({ id: 'x', roles: [at(r)] }, OWNER, DEPT)).toBe(false);
+    }
+  });
+
+  it('null departments do not match', () => {
+    expect(canSeeReviewerAssessment({ id: 'h', roles: [at(RoleType.HOD, null)] }, OWNER, null)).toBe(false);
   });
 });
 

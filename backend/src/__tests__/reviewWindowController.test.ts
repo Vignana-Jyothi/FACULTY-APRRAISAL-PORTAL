@@ -6,7 +6,7 @@ import { RoleType } from '@prisma/client';
 import { runDueReviewWindows } from '../cron/quarterlySnapshot';
 import { createFixture, type Fixture } from './helpers/fixtures';
 
-// W8 — admin review-window endpoints + the end-date automation trigger.
+// W8 — dean review-window endpoints + the end-date automation trigger.
 // Self-skips if the DB is unreachable — and the fixture guard then fails.
 // Its own dean and faculty: logging in as ADMIN001 / FAC21 left LOGIN audit
 // rows behind, and with FAC21 gone the suite skipped itself while passing.
@@ -15,7 +15,7 @@ const bearer = (t: string) => ({ Authorization: `Bearer ${t}` });
 
 let ready = false;
 let fixture: Fixture | null = null;
-let adminTok = '';
+let deanTok = '';
 let facTok = '';
 let yearId = '';
 let throwawayYearId = '';
@@ -23,10 +23,10 @@ let throwawayYearId = '';
 beforeAll(async () => {
   try {
     fixture = await createFixture('RWC');
-    adminTok = (await fixture.addUser({ name: 'ADM', role: RoleType.ADMIN })).token;
+    deanTok = (await fixture.addUser({ name: 'DEA', role: RoleType.DEAN })).token;
     facTok = (await fixture.addUser({ name: 'FAC' })).token;
-    if (!adminTok || !facTok) return;
-    const years = await request(app).get('/api/academic-years').set(bearer(adminTok));
+    if (!deanTok || !facTok) return;
+    const years = await request(app).get('/api/academic-years').set(bearer(deanTok));
     yearId = (years.body.find((y: any) => y.submissionOpen) ?? years.body[0])?.id ?? '';
     ready = !!yearId;
   } catch {
@@ -68,7 +68,7 @@ describe('W8 review-window gating', () => {
 describe('W8 review-window CRUD', () => {
   it('upsert → update → delete a Q1 window', async () => {
     if (!ready) return;
-    const up = await request(app).put('/api/admin/review-windows').set(bearer(adminTok)).send({
+    const up = await request(app).put('/api/admin/review-windows').set(bearer(deanTok)).send({
       academicYearId: yearId, quarter: 'Q1', startDate: '2099-01-01', endDate: '2099-01-07', enabled: true,
     });
     expect(up.status).toBe(200);
@@ -76,20 +76,20 @@ describe('W8 review-window CRUD', () => {
     const id = up.body.id;
 
     // Upsert same (AY, quarter) updates rather than duplicating.
-    const up2 = await request(app).put('/api/admin/review-windows').set(bearer(adminTok)).send({
+    const up2 = await request(app).put('/api/admin/review-windows').set(bearer(deanTok)).send({
       academicYearId: yearId, quarter: 'Q1', startDate: '2099-02-01', endDate: '2099-02-10', enabled: false,
     });
     expect(up2.status).toBe(200);
     expect(up2.body.id).toBe(id);
     expect(up2.body.enabled).toBe(false);
 
-    const del = await request(app).delete(`/api/admin/review-windows/${id}`).set(bearer(adminTok));
+    const del = await request(app).delete(`/api/admin/review-windows/${id}`).set(bearer(deanTok));
     expect(del.status).toBe(204);
   });
 
   it('rejects endDate before startDate → 400', async () => {
     if (!ready) return;
-    const res = await request(app).put('/api/admin/review-windows').set(bearer(adminTok)).send({
+    const res = await request(app).put('/api/admin/review-windows').set(bearer(deanTok)).send({
       academicYearId: yearId, quarter: 'Q2', startDate: '2099-05-10', endDate: '2099-05-01',
     });
     expect(res.status).toBe(400);
@@ -97,7 +97,7 @@ describe('W8 review-window CRUD', () => {
 
   it('unknown academic year → 404', async () => {
     if (!ready) return;
-    const res = await request(app).put('/api/admin/review-windows').set(bearer(adminTok)).send({
+    const res = await request(app).put('/api/admin/review-windows').set(bearer(deanTok)).send({
       academicYearId: 'no-such-year', quarter: 'Q1', startDate: '2099-01-01', endDate: '2099-01-07',
     });
     expect(res.status).toBe(404);

@@ -122,7 +122,7 @@ export default function AdminCadreTiersPage() {
     <div>
       <PageHeader
         title="Tier Thresholds"
-        breadcrumbs={[{ label: 'Admin', to: '/admin/dashboard' }, { label: 'Tier Thresholds' }]}
+        breadcrumbs={[{ label: 'Dean', to: '/dean/appraisals' }, { label: 'Tier Thresholds' }]}
         actions={
           <button
             onClick={seedDefaults}

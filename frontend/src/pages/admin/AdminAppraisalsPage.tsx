@@ -105,7 +105,7 @@ export default function AdminAppraisalsPage() {
       <PageHeader
         title="All Appraisals"
         subtitle={`${filtered.length} submission(s)`}
-        breadcrumbs={[{ label: 'Admin', to: '/admin/dashboard' }, { label: 'All Appraisals' }]}
+        breadcrumbs={[{ label: 'All Appraisals' }]}
       />
 
       {/* Filters */}

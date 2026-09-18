@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { RoleType, SubmissionStatus } from '@prisma/client';
 import prisma from '../utils/prismaClient';
 import { canViewUserResource } from '../utils/access';
+import { DEPT_REVIEW, SEES_ALL, deptIdsFor, hasAnyRole } from '../utils/roles';
 import { syncProofVerifications, enumerateProofs, PROOF_INCLUDE, PROOF_SOURCES } from '../services/proofService';
 import { enqueueEmail } from '../services/emailService';
 import { proofRejectedKey, holdClearedKey } from '../services/emailKeys';
@@ -19,12 +20,13 @@ export function proofDeadlineFrom(heldAt: Date): Date {
   return d;
 }
 
-// Who may CHANGE a proof's approve/reject status: the admin (dean), or the HoD
-// or incharge (REVIEWER) of the faculty's department — never the owner.
-// Admin added 2026-09-11 at the owner's request.
+// Who may CHANGE a proof's approve/reject status: the principal, or the HoD or
+// incharge (REVIEWER) of the faculty's department — never the owner.
+// The admin held this from 2026-09-11 until the 2026-09-18 role rework moved
+// appraisal content off the maintenance account.
 function canVerifyProof(user: NonNullable<Request['user']>, ownerId: string, ownerDept: string | null): boolean {
   if (user.id === ownerId) return false;
-  if (user.roles.some((r) => r.role === RoleType.ADMIN)) return true;
+  if (hasAnyRole(user, SEES_ALL)) return true;
   return user.roles.some(
     (r) => (r.role === RoleType.HOD || r.role === RoleType.REVIEWER) && r.departmentId != null && r.departmentId === ownerDept
   );
@@ -42,10 +44,11 @@ export const PROOF_REVIEW_STATUSES: SubmissionStatus[] = [
   SubmissionStatus.FINAL_REVIEW,
 ];
 
-// Who may manage the red-list / clear a hold: HoD or admin of the dept.
+// Who may manage the red-list / clear a hold: the HoD or incharge of the
+// faculty's own department, or the principal institute-wide.
 function canManage(user: NonNullable<Request['user']>, ownerId: string, ownerDept: string | null): boolean {
   if (user.id === ownerId) return false;
-  if (user.roles.some((r) => r.role === RoleType.ADMIN)) return true;
+  if (hasAnyRole(user, SEES_ALL)) return true;
   return user.roles.some(
     (r) => (r.role === RoleType.HOD || r.role === RoleType.REVIEWER) && r.departmentId != null && r.departmentId === ownerDept
   );
@@ -109,7 +112,7 @@ export async function verifyProof(req: Request, res: Response) {
   });
   if (!sub) return res.status(404).json({ error: 'Not found' });
   if (!canVerifyProof(req.user!, sub.userId, sub.user.departmentId)) {
-    return res.status(403).json({ error: 'Only the admin, HoD or incharge can verify uploads' });
+    return res.status(403).json({ error: 'Only the HoD or incharge can verify uploads' });
   }
   if (!PROOF_REVIEW_STATUSES.includes(sub.status)) {
     return res.status(400).json({
@@ -312,16 +315,14 @@ export async function replaceProof(req: Request, res: Response) {
 // GET /red-list — held/red-listed submissions the caller may manage.
 export async function listRedList(req: Request, res: Response) {
   const user = req.user!;
-  const isAdmin = user.roles.some((r) => r.role === RoleType.ADMIN);
-  const deptIds = user.roles
-    .filter((r) => r.role === RoleType.HOD || r.role === RoleType.REVIEWER)
-    .map((r) => r.departmentId)
-    .filter(Boolean) as string[];
+  // Institute-wide for the principal; own department(s) for a HoD or incharge.
+  const seesAll = hasAnyRole(user, SEES_ALL);
+  const deptIds = deptIdsFor(user, DEPT_REVIEW);
 
   const subs = await prisma.appraisalSubmission.findMany({
     where: {
       redListed: true,
-      ...(isAdmin ? {} : { user: { departmentId: { in: deptIds } } }),
+      ...(seesAll ? {} : { user: { departmentId: { in: deptIds } } }),
     },
     include: {
       user: { select: { id: true, name: true, employeeCode: true, department: { select: { name: true, code: true } } } },
@@ -333,8 +334,8 @@ export async function listRedList(req: Request, res: Response) {
 }
 
 // GET /proofs/overview?academicYearId= — one row per faculty in scope with
-// their upload counts, for the faculty-wise Uploads page. Admin sees all
-// departments; a HoD/incharge sees their own.
+// their upload counts, for the faculty-wise Uploads page. The principal sees
+// all departments; a HoD/incharge sees their own.
 //
 // Deliberately does NOT call syncProofVerifications (that writes, once per
 // submission — far too costly across a whole department). Instead it derives
@@ -343,11 +344,9 @@ export async function listRedList(req: Request, res: Response) {
 // Anything not yet reconciled simply counts as pending, which is what it is.
 export async function proofsOverview(req: Request, res: Response) {
   const user = req.user!;
-  const isAdmin = user.roles.some((r) => r.role === RoleType.ADMIN);
-  const deptIds = user.roles
-    .filter((r) => r.role === RoleType.HOD || r.role === RoleType.REVIEWER)
-    .map((r) => r.departmentId)
-    .filter(Boolean) as string[];
+  // Institute-wide for the principal; own department(s) for a HoD or incharge.
+  const seesAll = hasAnyRole(user, SEES_ALL);
+  const deptIds = deptIdsFor(user, DEPT_REVIEW);
 
   const academicYearId = typeof req.query.academicYearId === 'string' ? req.query.academicYearId : undefined;
   const year = academicYearId
@@ -358,7 +357,7 @@ export async function proofsOverview(req: Request, res: Response) {
   const submissions = await prisma.appraisalSubmission.findMany({
     where: {
       academicYearId: year.id,
-      ...(isAdmin ? {} : { user: { departmentId: { in: deptIds } } }),
+      ...(seesAll ? {} : { user: { departmentId: { in: deptIds } } }),
     },
     include: {
       ...PROOF_INCLUDE,

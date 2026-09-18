@@ -110,7 +110,10 @@ function TierGroupedList({ rows }: { rows: TrackingRow[] }) {
                   </div>
                   <div className="flex items-center gap-3 text-xs text-ink-secondary">
                     <span>{r.cadreLabel ?? '—'}</span>
-                    <span className="text-ink-muted">{r.actuals.totalScore}/550</span>
+                    {/* No denominator: tracking is read by the dean and the
+                        special scrutinizers, who must never be shown the /550
+                        scale — it implies the withheld Cat 6 block. */}
+                    <span className="text-ink-muted">{r.actuals.totalScore}</span>
                     <EligibleBadge value={r.eligible} />
                   </div>
                 </li>
@@ -131,7 +134,12 @@ export default function TrackingPage() {
   const [loading, setLoading] = useState(true);
   const [snapshotting, setSnapshotting] = useState(false);
   const [snapshotPreview, setSnapshotPreview] = useState<SnapshotResult | null>(null);
-  const { isAdmin } = useAuthStore();
+  const { canAllocateTier, isDean, isPrincipal } = useAuthStore();
+  // Tier/eligibility editing follows canAllocateTier (dean, special
+  // scrutinizer, principal). The quarterly snapshot route is guarded with
+  // CONFIG server-side, so a special scrutinizer pressing it would only get a
+  // 403 — that button is dean/principal only.
+  const canRunSnapshot = isDean() || isPrincipal();
 
   // Two-step. The button only ever asks the server for a dry run; the real
   // send goes out from the confirm dialog, because it mails every opted-in
@@ -244,7 +252,7 @@ export default function TrackingPage() {
             >
               <Download size={16} /> {exporting ? 'Exporting…' : 'Export'}
             </button>
-            {isAdmin() && (
+            {canRunSnapshot && (
               <button
                 onClick={previewSnapshot}
                 disabled={snapshotting || !yearId}
@@ -316,10 +324,10 @@ export default function TrackingPage() {
 
       {data && !data.hasTargets && (
         <div className="mb-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-          No cadre targets set for this year — there is nothing to compare actuals against. Set them in Admin → Cadre Targets.
+          No cadre targets set for this year — there is nothing to compare actuals against. Set them in Dean → Cadre Targets.
         </div>
       )}
-      {data && isAdmin() && data.rows.length > 0 && (
+      {data && canAllocateTier() && data.rows.length > 0 && (
         <div className="mb-3 text-xs text-ink-muted bg-surface-muted/40 border border-surface-border rounded px-3 py-2">
           Expand a row to compare a faculty's actuals with their cadre targets, then record your decision in the Tier and Eligible columns on the right.
         </div>
@@ -416,7 +424,10 @@ export default function TrackingPage() {
                 <th className={th}>Faculty</th>
                 <th className={th}>Cadre</th>
                 <th className={th}>Exp</th>
-                <th className={th}>Total</th>
+                {/* No denominator. Tracking is read by the dean and the special
+                    scrutinizers, who must never be shown the /550 scale — it
+                    implies the withheld Cat 6 block. */}
+                <th className={th}>Reviewed total</th>
                 <th className={th}>Feedback</th>
                 <th className={th}>Indexed</th>
                 <th className={th}>Journal</th>
@@ -455,7 +466,7 @@ export default function TrackingPage() {
                       <td className="py-2 px-2 text-ink-secondary">{r.actuals.projectCount}</td>
                       <td className="py-2 px-2 text-ink-secondary">{r.actuals.consultancyCount}</td>
                       <td className="py-2 px-2" onClick={(e) => e.stopPropagation()}>
-                        {isAdmin() ? (
+                        {canAllocateTier() ? (
                           <select
                             value={r.tier ?? ''}
                             onChange={(e) => setTier(r.faculty.id, (e.target.value || null) as 'T1' | 'T2' | 'T3' | null)}
@@ -470,7 +481,7 @@ export default function TrackingPage() {
                         ) : <TierBadge tier={r.tier} />}
                       </td>
                       <td className="py-2 px-2" onClick={(e) => e.stopPropagation()}>
-                        {isAdmin()
+                        {canAllocateTier()
                           ? <EligibleToggle value={r.eligible} onChange={(v) => setEligible(r.faculty.id, v)} />
                           : <EligibleBadge value={r.eligible} />}
                       </td>

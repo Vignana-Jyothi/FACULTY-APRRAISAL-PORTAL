@@ -7,11 +7,19 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Role hierarchy (2026-09-18 rework — docs/superpowers/plans/role-hierarchy-rework.md).
+// FACULTY / HOD / REVIEWER are department-level; HOD and REVIEWER are the only
+// roles that carry a departmentId. PRINCIPAL, DEAN, SCRUTINIZER,
+// SPECIAL_SCRUTINIZER and ADMIN are institute-wide and never carry one.
 enum RoleType {
   FACULTY
   HOD
   REVIEWER
-  ADMIN
+  ADMIN // app maintenance only: accounts, roles, email queue, audit log
+  PRINCIPAL // sees everything institute-wide, incl. Cat 6 and the /550 total
+  DEAN // configuration, tier allocation, assigns scrutinizers
+  SCRUTINIZER // cross-department final-review pool; sees /500 only
+  SPECIAL_SCRUTINIZER // scrutinizer powers + tier allocation
 }
 
 enum SubmissionStatus {

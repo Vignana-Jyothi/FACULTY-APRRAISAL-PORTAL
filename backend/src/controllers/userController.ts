@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { parse as parseCsv } from 'csv-parse/sync';
 import prisma from '../utils/prismaClient';
 import { RoleType } from '@prisma/client';
+import { DEPARTMENT_SCOPED, INSTITUTE_WIDE } from '../utils/roles';
 
 const profileUpdateSchema = z.object({
   name: z.string().optional(),
@@ -333,9 +334,15 @@ export async function assignRole(req: Request, res: Response) {
   const targetUser = await prisma.user.findUnique({ where: { id } });
   if (!targetUser) return res.status(404).json({ error: 'User not found' });
 
-  // If role needs dept, verify dept exists + active
-  if ((role === RoleType.HOD || role === RoleType.REVIEWER) && !deptId) {
+  // HOD and REVIEWER are the only department-scoped roles. PRINCIPAL, DEAN,
+  // SCRUTINIZER, SPECIAL_SCRUTINIZER, ADMIN and FACULTY are institute-wide and
+  // must not carry a department — one attached here would silently narrow a
+  // role that is supposed to reach across every department.
+  if (DEPARTMENT_SCOPED.includes(role) && !deptId) {
     return res.status(400).json({ error: `${role} role requires a department` });
+  }
+  if (INSTITUTE_WIDE.includes(role) && deptId) {
+    return res.status(400).json({ error: `${role} is institute-wide and cannot be assigned to a department` });
   }
   if (deptId) {
     const dept = await prisma.department.findFirst({ where: { id: deptId, isActive: true } });
@@ -343,10 +350,10 @@ export async function assignRole(req: Request, res: Response) {
   }
 
   // Departments are isolated: a HoD or reviewer may only hold that role in the
-  // department they belong to. Cross-department authority sits with the dean
-  // (ADMIN) and with dean-level final reviewers, who are assigned per
-  // submission through the final-review layer rather than through a role.
-  if (role === RoleType.HOD || role === RoleType.REVIEWER) {
+  // department they belong to. Cross-department authority sits with the
+  // principal and the dean, and with the scrutinizers the dean assigns per
+  // submission through the final-review layer.
+  if (DEPARTMENT_SCOPED.includes(role)) {
     if (!targetUser.departmentId) {
       return res.status(400).json({ error: `${role} role requires the user to belong to a department` });
     }

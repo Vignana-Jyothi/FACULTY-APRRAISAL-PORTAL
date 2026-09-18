@@ -1,10 +1,10 @@
 import { Navigate } from 'react-router-dom';
-import { useAuthStore } from '../store/authStore';
+import { useAuthStore, type Role } from '../store/authStore';
 import Layout from './Layout';
 
 interface Props {
   children: React.ReactNode;
-  roles?: Array<'FACULTY' | 'HOD' | 'REVIEWER' | 'ADMIN'>;
+  roles?: readonly Role[];
 }
 
 export default function ProtectedRoute({ children, roles }: Props) {

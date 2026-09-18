@@ -2,7 +2,8 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { RoleType, SubmissionStatus, ReviewerRole } from '@prisma/client';
 import prisma from '../utils/prismaClient';
-import { isOwnerView, stripReviewerAssessment } from '../utils/reviewVisibility';
+import { isOwnerView, stripReviewerAssessment, canSeeReviewerAssessment } from '../utils/reviewVisibility';
+import { DEPT_REVIEW, deptIdsFor } from '../utils/roles';
 import { computeScore } from '../services/scoringEngine';
 import { enqueueEmail } from '../services/emailService';
 import { unlockedKey } from '../services/emailKeys';
@@ -48,10 +49,7 @@ export const FULL_INCLUDE = {
 
 export async function listPendingReviews(req: Request, res: Response) {
   const user = req.user!;
-  const deptIds = user.roles
-    .filter((r) => r.role === RoleType.HOD || r.role === RoleType.REVIEWER)
-    .map((r) => r.departmentId)
-    .filter(Boolean) as string[];
+  const deptIds = deptIdsFor(user, DEPT_REVIEW);
 
   const subs = await prisma.appraisalSubmission.findMany({
     where: {
@@ -107,7 +105,7 @@ export async function submitReview(req: Request, res: Response) {
   const isHod = req.user!.roles.some((r) => r.role === RoleType.HOD);
   const reviewerRole: ReviewerRole = isHod ? ReviewerRole.HOD : ReviewerRole.REVIEWER;
 
-  // If the admin/dean has assigned final reviewers, an APPROVE by the HoD does
+  // If the dean has assigned final reviewers, an APPROVE by the HoD does
   // NOT finalise — it hands off to the 2-reviewer layer above the HoD.
   const finalReviewerCount = data.status === 'APPROVED'
     ? await prisma.finalReview.count({ where: { submissionId: sub.id } })
@@ -253,9 +251,16 @@ export async function getReview(req: Request, res: Response) {
 
   if (!sub) return res.status(404).json({ error: 'Not found' });
 
-  // Object-level authorization — owner, admin, or HoD/Reviewer of owner's dept.
+  // Object-level authorization — owner, principal/dean, or HoD/Reviewer of the
+  // owner's department.
   if (!canViewUserResource(req.user!, sub.userId, sub.user.departmentId)) {
-    return res.status(403).json({ error: 'Forbidden' });
+    // A dean-assigned scrutinizer signs off on this submission, so they may
+    // read its review too — stripped, like every other non-department reader.
+    // Same rule as appraisalController.getAppraisal.
+    const assigned = await prisma.finalReview.findUnique({
+      where: { submissionId_reviewerId: { submissionId: sub.id, reviewerId: req.user!.id } },
+    });
+    if (!assigned) return res.status(403).json({ error: 'Forbidden' });
   }
 
   // Ownership, not role — see utils/reviewVisibility.
@@ -267,6 +272,13 @@ export async function getReview(req: Request, res: Response) {
     // The reviewer's marks for categories 1-5 and the resulting total out of
     // 500 are the faculty's own score; Category 6 and the /550 grand total are
     // the reviewer's assessment of them and are withheld.
+    return res.json(stripReviewerAssessment(sub.review));
+  }
+
+  // Cat 6 and the /550 grand total belong to the principal and to the faculty's
+  // own department reviewers. Every other legitimate reader — the dean, an
+  // assigned scrutinizer — gets the same review out of 500.
+  if (!canSeeReviewerAssessment(req.user!, sub.userId, sub.user.departmentId)) {
     return res.json(stripReviewerAssessment(sub.review));
   }
 

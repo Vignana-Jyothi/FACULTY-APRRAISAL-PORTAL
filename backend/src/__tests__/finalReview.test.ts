@@ -5,9 +5,10 @@ import app from '../app';
 import prisma from '../utils/prismaClient';
 import { createFixture, type Fixture, type FixtureUser } from './helpers/fixtures';
 
-// The dean-assigned final-review layer ABOVE the HoD. Admin assigns any number
-// of reviewers, from any department; ONE approval finalises, and a REJECT sends
-// the submission back to HOLD.
+// The scrutinizer layer ABOVE the HoD. The DEAN assigns any number of
+// scrutinizers, from any department; ONE approval finalises, and a REJECT sends
+// the submission back to HOLD. Assignment moved off the ADMIN in the 2026-09-18
+// role rework, and only the standing scrutinizer pool may be assigned.
 //
 // Self-skips when the database is unavailable. Owns its departments, its faculty
 // and its reviewers, so an aborted run cannot leave a submission on a shared
@@ -17,25 +18,32 @@ const bearer = (t: string) => ({ Authorization: `Bearer ${t}` });
 
 let ready = false;
 let fixture: Fixture | null = null;
-let adminTok = '', rev1Tok = '', rev2Tok = '', outsiderTok = '';
-let rev1Id = '', rev2Id = '', outsiderId = '', subId = '';
+let deanTok = '', adminTok = '', rev1Tok = '', rev2Tok = '', outsiderTok = '';
+let rev1Id = '', rev2Id = '', outsiderId = '', notInPoolId = '', subId = '';
 
 beforeAll(async () => {
   try {
     fixture = await createFixture('FRV');
     // A throwaway dean. Logging in as the seed ADMIN001 left a LOGIN audit row
     // (and its admin actions' rows) behind on every run.
+    deanTok = (await fixture.addUser({ name: 'DEA', role: RoleType.DEAN })).token;
     adminTok = (await fixture.addUser({ name: 'ADM', role: RoleType.ADMIN })).token;
-    if (!adminTok) return;
+    if (!deanTok || !adminTok) return;
 
     const faculty = await fixture.addUser({ name: 'FAC' });
-    const rev1 = await fixture.addUser({ name: 'RV1', role: RoleType.REVIEWER });
-    const rev2 = await fixture.addUser({ name: 'RV2', role: RoleType.HOD, designation: 'Professor' });
+    const rev1 = await fixture.addUser({ name: 'RV1', role: RoleType.SCRUTINIZER });
+    const rev2 = await fixture.addUser({
+      name: 'RV2', role: RoleType.HOD, roles: [RoleType.SCRUTINIZER], designation: 'Professor',
+    });
 
-    // A reviewer belonging to a DIFFERENT department: cross-department access
+    // A scrutinizer belonging to a DIFFERENT department: cross-department access
     // must come from the dean's assignment alone, never from a standing role.
     const otherDeptId = await fixture.addDepartment('FRX');
-    const outsider = await fixture.addUser({ name: 'OUT', role: RoleType.REVIEWER, deptId: otherDeptId });
+    const outsider = await fixture.addUser({
+      name: 'OUT', role: RoleType.REVIEWER, roles: [RoleType.SCRUTINIZER], deptId: otherDeptId,
+    });
+    // Holds no scrutinizer role at all — must not be assignable.
+    notInPoolId = (await fixture.addUser({ name: 'NIP' })).id;
 
     rev1Id = rev1.id; rev2Id = rev2.id; outsiderId = outsider.id;
     rev1Tok = rev1.token; rev2Tok = rev2.token; outsiderTok = outsider.token;
@@ -60,23 +68,50 @@ describe('final review — dean-assigned reviewer layer', () => {
     expect(outsiderId).not.toBe('');
   });
 
-  it('non-admin cannot assign final reviewers (403)', async () => {
+  it('a scrutinizer cannot assign the panel they sit on (403)', async () => {
     if (!ready) return;
     const res = await request(app).post(`/api/admin/appraisals/${subId}/final-reviewers`)
       .set(bearer(rev1Tok)).send({ reviewerIds: [rev1Id, rev2Id] });
     expect(res.status).toBe(403);
   });
 
+  it('the admin cannot assign final reviewers any more (403)', async () => {
+    if (!ready) return;
+    const res = await request(app).post(`/api/admin/appraisals/${subId}/final-reviewers`)
+      .set(bearer(adminTok)).send({ reviewerIds: [rev1Id] });
+    expect(res.status).toBe(403);
+  });
+
+  it('only the standing pool may be assigned (400)', async () => {
+    if (!ready) return;
+    const res = await request(app).post(`/api/admin/appraisals/${subId}/final-reviewers`)
+      .set(bearer(deanTok)).send({ reviewerIds: [notInPoolId] });
+    expect(res.status).toBe(400);
+  });
+
+  it('the dean can list the scrutinizer pool; the admin cannot', async () => {
+    if (!ready) return;
+    const pool = await request(app).get('/api/final-reviewers/pool').set(bearer(deanTok));
+    expect(pool.status).toBe(200);
+    const ids = pool.body.map((u: any) => u.id);
+    expect(ids).toContain(rev1Id);
+    expect(ids).toContain(outsiderId);
+    expect(ids).not.toContain(notInPoolId);
+
+    const denied = await request(app).get('/api/final-reviewers/pool').set(bearer(adminTok));
+    expect(denied.status).toBe(403);
+  });
+
   it('accepts any number of reviewers — a single one is allowed', async () => {
     if (!ready) return;
     const one = await request(app).post(`/api/admin/appraisals/${subId}/final-reviewers`)
-      .set(bearer(adminTok)).send({ reviewerIds: [rev1Id] });
+      .set(bearer(deanTok)).send({ reviewerIds: [rev1Id] });
     expect(one.status).toBe(201);
     expect(one.body.reviewers).toHaveLength(1);
 
     // Duplicates collapse rather than erroring.
     const dup = await request(app).post(`/api/admin/appraisals/${subId}/final-reviewers`)
-      .set(bearer(adminTok)).send({ reviewerIds: [rev1Id, rev1Id] });
+      .set(bearer(deanTok)).send({ reviewerIds: [rev1Id, rev1Id] });
     expect(dup.status).toBe(201);
     expect(dup.body.reviewers).toHaveLength(1);
   });
@@ -84,14 +119,14 @@ describe('final review — dean-assigned reviewer layer', () => {
   it('rejects an empty reviewer list', async () => {
     if (!ready) return;
     const none = await request(app).post(`/api/admin/appraisals/${subId}/final-reviewers`)
-      .set(bearer(adminTok)).send({ reviewerIds: [] });
+      .set(bearer(deanTok)).send({ reviewerIds: [] });
     expect(none.status).toBe(400);
   });
 
-  it('admin assigns reviewers → submission moves to FINAL_REVIEW', async () => {
+  it('the dean assigns scrutinizers → submission moves to FINAL_REVIEW', async () => {
     if (!ready) return;
     const res = await request(app).post(`/api/admin/appraisals/${subId}/final-reviewers`)
-      .set(bearer(adminTok)).send({ reviewerIds: [rev1Id, rev2Id] });
+      .set(bearer(deanTok)).send({ reviewerIds: [rev1Id, rev2Id] });
     expect(res.status).toBe(201);
     expect(res.body.reviewers).toHaveLength(2);
 
@@ -149,7 +184,7 @@ describe('final review — dean-assigned reviewer layer', () => {
     // is not theirs to see — it only works because the dean assigned them.
     await prisma.appraisalSubmission.update({ where: { id: subId }, data: { status: 'APPROVED' } });
     const assign = await request(app).post(`/api/admin/appraisals/${subId}/final-reviewers`)
-      .set(bearer(adminTok)).send({ reviewerIds: [outsiderId] });
+      .set(bearer(deanTok)).send({ reviewerIds: [outsiderId] });
     expect(assign.status).toBe(201);
 
     // Cross-department read access comes from the assignment alone.
@@ -164,7 +199,7 @@ describe('final review — dean-assigned reviewer layer', () => {
     // Restore the two-reviewer assignment for the following test.
     await prisma.appraisalSubmission.update({ where: { id: subId }, data: { status: 'APPROVED' } });
     await request(app).post(`/api/admin/appraisals/${subId}/final-reviewers`)
-      .set(bearer(adminTok)).send({ reviewerIds: [rev1Id, rev2Id] });
+      .set(bearer(deanTok)).send({ reviewerIds: [rev1Id, rev2Id] });
   });
 
   it('an assigned reviewer sees the submission in their pending queue', async () => {
@@ -176,6 +211,9 @@ describe('final review — dean-assigned reviewer layer', () => {
 
     const res = await request(app).get('/api/final-reviews/pending').set(bearer(rev2Tok));
     expect(res.status).toBe(200);
-    expect(res.body.some((r: any) => r.submission.id === subId)).toBe(true);
+    const row = res.body.find((r: any) => r.submission.id === subId);
+    expect(row).toBeTruthy();
+    // /500 only: the pending queue must not carry the /550 grand total.
+    expect(row.submission.review?.grandTotal).toBeUndefined();
   });
 });

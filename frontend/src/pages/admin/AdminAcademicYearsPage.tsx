@@ -42,7 +42,7 @@ export default function AdminAcademicYearsPage() {
     <div>
       <PageHeader
         title="Academic Years"
-        breadcrumbs={[{ label: 'Admin', to: '/admin/dashboard' }, { label: 'Academic Years' }]}
+        breadcrumbs={[{ label: 'Dean', to: '/dean/appraisals' }, { label: 'Academic Years' }]}
         actions={
           <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-primary-700">
             <Plus size={16} /> New Year

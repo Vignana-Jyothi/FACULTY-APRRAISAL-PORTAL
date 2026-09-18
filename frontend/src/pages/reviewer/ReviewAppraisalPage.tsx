@@ -8,6 +8,7 @@ import PageHeader from '../../components/PageHeader';
 import Card from '../../components/Card';
 import ProofVerificationPanel from '../../components/ProofVerificationPanel';
 import FeedbackSection from '../../components/FeedbackSection';
+import { useAuthStore } from '../../store/authStore';
 import {
   courseResultScore, lectureRowScore, projectRowScore, eContentRowScore, ictRowScore,
   publicationScore, INDEX_LABEL, authorCount, citationScore, bookRowScore, patentRowScore,
@@ -55,6 +56,12 @@ export default function ReviewAppraisalPage() {
   const [submission, setSubmission] = useState<any>(null);
   const [score, setScore] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  // Category 6 and the /550 grand total belong to the department's own
+  // assessment. Only the roles allowed to see core values get those blocks —
+  // everyone else stays on the /500 scale. Ownership wins over role: a
+  // reviewer looking at their own appraisal is treated as the owner.
+  const canSeeCoreValues = useAuthStore((s) => s.canSeeCoreValues);
+  const showCoreValues = canSeeCoreValues(submission?.userId ?? submission?.user?.id ?? null);
 
   const { register, handleSubmit, watch, reset, formState: { isSubmitting } } = useForm({
     defaultValues: {
@@ -101,9 +108,11 @@ export default function ReviewAppraisalPage() {
     // Approval cannot be revisited (the API returns "Already approved"), so make
     // the reviewer confirm the marks they are locking in.
     if (data.status === 'APPROVED') {
-      const total = (awardedTotal + cat6Total).toFixed(1);
+      const total = showCoreValues
+        ? `${(awardedTotal + cat6Total).toFixed(1)} / 550`
+        : `${awardedTotal.toFixed(1)} / 500`;
       const ok = window.confirm(
-        `Approve this appraisal with a reviewed total of ${total} / 550?
+        `Approve this appraisal with a reviewed total of ${total}?
 
 ` +
         'A submission can only be approved once — the marks cannot be changed afterwards.'
@@ -191,24 +200,30 @@ export default function ReviewAppraisalPage() {
                     </div>
                   );
                 })}
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-ink-secondary">Cat 6 — Core Values</span>
-                  <span className="flex gap-4 text-xs">
-                    <span className="w-20 text-right text-ink-subtle">—</span>
-                    <span className="w-20 text-right font-medium text-ink-primary pr-6">{cat6Total.toFixed(1)} / 50</span>
-                  </span>
-                </div>
+                {showCoreValues && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-ink-secondary">Cat 6 — Core Values</span>
+                    <span className="flex gap-4 text-xs">
+                      <span className="w-20 text-right text-ink-subtle">—</span>
+                      <span className="w-20 text-right font-medium text-ink-primary pr-6">{cat6Total.toFixed(1)} / 50</span>
+                    </span>
+                  </div>
+                )}
                 <div className="border-t border-surface-border pt-2 flex items-center justify-between font-medium">
                   <span className="text-sm text-ink-secondary">Total</span>
                   <span className="flex gap-4 text-sm">
                     <span className="w-20 text-right text-primary-700">{score.selfTotal.toFixed(1)} / 500</span>
-                    <span className="w-20 text-right text-primary-700 pr-6">{(awardedTotal + cat6Total).toFixed(1)} / 550</span>
+                    <span className="w-20 text-right text-primary-700 pr-6">
+                      {showCoreValues
+                        ? `${(awardedTotal + cat6Total).toFixed(1)} / 550`
+                        : `${awardedTotal.toFixed(1)} / 500`}
+                    </span>
                   </span>
                 </div>
                 <p className="text-[10px] text-ink-muted pt-1">
                   The review column starts from what the engine computed off the submitted evidence. Edit any
-                  category you disagree with — a changed mark is highlighted with the difference. Cat 6 is scored
-                  in the Core Values card below. Both totals are recorded.
+                  category you disagree with — a changed mark is highlighted with the difference.
+                  {showCoreValues && ' Cat 6 is scored in the Core Values card below. Both totals are recorded.'}
                 </p>
               </div>
             )}
@@ -476,25 +491,27 @@ export default function ReviewAppraisalPage() {
 
         {/* Right: Review form */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <Card>
-            <h2 className="text-sm font-semibold text-ink-primary mb-3 pb-2 border-b border-accent-500/30 font-serif">Category 6 — Core Values (0-10 each)</h2>
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                ['cat6Punctuality', 'Punctuality'],
-                ['cat6Professionalism', 'Professionalism'],
-                ['cat6Willingness', 'Willingness'],
-                ['cat6Cordiality', 'Cordiality'],
-                ['cat6Classroom', 'Classroom Conduct'],
-              ].map(([field, label]) => (
-                <div key={field}>
-                  <label className={labelCls}>{label}</label>
-                  <input type="number" min="0" max="10" step="0.5"
-                    {...register(field as any, { valueAsNumber: true })}
-                    className={inputCls} />
-                </div>
-              ))}
-            </div>
-          </Card>
+          {showCoreValues && (
+            <Card>
+              <h2 className="text-sm font-semibold text-ink-primary mb-3 pb-2 border-b border-accent-500/30 font-serif">Category 6 — Core Values (0-10 each)</h2>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  ['cat6Punctuality', 'Punctuality'],
+                  ['cat6Professionalism', 'Professionalism'],
+                  ['cat6Willingness', 'Willingness'],
+                  ['cat6Cordiality', 'Cordiality'],
+                  ['cat6Classroom', 'Classroom Conduct'],
+                ].map(([field, label]) => (
+                  <div key={field}>
+                    <label className={labelCls}>{label}</label>
+                    <input type="number" min="0" max="10" step="0.5"
+                      {...register(field as any, { valueAsNumber: true })}
+                      className={inputCls} />
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
 
           <Card>
             <h2 className="text-sm font-semibold text-ink-primary mb-3 pb-2 border-b border-accent-500/30 font-serif">Comments</h2>

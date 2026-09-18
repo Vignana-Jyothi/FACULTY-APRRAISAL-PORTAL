@@ -71,7 +71,7 @@ export default function AdminReviewWindowsPage() {
     <div>
       <PageHeader
         title="Review Windows"
-        breadcrumbs={[{ label: 'Admin', to: '/admin/dashboard' }, { label: 'Review Windows' }]}
+        breadcrumbs={[{ label: 'Dean', to: '/dean/appraisals' }, { label: 'Review Windows' }]}
       />
 
       <p className="text-sm text-ink-muted mb-4 max-w-3xl">

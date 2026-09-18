@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { X, Trash2, Plus, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { userApi } from '../api/users';
+import { ALL_ROLES, DEPT_SCOPED_ROLES, type Role } from '../store/authStore';
 
 interface Props {
   open: boolean;
@@ -10,14 +11,24 @@ interface Props {
   onChanged: () => void;
 }
 
-const ROLES = ['FACULTY', 'HOD', 'REVIEWER', 'ADMIN'] as const;
-const ROLE_NEEDS_DEPT: Record<string, boolean> = {
-  HOD: true, REVIEWER: true, FACULTY: false, ADMIN: false,
+const ROLES = ALL_ROLES;
+// Only HOD and REVIEWER are department-scoped. The institute-wide roles must be
+// assigned without a departmentId — `assignRole` rejects one outright.
+const needsDept = (role: Role) => DEPT_SCOPED_ROLES.includes(role);
+
+const ROLE_HINT: Partial<Record<Role, string>> = {
+  ADMIN: 'Maintenance only — accounts, roles, email queue, audit log. No appraisal content.',
+  PRINCIPAL: 'Institute-wide. The only role that sees core values and the /550 grand total everywhere.',
+  DEAN: 'Configuration, tier allocation, and scrutinizer assignment.',
+  SCRUTINIZER: 'Pool for final sign-off. Assigned per submission by the dean. Sees /500 only.',
+  SPECIAL_SCRUTINIZER: 'Scrutinizer, plus tier allocation.',
+  HOD: 'Head of their own department — review, core values, feedback, red list.',
+  REVIEWER: 'Department incharge — proof verification and review in their own department.',
 };
 
 export default function RoleAssignModal({ open, user, onClose, onChanged }: Props) {
   const [depts, setDepts] = useState<any[]>([]);
-  const [newRole, setNewRole] = useState<typeof ROLES[number]>('FACULTY');
+  const [newRole, setNewRole] = useState<Role>('FACULTY');
   const [newDeptId, setNewDeptId] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -34,13 +45,13 @@ export default function RoleAssignModal({ open, user, onClose, onChanged }: Prop
   const activeRoles = (user.userRoles ?? []).filter((r: any) => r.isActive !== false);
 
   const addRole = async () => {
-    if (ROLE_NEEDS_DEPT[newRole] && !newDeptId) {
+    if (needsDept(newRole) && !newDeptId) {
       toast.error(`${newRole} requires a department`);
       return;
     }
     setBusy(true);
     try {
-      await userApi.assignRole(user.id, newRole, ROLE_NEEDS_DEPT[newRole] ? newDeptId : undefined);
+      await userApi.assignRole(user.id, newRole, needsDept(newRole) ? newDeptId : undefined);
       toast.success(`${newRole} assigned`);
       onChanged();
       setNewDeptId('');
@@ -121,20 +132,27 @@ export default function RoleAssignModal({ open, user, onClose, onChanged }: Prop
               <label className="block text-[10px] text-ink-muted mb-1">Role</label>
               <select
                 value={newRole}
-                onChange={(e) => setNewRole(e.target.value as typeof ROLES[number])}
+                onChange={(e) => {
+                  const r = e.target.value as Role;
+                  setNewRole(r);
+                  // Institute-wide roles must carry no department at all.
+                  if (!needsDept(r)) setNewDeptId('');
+                }}
                 className="w-full border border-surface-border rounded px-3 py-2 text-sm bg-surface-base"
               >
-                {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                {ROLES.map((r) => <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-[10px] text-ink-muted mb-1">
-                Department {ROLE_NEEDS_DEPT[newRole] && <span className="text-danger-500">*</span>}
+                Department {needsDept(newRole)
+                  ? <span className="text-danger-500">*</span>
+                  : <span className="text-ink-subtle">(institute-wide)</span>}
               </label>
               <select
                 value={newDeptId}
                 onChange={(e) => setNewDeptId(e.target.value)}
-                disabled={!ROLE_NEEDS_DEPT[newRole]}
+                disabled={!needsDept(newRole)}
                 className="w-full border border-surface-border rounded px-3 py-2 text-sm bg-surface-base disabled:bg-surface-muted disabled:text-ink-subtle"
               >
                 <option value="">— None —</option>
@@ -142,6 +160,10 @@ export default function RoleAssignModal({ open, user, onClose, onChanged }: Prop
               </select>
             </div>
           </div>
+
+          {ROLE_HINT[newRole] && (
+            <p className="text-[10px] text-ink-muted mb-3 -mt-1">{ROLE_HINT[newRole]}</p>
+          )}
 
           <button
             onClick={addRole}

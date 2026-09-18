@@ -1,23 +1,32 @@
 import { Request, Response } from 'express';
-import { RoleType, Tier } from '@prisma/client';
+import { Tier } from '@prisma/client';
 import { z } from 'zod';
 import * as XLSX from 'xlsx';
 import prisma from '../utils/prismaClient';
 import { buildTrackingRows, summarize, type TrackingRow } from '../services/trackingService';
 import { triggerQuarterlySnapshot, previewQuarterlySnapshot } from '../cron/quarterlySnapshot';
+import { DEPT_REVIEW, TIER, deptIdsFor, hasAnyRole } from '../utils/roles';
+import { canSeeReviewerAssessment } from '../utils/reviewVisibility';
 
+// Tracking is institute-wide for the roles that allocate tiers (dean, special
+// scrutinizer, principal) and department-scoped for a HoD or incharge.
 function scope(req: Request) {
   const user = req.user!;
   return {
-    isAdmin: user.roles.some((r) => r.role === RoleType.ADMIN),
-    deptIds: user.roles
-      .filter((r) => r.role === RoleType.HOD || r.role === RoleType.REVIEWER)
-      .map((r) => r.departmentId)
-      .filter(Boolean) as string[],
+    allDepartments: hasAnyRole(user, TIER),
+    deptIds: deptIdsFor(user, DEPT_REVIEW),
+    // Decided PER ROW, not once per caller. The dean and special scrutinizers
+    // allocate tiers but never see Cat 6, so their rows carry the reviewed
+    // /500; the principal and a department's own HoD/incharge see the /550.
+    // A role-only test handed a HoD the /550 recorded against THEMSELVES —
+    // the gate keys on ownership, and `canSeeReviewerAssessment` is the one
+    // place that rule lives.
+    canSeeAssessment: (ownerId: string, ownerDepartmentId: string | null) =>
+      canSeeReviewerAssessment(user, ownerId, ownerDepartmentId),
   };
 }
 
-// GET /tracking?academicYearId=...  (HoD -> own dept, Admin -> all)
+// GET /tracking?academicYearId=...  (HoD -> own dept, tier roles -> all)
 // Per-faculty cadre, actuals vs cadre targets, the dean's manual tier +
 // eligibility calls, and the segregation summary.
 export async function getTracking(req: Request, res: Response) {

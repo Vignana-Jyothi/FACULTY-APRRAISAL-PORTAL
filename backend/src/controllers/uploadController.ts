@@ -4,6 +4,7 @@ import fs from 'fs';
 import prisma from '../utils/prismaClient';
 import { RoleType } from '@prisma/client';
 import { PROOF_DIR as UPLOAD_ROOT } from '../utils/uploadPaths';
+import { SEES_ALL, hasAnyRole } from '../utils/roles';
 
 // Ceiling on how many files one account may hold, so an authenticated user
 // cannot fill the disk by uploading indefinitely. Generous vs a real faculty's
@@ -83,7 +84,9 @@ export function canAccess(
   uploaderDept: string | null,
 ): boolean {
   if (user.id === uploaderId) return true;
-  if (user.roles.some((r) => r.role === RoleType.ADMIN)) return true;
+  // A proof file is appraisal content: institute-wide sight of it belongs to
+  // the principal, not to the maintenance account (2026-09-18 role rework).
+  if (hasAnyRole(user, SEES_ALL)) return true;
   // HoD / Reviewer may view files of faculty in their own department(s).
   return user.roles.some(
     (r) =>
@@ -126,9 +129,10 @@ export async function deleteProof(req: Request, res: Response) {
   const record = await prisma.uploadedFile.findUnique({ where: { filename } });
   if (!record) return res.json({ message: 'Deleted' }); // already gone / unknown
 
-  // Only the uploader or an admin may delete.
-  const isAdmin = req.user!.roles.some((r) => r.role === RoleType.ADMIN);
-  if (record.uploaderId !== req.user!.id && !isAdmin) {
+  // Only the uploader or the principal may delete. A proof file is appraisal
+  // content, so the maintenance admin lost this with the 2026-09-18 role
+  // rework — orphaned files are cleaned up on disk, not through this route.
+  if (record.uploaderId !== req.user!.id && !hasAnyRole(req.user!, SEES_ALL)) {
     return res.status(403).json({ error: 'Forbidden' });
   }
 
