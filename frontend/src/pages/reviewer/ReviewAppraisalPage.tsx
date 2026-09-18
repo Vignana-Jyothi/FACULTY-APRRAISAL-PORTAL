@@ -10,7 +10,7 @@ import ProofVerificationPanel from '../../components/ProofVerificationPanel';
 import FeedbackSection from '../../components/FeedbackSection';
 import {
   courseResultScore, lectureRowScore, projectRowScore, eContentRowScore, ictRowScore,
-  publicationRowScore, INDEX_LABEL, countAuthors, citationScore, bookRowScore, patentRowScore,
+  publicationScore, INDEX_LABEL, authorCount, citationScore, bookRowScore, patentRowScore,
   sponsoredProjectRowScore, consultancyRowScore, guidanceRowScore, outcomeRowScore, advQualScore,
   trainingRowScore, membershipRowScore, awardRowScore, differentiatorRowScore, PER_ENTRY,
 } from '../../utils/scoring';
@@ -310,16 +310,22 @@ export default function ReviewAppraisalPage() {
               <div key={kind} className="mb-2">
                 <div className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide mb-0.5">{heading}</div>
                 {rows.map((p: any) => {
-                  // Same helper the scoring engines use — never re-derive 2.1 here.
-                  const score = publicationRowScore(kind, p.indexed);
-                  const n = countAuthors(p.authors);
+                  // Same helper the scoring engines use (index rule + authorship
+                  // claim) — never re-derive 2.1 here.
+                  const r = publicationScore(kind, p);
+                  const n = authorCount(p);
+                  const campus = p.allAuthorsFromCampus === true
+                    ? `all authors VNRVJIET${p.claimedBySelf === true ? `, claimed by ${submission.user?.name ?? 'the faculty'}` : ''}`
+                    : p.allAuthorsFromCampus === false ? 'with other institutions' : '';
                   const bits = [
                     INDEX_LABEL[p.indexed] ?? p.indexed, p.quartile, p.impactFactor ? `IF ${p.impactFactor}` : '',
-                    p.authorPosition ? `${p.authorPosition} author` : '', n ? `${n} authors` : '',
+                    p.authorPosition ? `${p.authorPosition} author` : '', n ? `${n} authors` : '', campus,
                   ].filter(Boolean).join(' · ');
                   return (
                     <div key={p.id} className="text-xs text-ink-secondary mb-1">
-                      "{p.title}" — {p[venueKey]} — {bits} → {score}
+                      "{p.title}" — {p[venueKey]} — {bits}
+                      {!r.score && <> — <span className="text-amber-700">{r.reason}</span></>} → {r.score}
+                      {p.authors && <div className="text-[11px] text-ink-muted">{p.authors}</div>}
                     </div>
                   );
                 })}

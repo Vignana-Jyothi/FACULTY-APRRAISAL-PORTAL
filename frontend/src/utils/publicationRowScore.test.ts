@@ -15,13 +15,16 @@ describe('2.1 publicationRowScore (frontend port)', () => {
   }
 
   it('A + B + C share one cap of 60', () => {
+    // Co-authors from other institutions, so only the index rule decides
+    // (the 2.1 claim rule has its own suite, publicationClaim.test.ts).
+    const OUTSIDE = { allAuthorsFromCampus: false };
     const s = computeScore({
-      cat2Journals: [{ indexed: 'WOS' }, { indexed: 'SCOPUS' }, { indexed: 'ESCI' }],
-      cat2Conferences: [{ indexed: 'SCOPUS' }],
-      cat2ConfBookChapters: [{ indexed: 'ICI' }],
+      cat2Journals: [{ indexed: 'WOS', ...OUTSIDE }, { indexed: 'SCOPUS', ...OUTSIDE }, { indexed: 'ESCI', ...OUTSIDE }],
+      cat2Conferences: [{ indexed: 'SCOPUS', ...OUTSIDE }],
+      cat2ConfBookChapters: [{ indexed: 'ICI', ...OUTSIDE }],
     });
     expect(s.cat2.publications).toBe(50); // 15 + 15 + 0 + 10 + 10
-    expect(computeScore({ cat2Journals: Array.from({ length: 5 }, () => ({ indexed: 'WOS' as const })) }).cat2.publications).toBe(60);
+    expect(computeScore({ cat2Journals: Array.from({ length: 5 }, () => ({ indexed: 'WOS' as const, ...OUTSIDE })) }).cat2.publications).toBe(60);
   });
 
   it('labels SCI / SCIE journals under the stored WOS value', () => {

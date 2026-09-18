@@ -12,6 +12,7 @@ import {
 import { canViewUserResource } from '../utils/access';
 import { isOwnerView, stripReviewerAssessment } from '../utils/reviewVisibility';
 import { dropBlankRows } from '../utils/blankRows';
+import { normalizePublicationAuthors } from '../utils/publicationAuthors';
 
 const FULL_INCLUDE = {
   cat1Courses: true,
@@ -228,6 +229,9 @@ export async function updateAppraisal(req: Request, res: Response) {
 
   const { categories, leaveData } = req.body;
   dropBlankRows(categories); // discard blank auto-added form rows before persisting
+  // 2.1 author lists: tidy them, and refuse a paper claimed by another co-author.
+  const claimError = normalizePublicationAuthors(categories);
+  if (claimError) return res.status(400).json({ error: claimError });
 
   await prisma.$transaction(async (tx) => {
     if (leaveData) {

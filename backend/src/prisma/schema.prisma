@@ -555,6 +555,11 @@ model Cat2Journal {
   journalName        String
   authors            String
   authorPosition     String
+  // 2.1 authorship claim (2026-09-15). authorList is the ordered author names;
+  // `authors` stays filled (joined) for the PDF and older readers.
+  authorList           String[] @default([])
+  allAuthorsFromCampus Boolean? // null = not answered, and the paper scores 0
+  claimedBySelf        Boolean? // all-VNRVJIET papers: true = the owner claims it; false = a co-author does (refused on save)
   volume             String?
   issueNo            String?
   pageNos            String?
@@ -578,6 +583,10 @@ model Cat2Conference {
   conferenceName     String
   authors            String
   authorPosition     String
+  // 2.1 authorship claim — see Cat2Journal.
+  authorList           String[] @default([])
+  allAuthorsFromCampus Boolean?
+  claimedBySelf        Boolean?
   dateOfPub          DateTime?
   issn               String?
   doi                String?
@@ -620,6 +629,10 @@ model Cat2ConfBookChapter {
   title          String
   authors        String
   authorPosition String
+  // 2.1 authorship claim — see Cat2Journal.
+  authorList           String[] @default([])
+  allAuthorsFromCampus Boolean?
+  claimedBySelf        Boolean?
   conferenceName String
   // The PDF's 2.1 columns apply to all three parts (added 2026-09-11).
   dateOfPub      DateTime?

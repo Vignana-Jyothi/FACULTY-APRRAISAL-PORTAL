@@ -122,9 +122,11 @@ describe('Category 2 — Research', () => {
   it('2.1 journals: SCI/WoS/Scopus = 15; ESCI, ICI and non-indexed = 0 (strict PDF, 2026-09-11)', () => {
     const s = computeScore(emptySubmission({
       cat2Journals: [
-        { indexed: 'SCOPUS' }, { indexed: 'WOS' },
-        { indexed: 'ESCI' }, { indexed: 'ICI' },
-        { indexed: 'NONE' },
+        // Co-authors from other institutions: the claim is theirs to make, so
+        // only the index rule decides (2.1 claim rule, 2026-09-15).
+        { indexed: 'SCOPUS', allAuthorsFromCampus: false }, { indexed: 'WOS', allAuthorsFromCampus: false },
+        { indexed: 'ESCI', allAuthorsFromCampus: false }, { indexed: 'ICI', allAuthorsFromCampus: false },
+        { indexed: 'NONE', allAuthorsFromCampus: false },
       ],
     }));
     expect(s.cat2.publications).toBe(30); // 15+15+0+0+0 (ESCI/ICI were 10 each until 2026-09-11)
@@ -132,8 +134,8 @@ describe('Category 2 — Research', () => {
 
   it('2.1 conferences and conference book chapters: indexed = 10, non-indexed = 0', () => {
     const s = computeScore(emptySubmission({
-      cat2Conferences: [{ indexed: 'WOS' }, { indexed: 'NONE' }],
-      cat2ConfBookChapters: [{ indexed: 'ESCI' }, { indexed: 'NONE' }],
+      cat2Conferences: [{ indexed: 'WOS', allAuthorsFromCampus: false }, { indexed: 'NONE', allAuthorsFromCampus: false }],
+      cat2ConfBookChapters: [{ indexed: 'ESCI', allAuthorsFromCampus: false }, { indexed: 'NONE', allAuthorsFromCampus: false }],
     }));
     expect(s.cat2.publications).toBe(20); // 10+0+10+0
   });
@@ -426,7 +428,8 @@ describe('sample appraisal — form alignment', () => {
     ],
     // 2.1 — 4 indexed journal papers -> 60, caps 60
     cat2Journals: [
-      { indexed: 'SCOPUS' }, { indexed: 'SCOPUS' }, { indexed: 'SCOPUS' }, { indexed: 'SCOPUS' },
+      { indexed: 'SCOPUS', allAuthorsFromCampus: false }, { indexed: 'SCOPUS', allAuthorsFromCampus: false },
+      { indexed: 'SCOPUS', allAuthorsFromCampus: false }, { indexed: 'SCOPUS', allAuthorsFromCampus: false },
     ],
     // 2.2 — total citations 61 -> 3 (51-100 tier)
     cat2Citations: { totalCitations: 61 },

@@ -56,17 +56,18 @@ export interface Cat1ProjectInput {
   count?: number;
 }
 
-export interface Cat2JournalInput {
+// 2.1 rows: the index, and the authorship claim (see publicationClaim).
+interface PublicationClaimFields {
   indexed?: PublicationIndex;
+  authorList?: string[] | null;
+  authors?: string | null;
+  allAuthorsFromCampus?: boolean | null;
+  claimedBySelf?: boolean | null;
 }
 
-export interface Cat2ConferenceInput {
-  indexed?: PublicationIndex;
-}
-
-export interface Cat2ConfBookChapterInput {
-  indexed?: PublicationIndex;
-}
+export type Cat2JournalInput = PublicationClaimFields;
+export type Cat2ConferenceInput = PublicationClaimFields;
+export type Cat2ConfBookChapterInput = PublicationClaimFields;
 
 export interface Cat2BookChapterInput {
   title?: string | null;
@@ -85,6 +86,8 @@ export interface Cat2CitationsInput {
 }
 
 export interface Cat2PatentInput {
+  title?: string | null;
+  iprType?: string | null;
   status?: PatentStatus;
 }
 
@@ -251,6 +254,40 @@ export const INDEX_LABEL: Record<string, string> = {
 /** Number of names in an author list ("A, B and C" -> 3). Display only. */
 export function countAuthors(list?: string | null): number {
   return String(list ?? '').split(/[,;&]|\band\b/i).map((s) => s.trim()).filter(Boolean).length;
+}
+
+/** Author count for a 2.1 row: its author list when there is one, else the legacy text. Mirror of the backend's authorCount. */
+export function authorCount(r: { authorList?: string[] | null; authors?: string | null } | null | undefined): number {
+  const listed = (r?.authorList ?? []).filter((a) => String(a ?? '').trim()).length;
+  return listed || countAuthors(r?.authors);
+}
+
+/**
+ * 2.1 authorship claim. Mirror of the backend's publicationClaim (owner
+ * decisions 2026-09-15): an all-VNRVJIET paper counts only for the author who
+ * claims it; a paper with co-authors from other institutions is the faculty's
+ * to claim; an unanswered campus question scores 0.
+ */
+export type PublicationClaimRow = {
+  allAuthorsFromCampus?: boolean | null;
+  claimedBySelf?: boolean | null;
+};
+export function publicationClaim(r: PublicationClaimRow | null | undefined): { ok: boolean; reason: string } {
+  if (r?.allAuthorsFromCampus == null) return { ok: false, reason: 'Answer "are all authors from VNRVJIET?" to score this paper' };
+  if (r.allAuthorsFromCampus === false) return { ok: true, reason: 'Co-authors from other institutions' };
+  if (r.claimedBySelf == null) return { ok: false, reason: 'Choose who claims this paper' };
+  if (r.claimedBySelf === false) return { ok: false, reason: 'Claimed by another co-author' };
+  return { ok: true, reason: 'All authors from VNRVJIET, claimed by you' };
+}
+
+/** 2.1 per-row score with the authorship claim applied. Mirror of the backend's publicationScore. */
+export function publicationScore(
+  kind: PublicationKind,
+  r: (PublicationClaimRow & { indexed?: PublicationIndex | string | null }) | null | undefined,
+): { score: number; reason: string } {
+  const claim = publicationClaim(r);
+  if (!claim.ok) return { score: 0, reason: claim.reason };
+  return { score: publicationRowScore(kind, r?.indexed), reason: claim.reason };
 }
 
 /**
@@ -422,9 +459,9 @@ function scoreCategory1(v: ScoreFormValues) {
 function scoreCategory2(v: ScoreFormValues) {
   // 2.1 Publications (max 60) — see backend scoringEngine.ts for the PDF rule.
   let publications = 0;
-  for (const j of arr<Cat2JournalInput>(v.cat2Journals)) publications += publicationRowScore('journal', j?.indexed);
-  for (const c of arr<Cat2ConferenceInput>(v.cat2Conferences)) publications += publicationRowScore('conference', c?.indexed);
-  for (const x of arr<Cat2ConfBookChapterInput>(v.cat2ConfBookChapters)) publications += publicationRowScore('chapter', x?.indexed);
+  for (const j of arr<Cat2JournalInput>(v.cat2Journals)) publications += publicationScore('journal', j).score;
+  for (const c of arr<Cat2ConferenceInput>(v.cat2Conferences)) publications += publicationScore('conference', c).score;
+  for (const x of arr<Cat2ConfBookChapterInput>(v.cat2ConfBookChapters)) publications += publicationScore('chapter', x).score;
   publications = Math.min(publications, 60);
 
   // 2.2 Citations (max 5) — bands in citationScore.

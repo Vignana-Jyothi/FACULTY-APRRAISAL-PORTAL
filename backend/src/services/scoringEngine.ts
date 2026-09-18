@@ -294,6 +294,46 @@ export function countAuthors(list?: string | null): number {
   return String(list ?? '').split(/[,;&]|\band\b/i).map((s) => s.trim()).filter(Boolean).length;
 }
 
+/** Author count for a 2.1 row: its author list when there is one, else the legacy text. */
+export function authorCount(r: { authorList?: string[] | null; authors?: string | null } | null | undefined): number {
+  const listed = (r?.authorList ?? []).filter((a) => String(a ?? '').trim()).length;
+  return listed || countAuthors(r?.authors);
+}
+
+/**
+ * 2.1 authorship claim, owner decisions 2026-09-15. When every author of a
+ * paper is from VNRVJIET, only one of them may claim it: the form asks whether
+ * the appraisal's owner or another co-author claims the paper, and the server
+ * refuses to save a row claimed by someone else (utils/publicationAuthors).
+ * The owner is always the faculty filing — there is no "which author is me"
+ * question. A paper with co-authors from other institutions
+ * is the faculty's to claim. The campus question must be answered — left
+ * unanswered, the paper scores 0, as an unchosen 2.3 publisher level does.
+ * Target counts (trackingEngine.countedItems) are deliberately unaffected.
+ * Mirrored in the frontend port.
+ */
+export type PublicationClaimRow = {
+  allAuthorsFromCampus?: boolean | null;
+  claimedBySelf?: boolean | null;
+};
+export function publicationClaim(r: PublicationClaimRow | null | undefined): { ok: boolean; reason: string } {
+  if (r?.allAuthorsFromCampus == null) return { ok: false, reason: 'Answer "are all authors from VNRVJIET?" to score this paper' };
+  if (r.allAuthorsFromCampus === false) return { ok: true, reason: 'Co-authors from other institutions' };
+  if (r.claimedBySelf == null) return { ok: false, reason: 'Choose who claims this paper' };
+  if (r.claimedBySelf === false) return { ok: false, reason: 'Claimed by another co-author' };
+  return { ok: true, reason: 'All authors from VNRVJIET, claimed by you' };
+}
+
+/** 2.1 per-row score with the authorship claim applied. Views call this for a row. */
+export function publicationScore(
+  kind: PublicationKind,
+  r: (PublicationClaimRow & { indexed?: string | null }) | null | undefined,
+): { score: number; reason: string } {
+  const claim = publicationClaim(r);
+  if (!claim.ok) return { score: 0, reason: claim.reason };
+  return { score: publicationRowScore(kind, r?.indexed), reason: claim.reason };
+}
+
 /**
  * 2.2 score from cumulative Scopus / WoS citations. PDF: 3-10 -> 1, 11-50 -> 2,
  * 51-100 -> 3, >100 -> 5; fewer than 3, blank or negative -> 0. Exported for
@@ -462,11 +502,12 @@ export function differentiatorRowScore(d: { role?: string | null }) {
 
 function scoreCategory2(s: FullSubmission) {
   // 2.1 Publications — A journals + B conference proceedings + C conference
-  // book chapters share one cap of 60. Per-row rules in publicationRowScore.
+  // book chapters share one cap of 60. Per-row rules in publicationScore
+  // (index rule + authorship claim).
   let publications = 0;
-  for (const j of s.cat2Journals) publications += publicationRowScore('journal', j.indexed);
-  for (const c of s.cat2Conferences) publications += publicationRowScore('conference', c.indexed);
-  for (const x of s.cat2ConfBookChapters) publications += publicationRowScore('chapter', x.indexed);
+  for (const j of s.cat2Journals) publications += publicationScore('journal', j).score;
+  for (const c of s.cat2Conferences) publications += publicationScore('conference', c).score;
+  for (const x of s.cat2ConfBookChapters) publications += publicationScore('chapter', x).score;
   publications = Math.min(publications, 60);
 
   // 2.2 Citations (max 5) — bands in citationScore.

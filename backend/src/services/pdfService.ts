@@ -2,7 +2,7 @@ import puppeteer, { Browser } from 'puppeteer';
 import { VNRVJIET_LOGO_DATA_URI } from './logoAsset';
 import {
   lectureRowScore, projectRowScore, eContentRowScore, ictRowScore,
-  publicationRowScore, INDEX_LABEL, countAuthors, citationScore, bookRowScore, patentRowScore,
+  publicationScore, INDEX_LABEL, authorCount, citationScore, bookRowScore, patentRowScore,
   sponsoredProjectRowScore, consultancyRowScore, guidanceRowScore, outcomeRowScore, advQualScore,
   trainingRowScore, membershipRowScore, awardRowScore, differentiatorRowScore, PER_ENTRY,
 } from './scoringEngine';
@@ -289,22 +289,26 @@ export function renderAppraisalHtml(sub: any, score: any, review: any | null): s
     // export entirely until 2026-09-11.
     const head = ['Title of the Publication', 'Journal / Proceedings', 'No. & List of Authors', 'Author Position',
       'Vol. / Issue / Pages', 'Date (DD-MM-YYYY)', 'ISSN & DOI', 'Impact Factor', 'Indexed & Quartile', 'Score', 'Proof'];
+    // Where the authors are from, and who claims an all-VNRVJIET paper.
+    const claimNote = (p: any) => p.allAuthorsFromCampus === true
+      ? ` (all VNRVJIET; ${p.claimedBySelf === true ? `claimed by ${user.name ?? 'the faculty'}` : 'claim not chosen'})`
+      : p.allAuthorsFromCampus === false ? ' (with other institutions)' : ' (campus question not answered)';
     const cols = (p: any) => [
-      `${countAuthors(p.authors) || '—'}: ${p.authors ?? ''}`, p.authorPosition,
+      `${authorCount(p) || '—'}: ${p.authors ?? ''}${claimNote(p)}`, p.authorPosition,
       [p.volume, p.issueNo, p.pageNos].filter(Boolean).join(' / ') || '—',
       fmtDate(p.dateOfPub), [p.issn, p.doi].filter(Boolean).join(' / ') || '—',
       p.impactFactor || '—', [INDEX_LABEL[p.indexed] ?? p.indexed, p.quartile].filter(Boolean).join(', '),
     ];
     return [
       listTable('2.1-A Journal Publications', head, (sub.cat2Journals ?? []).map((p: any) => [
-        p.title, p.journalName, ...cols(p), publicationRowScore('journal', p.indexed),
+        p.title, p.journalName, ...cols(p), publicationScore('journal', p).score,
         raw([proofCell(p.proofFile).html, p.indexProofFile ? `Index: ${proofCell(p.indexProofFile).html}` : ''].filter(Boolean).join('<br/>')),
       ])),
       listTable('2.1-B Conference Proceedings', head, (sub.cat2Conferences ?? []).map((p: any) => [
-        p.title, p.conferenceName, ...cols(p), publicationRowScore('conference', p.indexed), proofCell(p.proofFile),
+        p.title, p.conferenceName, ...cols(p), publicationScore('conference', p).score, proofCell(p.proofFile),
       ])),
       listTable('2.1-C Book Chapters (from Conferences)', head, (sub.cat2ConfBookChapters ?? []).map((p: any) => [
-        p.title, p.conferenceName, ...cols(p), publicationRowScore('chapter', p.indexed), proofCell(p.proofFile),
+        p.title, p.conferenceName, ...cols(p), publicationScore('chapter', p).score, proofCell(p.proofFile),
       ])),
     ].join('');
   })()}

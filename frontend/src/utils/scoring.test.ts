@@ -182,7 +182,7 @@ describe('computeScore — robustness (partial/missing form state)', () => {
     const partial: ScoreFormValues = {
       cat1Courses: [{ periodPlanned: 48, periodsConducted: 46, novelPedagogyUsed: true }],
       // cat2ConfBookChapters intentionally omitted — wired into the form UI in a later task.
-      cat2Journals: [{ indexed: 'SCOPUS' }],
+      cat2Journals: [{ indexed: 'SCOPUS', allAuthorsFromCampus: false }],
       // cat3AdvQual omitted entirely (form hasn't loaded it yet).
       cat5Awards: [{ level: 'state' }],
     };

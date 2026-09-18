@@ -35,7 +35,7 @@ beforeAll(async () => {
       status: 'SUBMITTED',
       cat2Journals: { create: [{
         title: 'Deadline Paper', journalName: 'IEEE', authors: faculty.employeeCode, authorPosition: 'First',
-        indexed: 'WOS', impactFactor: 2, volume: '1', issueNo: '1', pageNos: '1-9',
+        indexed: 'WOS', allAuthorsFromCampus: false, impactFactor: 2, volume: '1', issueNo: '1', pageNos: '1-9',
         dateOfPub: new Date('2026-01-01'), quartile: 'Q1', proofFile: 'https://example.com/bad-proof.pdf',
       }] },
     });

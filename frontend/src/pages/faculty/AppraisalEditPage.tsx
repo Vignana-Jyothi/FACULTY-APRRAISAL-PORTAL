@@ -10,10 +10,12 @@ import { toDateInputs } from '../../utils/dateInputs';
 import { useAuthStore } from '../../store/authStore';
 import {
   computeScore, lectureRowScore, projectRowScore, eContentRowScore, ictRowScore,
-  publicationRowScore, INDEX_LABEL, countAuthors, citationScore, bookRowScore, patentRowScore,
+  publicationScore, publicationClaim, INDEX_LABEL, authorCount, citationScore, bookRowScore, patentRowScore,
   sponsoredProjectRowScore, consultancyRowScore, outcomeRowScore, trainingRowScore,
   type PublicationKind, type ScoreBreakdown,
 } from '../../utils/scoring';
+import { withAuthorList, publicationClaimConflict } from '../../utils/authors';
+import { AuthorListField, PublicationClaimFields } from '../../components/AuthorListField';
 import { sponsoredProjectWarnings } from '../../utils/sponsoredProjects';
 import { patentWarnings } from '../../utils/patents';
 import { citationWarnings } from '../../utils/citations';
@@ -198,6 +200,10 @@ export default function AppraisalEditPage() {
   const differentiators = useFieldArray({ control, name: 'cat5Differentiators' });
   const internships = useFieldArray({ control, name: 'cat5Internships' });
 
+  // False until the draft is in the form. A save before then would PUT the
+  // empty defaults and wipe every section of the draft.
+  const loadedRef = useRef(false);
+
   useEffect(() => {
     appraisalApi.get(id!).then((sub) => {
       setSubmission(sub);
@@ -214,9 +220,10 @@ export default function AppraisalEditPage() {
         cat1EContent: sub.cat1EContent ?? [],
         cat1ICT: sub.cat1ICT ?? [],
         // Date boxes need YYYY-MM-DD; the API sends timestamps (see toDateInputs).
-        cat2Journals: toDateInputs(sub.cat2Journals),
-        cat2Conferences: toDateInputs(sub.cat2Conferences),
-        cat2ConfBookChapters: toDateInputs(sub.cat2ConfBookChapters),
+        // 2.1 rows also get an author list, seeded from older free-text authors.
+        cat2Journals: withAuthorList(toDateInputs(sub.cat2Journals)),
+        cat2Conferences: withAuthorList(toDateInputs(sub.cat2Conferences)),
+        cat2ConfBookChapters: withAuthorList(toDateInputs(sub.cat2ConfBookChapters)),
         cat2BookChapters: sub.cat2BookChapters ?? [],
         cat2Books: sub.cat2Books ?? [],
         cat2Citations: sub.cat2Citations ?? { totalPubsTillDate: 0, pubsWithCitations: 0, totalCitations: 0, hIndexGoogle: 0, hIndexScopus: 0, hIndexWos: 0 },
@@ -242,6 +249,7 @@ export default function AppraisalEditPage() {
         cat5Differentiators: sub.cat5Differentiators ?? [],
         cat5Internships: sub.cat5Internships ?? [],
       });
+      loadedRef.current = true;
     }).catch(() => toast.error('Failed to load submission'));
   }, [id]);
 
@@ -262,6 +270,11 @@ export default function AppraisalEditPage() {
 
   const saveData = async (opts?: { silent?: boolean }) => {
     const silent = opts?.silent ?? false;
+    if (!loadedRef.current) {
+      if (silent) return;
+      toast.error('Still loading your draft — try again in a moment');
+      throw Object.assign(new Error('not loaded'), { shown: true });
+    }
     // Wait for previous save to finish before starting next.
     const prev = saveLock.current;
     let release: () => void = () => {};
@@ -270,6 +283,14 @@ export default function AppraisalEditPage() {
       await prev;
       if (!silent) setSaving(true);
       const values = deNan(getValues());
+      // A 2.1 paper claimed by another co-author cannot be saved (the server
+      // refuses it too). Say so even on a silent autosave, or a step change
+      // would just stall.
+      const conflict = publicationClaimConflict(values);
+      if (conflict) {
+        toast.error(conflict);
+        throw Object.assign(new Error(conflict), { shown: true });
+      }
       const { clLeaves, elLeaves, hplLeaves, odLeaves, otherLeaves, higherQualAcquired, ...categories } = values;
       await appraisalApi.update(id!, {
         leaveData: { clLeaves, elLeaves, hplLeaves, odLeaves, otherLeaves, higherQualAcquired },
@@ -278,7 +299,7 @@ export default function AppraisalEditPage() {
       if (!silent) toast.success('Saved');
     } catch (e: any) {
       // Only show toast for manual saves; silent autosave errors logged to console.
-      if (!silent) toast.error(e?.response?.data?.error ?? 'Save failed');
+      if (!silent && !e?.shown) toast.error(e?.response?.data?.error ?? 'Save failed');
       else console.warn('Autosave failed', e);
       throw e;
     } finally {
@@ -302,7 +323,11 @@ export default function AppraisalEditPage() {
   };
 
   const submitAppraisal = async () => {
-    await saveData();
+    try {
+      await saveData();
+    } catch {
+      return; // the save failure is already on screen; do not submit
+    }
     try {
       await appraisalApi.submit(id!);
       toast.success('Submitted successfully!');
@@ -386,19 +411,55 @@ export default function AppraisalEditPage() {
       {['Q1', 'Q2', 'Q3', 'Q4'].map((q) => <option key={q} value={q}>{q}</option>)}
     </select>
   );
-  // Per-row 2.1 working, from the same helper the engines score with.
+  // Per-row 2.1 working, from the same helper the engines score with: the
+  // authorship claim first, then the index rule.
   const publicationLine = (kind: PublicationKind, row: any) => {
     const ix = row?.indexed ?? 'NONE';
-    const score = publicationRowScore(kind, ix);
-    const n = countAuthors(row?.authors);
-    const reason = score
-      ? `Indexed in ${INDEX_LABEL[ix] ?? ix}`
-      : kind === 'journal' && (ix === 'ESCI' || ix === 'ICI')
-        ? `${ix} journals score 0 — only SCI / SCIE / WoS or Scopus journals score`
-        : 'Not indexed';
+    const { score } = publicationScore(kind, row);
+    const claim = publicationClaim(row);
+    const n = authorCount(row);
+    const reason = !claim.ok
+      ? claim.reason
+      : score
+        ? `Indexed in ${INDEX_LABEL[ix] ?? ix}`
+        : kind === 'journal' && (ix === 'ESCI' || ix === 'ICI')
+          ? `${ix} journals score 0 — only SCI / SCIE / WoS or Scopus journals score`
+          : 'Not indexed';
     return (
       <div className={`mt-2 text-xs ${score ? 'text-ink-muted' : 'text-amber-700'}`}>
         {n ? `${n} author${n === 1 ? '' : 's'} · ` : ''}{reason} → <span className="font-medium">{score}</span>
+      </div>
+    );
+  };
+
+  // 2.1 author list + campus/claim questions for one row (`base` is its form
+  // path, e.g. "cat2Journals.0"). Writes the list, the campus answer and
+  // whether the owner claims it; the legacy `authors` text follows the list.
+  const authorBlock = (base: string, row: any) => {
+    const authors: string[] = Array.isArray(row?.authorList) ? row.authorList : [];
+    const set = (field: string, value: unknown) => setValue(`${base}.${field}` as any, value as any, { shouldDirty: true });
+    return (
+      <div className="col-span-2 space-y-2">
+        <div>
+          <label className={labelCls}>List of Authors (in the order printed)</label>
+          <AuthorListField
+            authors={authors}
+            readOnly={readOnly}
+            inputCls={inputCls}
+            onChange={(list) => {
+              set('authorList', list);
+              set('authors', list.map((a) => a.trim()).filter(Boolean).join(', '));
+            }}
+          />
+        </div>
+        <PublicationClaimFields
+          name={base}
+          ownerName={submission?.user?.name ?? ''}
+          allFromCampus={row?.allAuthorsFromCampus ?? null}
+          claimedBySelf={row?.claimedBySelf ?? null}
+          readOnly={readOnly}
+          onChange={(all, self) => { set('allAuthorsFromCampus', all); set('claimedBySelf', self); }}
+        />
       </div>
     );
   };
@@ -766,7 +827,7 @@ export default function AppraisalEditPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div><label className={labelCls}>Title of the Publication</label><input {...register(`cat2Journals.${i}.title`)} className={inputCls} /></div>
                     <div><label className={labelCls}>Name of the Journal</label><input {...register(`cat2Journals.${i}.journalName`)} className={inputCls} /></div>
-                    <div><label className={labelCls}>List of Authors (as listed in the paper)</label><input {...register(`cat2Journals.${i}.authors`)} className={inputCls} placeholder="A. Rao, B. Devi, C. Kumar" /></div>
+                    {authorBlock(`cat2Journals.${i}`, (watchedValues as any)?.cat2Journals?.[i])}
                     <div>
                       <label className={labelCls}>Author Position (First / Second / Corresponding / Supervisor)</label>
                       {selectOther(`cat2Journals.${i}.authorPosition`, AUTHOR_POSITIONS, undefined, 'Specify position')}
@@ -791,7 +852,7 @@ export default function AppraisalEditPage() {
                   <button type="button" onClick={() => journals.remove(i)} className="text-red-400 text-xs mt-2">Remove</button>
                 </div>
               ))}
-              {addRowBtn('Add Journal', () => journals.append({ title: '', journalName: '', authors: '', authorPosition: '1st', indexed: 'NONE', impactFactor: 0, impactFactorSource: '', volume: '', issueNo: '', pageNos: '', dateOfPub: '', quartile: '', proofFile: '', indexProofFile: '' }))}
+              {addRowBtn('Add Journal', () => journals.append({ title: '', journalName: '', authors: '', authorList: [''], allAuthorsFromCampus: null, claimedBySelf: null, authorPosition: '1st', indexed: 'NONE', impactFactor: 0, impactFactorSource: '', volume: '', issueNo: '', pageNos: '', dateOfPub: '', quartile: '', proofFile: '', indexProofFile: '' }))}
             </div>
 
             <div>
@@ -807,7 +868,7 @@ export default function AppraisalEditPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div><label className={labelCls}>Title of the Publication</label><input {...register(`cat2Conferences.${i}.title`)} className={inputCls} /></div>
                     <div><label className={labelCls}>Name of the Conference Proceedings</label><input {...register(`cat2Conferences.${i}.conferenceName`)} className={inputCls} /></div>
-                    <div><label className={labelCls}>List of Authors (as listed in the paper)</label><input {...register(`cat2Conferences.${i}.authors`)} className={inputCls} placeholder="A. Rao, B. Devi, C. Kumar" /></div>
+                    {authorBlock(`cat2Conferences.${i}`, (watchedValues as any)?.cat2Conferences?.[i])}
                     <div>
                       <label className={labelCls}>Author Position (First / Second / Corresponding / Supervisor)</label>
                       {selectOther(`cat2Conferences.${i}.authorPosition`, AUTHOR_POSITIONS, undefined, 'Specify position')}
@@ -831,7 +892,7 @@ export default function AppraisalEditPage() {
                   <button type="button" onClick={() => conferences.remove(i)} className="text-red-400 text-xs mt-2">Remove</button>
                 </div>
               ))}
-              {addRowBtn('Add Conference', () => conferences.append({ title: '', conferenceName: '', authors: '', authorPosition: '1st', volume: '', issueNo: '', pageNos: '', dateOfPub: '', issn: '', doi: '', impactFactor: 0, indexed: 'NONE', quartile: '', presentationStatus: '' }))}
+              {addRowBtn('Add Conference', () => conferences.append({ title: '', conferenceName: '', authors: '', authorList: [''], allAuthorsFromCampus: null, claimedBySelf: null, authorPosition: '1st', volume: '', issueNo: '', pageNos: '', dateOfPub: '', issn: '', doi: '', impactFactor: 0, indexed: 'NONE', quartile: '', presentationStatus: '' }))}
             </div>
 
             <div>
@@ -848,7 +909,7 @@ export default function AppraisalEditPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div><label className={labelCls}>Title of the Chapter</label><input {...register(`cat2ConfBookChapters.${i}.title`)} className={inputCls} /></div>
                     <div><label className={labelCls}>Name of the Conference Proceedings</label><input {...register(`cat2ConfBookChapters.${i}.conferenceName`)} className={inputCls} /></div>
-                    <div><label className={labelCls}>List of Authors (as listed in the chapter)</label><input {...register(`cat2ConfBookChapters.${i}.authors`)} className={inputCls} placeholder="A. Rao, B. Devi, C. Kumar" /></div>
+                    {authorBlock(`cat2ConfBookChapters.${i}`, (watchedValues as any)?.cat2ConfBookChapters?.[i])}
                     <div>
                       <label className={labelCls}>Author Position (First / Second / Corresponding / Supervisor)</label>
                       {selectOther(`cat2ConfBookChapters.${i}.authorPosition`, AUTHOR_POSITIONS, undefined, 'Specify position')}
@@ -868,7 +929,7 @@ export default function AppraisalEditPage() {
                   <button type="button" onClick={() => confBookChapters.remove(i)} className="text-red-400 text-xs mt-2">Remove</button>
                 </div>
               ))}
-              {addRowBtn('Add Conference Book Chapter', () => confBookChapters.append({ title: '', conferenceName: '', authors: '', authorPosition: '1st', volume: '', issueNo: '', pageNos: '', dateOfPub: '', issn: '', doi: '', impactFactor: 0, indexed: 'NONE', quartile: '', proofFile: '' }))}
+              {addRowBtn('Add Conference Book Chapter', () => confBookChapters.append({ title: '', conferenceName: '', authors: '', authorList: [''], allAuthorsFromCampus: null, claimedBySelf: null, authorPosition: '1st', volume: '', issueNo: '', pageNos: '', dateOfPub: '', issn: '', doi: '', impactFactor: 0, indexed: 'NONE', quartile: '', proofFile: '' }))}
             </div>
 
 
@@ -1714,7 +1775,7 @@ export default function AppraisalEditPage() {
             {!readOnly && (
               <button
                 type="button"
-                onClick={() => saveData()}
+                onClick={() => saveData().catch(() => { /* already shown as a toast */ })}
                 disabled={saving}
                 className="text-sm border border-surface-border px-4 py-2 rounded hover:bg-surface-muted disabled:opacity-50"
               >

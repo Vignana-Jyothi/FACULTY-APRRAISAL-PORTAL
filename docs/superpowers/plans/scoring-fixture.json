@@ -20,15 +20,15 @@
     { "courseName": "Operating Systems", "platform": "Moodle", "natureOfUse": "Quizzes", "evidenceFile": "" }
   ],
   "cat2Journals": [
-    { "title": "A Scalable Approach to X", "journalName": "Intl J. of CS", "authors": "A, B", "authorPosition": "First", "indexed": "SCOPUS", "impactFactor": 3.2, "volume": "12", "issueNo": "4", "pageNos": "100-110", "dateOfPub": "2025-06-01", "issn": "", "doi": "", "quartile": "Q2" },
-    { "title": "A Local Study of Y", "journalName": "State J. of Eng", "authors": "A", "authorPosition": "First", "indexed": "NONE", "impactFactor": 0, "volume": "3", "issueNo": "1", "pageNos": "1-9", "dateOfPub": "2025-02-01", "issn": "", "doi": "", "quartile": "" }
+    { "title": "A Scalable Approach to X", "journalName": "Intl J. of CS", "authors": "A, B", "authorPosition": "First", "allAuthorsFromCampus": false, "indexed": "SCOPUS", "impactFactor": 3.2, "volume": "12", "issueNo": "4", "pageNos": "100-110", "dateOfPub": "2025-06-01", "issn": "", "doi": "", "quartile": "Q2" },
+    { "title": "A Local Study of Y", "journalName": "State J. of Eng", "authors": "A", "authorPosition": "First", "allAuthorsFromCampus": false, "indexed": "NONE", "impactFactor": 0, "volume": "3", "issueNo": "1", "pageNos": "1-9", "dateOfPub": "2025-02-01", "issn": "", "doi": "", "quartile": "" }
   ],
   "cat2Conferences": [
-    { "title": "Z at Scale", "conferenceName": "IEEE ICXYZ 2025", "authors": "A, B, C", "authorPosition": "First", "dateOfPub": "2025-09-10", "issn": "", "doi": "", "indexed": "WOS" }
+    { "title": "Z at Scale", "conferenceName": "IEEE ICXYZ 2025", "authors": "A, B, C", "authorPosition": "First", "allAuthorsFromCampus": false, "dateOfPub": "2025-09-10", "issn": "", "doi": "", "indexed": "WOS" }
   ],
   "cat2ConfBookChapters": [
-    { "title": "Proceedings Chapter on W", "authors": "A, B", "authorPosition": "Second", "conferenceName": "Springer LNCS Series", "indexed": "ESCI" },
-    { "title": "Proceedings Chapter on V", "authors": "A", "authorPosition": "First", "conferenceName": "Local Conf Proceedings", "indexed": "NONE" }
+    { "title": "Proceedings Chapter on W", "authors": "A, B", "authorPosition": "Second", "allAuthorsFromCampus": false, "conferenceName": "Springer LNCS Series", "indexed": "ESCI" },
+    { "title": "Proceedings Chapter on V", "authors": "A", "authorPosition": "First", "allAuthorsFromCampus": false, "conferenceName": "Local Conf Proceedings", "indexed": "NONE" }
   ],
   "cat2BookChapters": [
     { "title": "Chapter on Foundations", "authors": "A", "authorPosition": "First", "publisher": "Pearson", "isbn": "978-0-000-00000-0", "chapterNo": "3", "isEdited": false, "scope": "NATIONAL" }

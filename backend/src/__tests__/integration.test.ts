@@ -127,12 +127,31 @@ describe('Full appraisal workflow', () => {
         categories: {
           cat2Journals: [{
             title: 'Test Paper', journalName: 'IEEE', authors: 'Integration Test Faculty', authorPosition: 'First',
+            allAuthorsFromCampus: false,
             indexed: 'WOS', impactFactor: 3, volume: '1', issueNo: '1', pageNos: '1-10',
             dateOfPub: '2025-06-01', quartile: 'Q1', doi: '', issn: '',
           }],
         },
       });
     expect(fill.status).toBe(200);
+
+    // 2.1 claim rule: a paper whose authors are all from VNRVJIET belongs to
+    // the author who claims it — one claimed by someone else is refused, and
+    // the saved draft is left as it was.
+    const claimedByOther = await request(app)
+      .put(`/api/appraisals/${subId}`)
+      .set('Authorization', `Bearer ${facTok}`)
+      .send({
+        categories: {
+          cat2Journals: [{
+            title: 'Shared Campus Paper', journalName: 'IEEE', authorPosition: 'Second',
+            authorList: ['Integration Test Faculty', 'A. Colleague'],
+            allAuthorsFromCampus: true, claimedBySelf: false, indexed: 'WOS',
+          }],
+        },
+      });
+    expect(claimedByOther.status).toBe(400);
+    expect(claimedByOther.body.error).toMatch(/claimed by another co-author/);
 
     // Score (faculty self)
     const score = await request(app).get(`/api/appraisals/${subId}/score`).set('Authorization', `Bearer ${facTok}`);

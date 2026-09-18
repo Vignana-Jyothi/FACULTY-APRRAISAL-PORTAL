@@ -37,7 +37,7 @@ beforeAll(async () => {
       status: 'DRAFT',
       cat2Journals: { create: [{
         title: 'Status Paper', journalName: 'IEEE', authors: faculty.employeeCode, authorPosition: 'First',
-        indexed: 'WOS', impactFactor: 2, volume: '1', issueNo: '1', pageNos: '1-9',
+        indexed: 'WOS', allAuthorsFromCampus: false, impactFactor: 2, volume: '1', issueNo: '1', pageNos: '1-9',
         dateOfPub: new Date('2026-01-01'), quartile: 'Q1', proofFile: PROOF,
       }] },
     });
