@@ -130,7 +130,7 @@
   <header class="top">
     <div class="eyebrow">VNRVJIET · Faculty Appraisal Portal · architecture</div>
     <h1>Appraisal Portal System Map</h1>
-    <p class="lede">How a faculty self-appraisal travels from the browser to the database and back out as a score, a PDF, a HoD review and an email. Public address: <code>https://appraisal.vjstartup.com</code>. Every box and arrow below is drawn from the code at <code>feat/role-hierarchy</code>, not from the design documents. Places where the running system and the intended one disagree are marked <span class="chip gap">gap</span>.</p>
+    <p class="lede">How a faculty self-appraisal travels from the browser to the database and back out as a score, a PDF, a HoD review and an email. Public address: <code>https://appraisal.vjstartup.com</code>. Every box and arrow below is drawn from the code at <code>acc8a49</code>, not from the design documents. Places where the running system and the intended one disagree are marked <span class="chip gap">gap</span>.</p>
     <dl class="facts">
       <div><dt>Client</dt><dd>React 19 · Vite 8 · Tailwind 4</dd></div>
       <div><dt>Server</dt><dd>Node 24 · Express 4 · Prisma 6 · Postgres 15</dd></div>
@@ -404,7 +404,7 @@
 
         <rect class="n" x="16" y="350" width="1028" height="40" rx="4"/>
         <text class="t" x="34" y="375">utils</text>
-        <text class="s" x="90" y="375">access (who may view) · reviewVisibility (Cat 6 and /550 by ownership) · blankRows · serializers · jwt · uploadPaths</text>
+        <text class="s" x="90" y="375">roles (the role sets) · access (who may view) · reviewVisibility (Cat 6 and /550 by ownership) · blankRows · serializers · jwt</text>
         <line class="e" x1="530" y1="390" x2="530" y2="414" marker-end="url(#m-a)"/>
 
         <rect class="n-key" x="16" y="418" width="1028" height="40" rx="4"/>
@@ -442,7 +442,7 @@
           <tr><td>Reminders</td><td class="mono">daily 09:00</td><td>Nudges faculty whose appraisal is still a draft; sends reviewers a digest of their queue</td><td>Respects each user's email opt-out</td></tr>
           <tr><td>Review windows</td><td class="mono">daily 09:00</td><td>For any enabled window ending today: snapshot every faculty's standing and send the quarterly email</td><td>Kill switch <code>QUARTERLY_AUTOSEND=false</code>; opt-out respected</td></tr>
           <tr><td>Proof deadline</td><td class="mono">daily 09:00</td><td>14 days after the first rejection, voids the marks of still-rejected proofs; the appraisal returns to the HoD queue</td><td>Faculty stays red-listed; the reason is kept</td></tr>
-          <tr><td>Run snapshot (admin)</td><td class="mono">on demand</td><td>Same as a review window, fired from the admin screen</td><td>Dry run unless the admin confirms</td></tr>
+          <tr><td>Run snapshot (dean)</td><td class="mono">on demand</td><td>Same as a review window, fired from the tracking screen</td><td>Dry run unless the dean confirms</td></tr>
         </tbody>
       </table>
     </div>
@@ -591,7 +591,7 @@
       <li>Four files move together: the engine, its frontend port, <code>scoring-fixture.json</code> and <code>scoring-expected.json</code>. Parity suites on both sides fail if one moves alone.</li>
       <li>The review row stores the self total next to the reviewed total. A later rule change then cannot move one figure without the other.</li>
       <li>The HoD may override any Cat 1–5 mark. Each category is clamped to its maximum, and both assessments reach HR separately.</li>
-      <li>Tracking measures the dean's view against the /550 grand total once a review exists. Everything a faculty member reads is measured against their own /500.</li>
+      <li>Tracking measures against the /550 grand total for the principal and the faculty's own HoD; the dean and special scrutinizers, who may not see Category 6, read the same rows at the reviewed /500. Eligibility is decided on the full total either way, so the verdict does not move with the viewer.</li>
     </ul>
   </section>
 
@@ -713,7 +713,7 @@
     <ul class="notes">
       <li>Forgot password sends a 6-digit OTP from <code>crypto.randomInt</code>, limited to 3 requests a minute. It returns the same message whether or not the code exists.</li>
       <li>Soft-deleted users cannot sign in. Reactivation restores the account but not its roles, which are re-assigned on purpose.</li>
-      <li>A HoD or reviewer role carries a department and is valid only in the user's own department. The dean (ADMIN) is the one cross-department role.</li>
+      <li>A HoD or reviewer role carries a department and is valid only in the user's own department. The principal, the dean and the scrutinizer pool are the cross-department roles; a scrutinizer reaches one submission at a time, through its <code>FinalReview</code> assignment.</li>
       <li>Default passwords (<code>Welcome@123</code> for imports) come from environment variables. The real install still has to set them and force a reset.</li>
     </ul>
   </section>
@@ -841,7 +841,11 @@
           <tr><td>Every user (faculty)</td><td class="mono">/dashboard · /appraisal/:id/edit · /appraisal/:id · /profile · /final-review (only when assigned)</td></tr>
           <tr><td>Reviewer (incharge)</td><td class="mono">/reviews · /reviews/:id · /uploads · /uploads/:submissionId</td></tr>
           <tr><td>HoD</td><td class="mono">everything a reviewer has · /tracking · /red-list · /reports/department</td></tr>
-          <tr><td>Admin (dean)</td><td class="mono">everything above · /admin/dashboard · users · departments · academic-years · cadre-targets · incharges · review-windows · appraisals · reports · emails · audit</td></tr>
+          <tr><td>Scrutinizer</td><td class="mono">/final-review · /profile — one submission at a time, only once the dean assigns it</td></tr>
+          <tr><td>Special scrutinizer</td><td class="mono">everything a scrutinizer has · /tracking (tier and eligibility editable)</td></tr>
+          <tr><td>Dean</td><td class="mono">/dean/appraisals · academic-years · cadre-targets · cadre-tiers · review-windows · departments · /tracking · /reports/institute</td></tr>
+          <tr><td>Principal</td><td class="mono">everything the dean has · /principal/appraisals · /red-list · /reports/department — and the only role that sees Category 6 and the /550</td></tr>
+          <tr><td>Admin (maintenance)</td><td class="mono">/admin/dashboard · users · incharges · emails · audit — no appraisal content at all</td></tr>
         </tbody>
       </table>
     </div>
@@ -867,7 +871,7 @@
   </section>
 
   <footer>
-    Drawn from the code at <code>33bb98c</code> (14 Sep 2026), repository <code>FACULTY-APRRAISAL-PORTAL</code>. Sources: <code>backend/src/app.ts</code>, <code>routes/index.ts</code>, <code>prisma/schema.prisma</code>, the services and cron folders, <code>docker-compose.prod.yml</code>, <code>monitoring/</code>, <code>frontend/nginx.conf</code> and <code>frontend/src/App.tsx</code>. Every setting is listed in <code>ENV_SETUP.md</code>. Figures scroll sideways on narrow screens.
+    Drawn from the code at <code>acc8a49</code> (19 Sep 2026), repository <code>FACULTY-APRRAISAL-PORTAL</code>. Sources: <code>backend/src/app.ts</code>, <code>routes/index.ts</code>, <code>prisma/schema.prisma</code>, the services and cron folders, <code>docker-compose.prod.yml</code>, <code>monitoring/</code>, <code>frontend/nginx.conf</code> and <code>frontend/src/App.tsx</code>. Every setting is listed in <code>ENV_SETUP.md</code>. Figures scroll sideways on narrow screens.
   </footer>
 </div>
 </body>
