@@ -189,13 +189,13 @@ export default function AdminAppraisalsPage() {
                       >
                         View
                       </Link>
-                      {a.status === 'SUBMITTED' && (
+                      {['SUBMITTED', 'UNDER_REVIEW', 'HOLD', 'APPROVED', 'FINAL_REVIEW'].includes(a.status) && (
                         <button
                           onClick={() => setAssignTarget(a)}
                           className="flex items-center gap-1 text-xs text-primary-600 border border-primary-200 bg-primary-50 px-2 py-0.5 rounded hover:bg-primary-100"
-                          title="Assign reviewer"
+                          title="Assign scrutinizers for the final review"
                         >
-                          <UserCheck size={11} /> Assign
+                          <UserCheck size={11} /> {a.status === 'FINAL_REVIEW' ? 'Reassign' : 'Assign'}
                         </button>
                       )}
                       {(a.status === 'APPROVED' || a.status === 'REJECTED' || a.status === 'FINAL_REVIEW') && (
