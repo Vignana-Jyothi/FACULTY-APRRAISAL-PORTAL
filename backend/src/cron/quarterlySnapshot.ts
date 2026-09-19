@@ -120,10 +120,10 @@ export interface SnapshotPreview {
 }
 
 /**
- * Dry run for the admin "Run snapshot now" button. Counts who WOULD be emailed
+ * Dry run for the dean's "Run snapshot now" button. Counts who WOULD be emailed
  * without writing a snapshot or queueing anything. The manual trigger is a mass
  * send to real faculty addresses, so the caller previews first and only sends
- * once the admin explicitly confirms.
+ * once the dean (or principal) explicitly confirms.
  */
 export async function previewQuarterlySnapshot(
   academicYearId?: string,
@@ -190,7 +190,7 @@ export async function runDueReviewWindows(
   scope?: { academicYearIds?: string[] },
 ) {
   // Kill switch. This job mails every opted-in faculty the moment a window's end
-  // date arrives, with nobody present to confirm it — unlike the admin button,
+  // date arrives, with nobody present to confirm it — unlike the dean's button,
   // which is a dry run until confirmed. Default is unchanged (it runs), but an
   // operator can stop it without deleting the windows they have configured.
   if ((process.env.QUARTERLY_AUTOSEND ?? 'true').toLowerCase() === 'false') {
@@ -219,7 +219,7 @@ export async function runDueReviewWindows(
 }
 
 export function startQuarterlySnapshotCron() {
-  // Daily 09:00 — fire any enabled review window ending today. Admin-set
+  // Daily 09:00 — fire any enabled review window ending today. Dean-set
   // windows take effect without a restart (the checker reads them each run).
   cron.schedule('0 9 * * *', async () => {
     try { await runDueReviewWindows(); } catch (e) { console.error('[cron] Review window error:', e); }
@@ -229,7 +229,7 @@ export function startQuarterlySnapshotCron() {
   console.log('[cron] Review-window checker scheduled (daily 09:00)');
 }
 
-// Manual trigger (admin "Run snapshot now").
+// Manual trigger (dean/principal "Run snapshot now").
 export async function triggerQuarterlySnapshot(academicYearId?: string) {
   return runQuarterlySnapshot(academicYearId);
 }

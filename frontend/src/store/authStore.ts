@@ -27,6 +27,10 @@ export const DEPT_SCOPED_ROLES: readonly Role[] = ['HOD', 'REVIEWER'] as const;
 // the principal who sees everything.
 export const TIER_ROLES: readonly Role[] = ['DEAN', 'SPECIAL_SCRUTINIZER', 'PRINCIPAL'] as const;
 
+// Institute-wide readers of department content (reports, criteria): mirrors
+// backend INSTITUTE_READ. Everyone else is scoped to their own department.
+export const INSTITUTE_READ_ROLES: readonly Role[] = ['PRINCIPAL', 'DEAN'] as const;
+
 // Category 6 (core values, +50) and the /550 grand total. The HoD/Reviewer enter
 // them for their own department and read their own entry back; the principal
 // sees them institute-wide. Dean, scrutinizers, admin and faculty never do.

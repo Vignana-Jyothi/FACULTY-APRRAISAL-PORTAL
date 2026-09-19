@@ -27,6 +27,7 @@ import TrackingPage from './pages/reviewer/TrackingPage';
 import AdminEmailsPage from './pages/admin/AdminEmailsPage';
 import AdminAuditPage from './pages/admin/AdminAuditPage';
 import ProfilePage from './pages/faculty/ProfilePage';
+import OversightDashboardPage from './pages/oversight/OversightDashboardPage';
 
 // Role sets, mirroring backend/src/utils/roles.ts. The routes below are the
 // UI's half of P2: maintenance (/admin/*) never overlaps appraisal content.
@@ -129,6 +130,11 @@ export default function App() {
         } />
         <Route path="/dean/appraisals" element={
           <ProtectedRoute roles={CONFIG}><AdminAppraisalsPage /></ProtectedRoute>
+        } />
+
+        {/* Dean + principal landing: institute-wide oversight dashboard. */}
+        <Route path="/oversight" element={
+          <ProtectedRoute roles={CONFIG}><OversightDashboardPage /></ProtectedRoute>
         } />
 
         {/* Principal — institute-wide content. */}

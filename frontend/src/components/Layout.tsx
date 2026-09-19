@@ -56,9 +56,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     if (!entries.some(([t]) => t === to)) entries.push([to, label, Icon]);
   };
 
+  // Dean + principal land on the institute-wide oversight dashboard. It goes
+  // first so it tops their menu.
+  if (isDean() || isPrincipal()) {
+    add('/oversight', 'Dashboard', LayoutDashboard);
+  }
+
   // Maintenance admin: accounts and plumbing. No appraisal content at all.
   if (isAdmin()) {
-    add('/admin/dashboard', 'Dashboard', LayoutDashboard);
+    // The bootstrap account is ADMIN + PRINCIPAL: keep the two dashboards apart.
+    add('/admin/dashboard', isPrincipal() || isDean() ? 'Admin Dashboard' : 'Dashboard', LayoutDashboard);
     add('/admin/users', 'Users', Users);
     add('/admin/incharges', 'Incharges', ShieldCheck);
     add('/admin/emails', 'Emails', Mail);
@@ -78,6 +85,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     // The institute report is open to both (backend /reports/institute is
     // guarded with CONFIG), hence the role-neutral path.
     add('/reports/institute', 'Institute Reports', BarChart2);
+    // Department report with a department picker; rows come back without Cat 6
+    // / the /550 for the dean (the server strips them).
+    add('/reports/department', 'Department Reports', BarChart2);
     add('/dean/academic-years', 'Academic Years', BookOpen);
     add('/dean/cadre-targets', 'Cadre Targets', Target);
     add('/dean/cadre-tiers', 'Cadre Tiers', Layers);

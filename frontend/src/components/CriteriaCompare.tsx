@@ -51,7 +51,9 @@ const CATALOG: Crit[] = [
   { group: 'Cat 5 — Supplementary', key: 'c5_int', label: 'Internships', get: (r) => r.breakdown.cat5.internships },
 ];
 
-export default function CriteriaCompare({ academicYearId }: { academicYearId?: string }) {
+// `dept` narrows an institute-wide reader (dean, principal) to one department;
+// the server ignores it for a HoD, who is always held to their own.
+export default function CriteriaCompare({ academicYearId, dept }: { academicYearId?: string; dept?: string }) {
   const [data, setData] = useState<CriteriaReport | null>(null);
   const [loading, setLoading] = useState(true);
   // The grand total carries Category 6, so the server nulls it for anyone who
@@ -69,11 +71,11 @@ export default function CriteriaCompare({ academicYearId }: { academicYearId?: s
   useEffect(() => {
     setLoading(true);
     reportApi
-      .getCriteria(academicYearId ? { academicYearId } : {})
+      .getCriteria({ ...(academicYearId ? { academicYearId } : {}), ...(dept ? { dept } : {}) })
       .then(setData)
       .catch(() => toast.error('Failed to load criteria report'))
       .finally(() => setLoading(false));
-  }, [academicYearId]);
+  }, [academicYearId, dept]);
 
   const crit = catalog.find((c) => c.key === key) ?? catalog[0];
 

@@ -59,8 +59,9 @@ function scoreTable(p: any): string {
 
   // Faculty-facing, so this table is capped at 500 and never mentions
   // Category 6. Core values are the reviewer's assessment of the faculty, not
-  // something they report or are shown — only the HoD, dean and admin see that
-  // half of the review, and the /550 grand total exists only for them.
+  // something they report or are shown — only their own department's HoD /
+  // incharge and the principal see that half of the review, and the /550 grand
+  // total exists only for them (utils/reviewVisibility). The dean does not.
   const reviewed = p.reviewedTotal != null;
   const header = reviewed ? 'Reviewed Score' : 'Score';
 
@@ -209,7 +210,7 @@ const TEMPLATES: Record<EmailTemplateKey, (p: any) => string> = {
   submission_unlocked: (p) => layout('Submission Unlocked', `
     <h2 style="margin:0 0 8px;color:#1e3a5f">Submission Unlocked</h2>
     <p>Dear <strong>${esc(p.name)}</strong>,</p>
-    <p>Your Faculty Appraisal for <strong>${p.year}</strong> (Submission #${p.submissionNumber}) has been unlocked by the admin. You can now edit and resubmit.</p>
+    <p>Your Faculty Appraisal for <strong>${p.year}</strong> (Submission #${p.submissionNumber}) has been unlocked for editing. You can now edit and resubmit.</p>
     <p style="margin-top:16px"><a href="${FRONTEND_URL}/appraisal/${p.submissionId}/edit" style="background:#1e3a5f;color:#fff;padding:10px 18px;border-radius:4px;text-decoration:none;font-size:14px;font-weight:600">Edit Submission</a></p>
   `),
 
@@ -293,7 +294,7 @@ const TEMPLATES: Record<EmailTemplateKey, (p: any) => string> = {
   feedback_issued: (p) => layout('Appraisal Feedback', `
     <h2 style="margin:0 0 8px;color:#1e3a5f">Your Feedback is Ready</h2>
     <p>Dear <strong>${esc(p.name)}</strong>,</p>
-    <p>Your HoD has issued the annual feedback for your <strong>${p.year}</strong> appraisal — including personalised growth guidance.</p>
+    <p>The annual feedback for your <strong>${p.year}</strong> appraisal has been issued — including personalised growth guidance.</p>
     <p style="margin-top:16px"><a href="${FRONTEND_URL}/appraisal/${p.submissionId}" style="background:#1e3a5f;color:#fff;padding:10px 18px;border-radius:4px;text-decoration:none;font-size:14px;font-weight:600">View Feedback</a></p>
   `),
 };

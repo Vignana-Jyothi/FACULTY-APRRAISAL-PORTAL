@@ -32,6 +32,7 @@ import * as reviewWindow from '../controllers/reviewWindowController';
 import * as verification from '../controllers/verificationController';
 import * as tracking from '../controllers/trackingController';
 import * as feedback from '../controllers/feedbackController';
+import * as oversight from '../controllers/oversightController';
 import type { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 
@@ -180,6 +181,10 @@ router.post('/admin/appraisals/:id/assign-reviewer', authenticate, roleGuard(CON
 
 // FPGP v2 — feature retired; controller/service/UI code removed 2026-09-13.
 // The DB models (FPGPPlan etc.) are kept so historical data survives.
+
+// Oversight dashboard — dean + principal. Cat 6 / the /550 average goes to the
+// principal only (utils/reviewVisibility decides, inside the controller).
+router.get('/oversight/summary', authenticate, roleGuard(CONFIG), oversight.getOversightSummary);
 
 // Reports — HoD for their own department, dean and principal institute-wide.
 router.get('/reports/department', authenticate, roleGuard(DEPT_CONTENT_READ), report.getDeptReport);
