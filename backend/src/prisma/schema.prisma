@@ -176,6 +176,10 @@ model User {
   // tokens carry the value they were signed with; a mismatch is rejected, so a
   // stolen token stops working the moment the user logs out or changes password.
   tokenVersion          Int       @default(0)
+  // Set when someone other than the user chose the password (bulk import,
+  // admin create). While true, `authenticate` lets the user do nothing but
+  // change it. Cleared by change-password and the OTP forgot-password reset.
+  mustChangePassword    Boolean   @default(false)
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 

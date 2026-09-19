@@ -38,6 +38,21 @@ function readCookie(req: Request, name: string): string | undefined {
   return undefined;
 }
 
+/**
+ * Sign a fresh access token and set the refresh cookie for `user`. Returns the
+ * access token. Used by login and by change-password, which bumps tokenVersion
+ * (killing every session) and then re-issues one for the tab that made the change.
+ */
+export function issueSession(
+  res: Response,
+  user: { id: string; employeeCode: string; tokenVersion: number },
+): string {
+  const payload = { userId: user.id, employeeCode: user.employeeCode, tokenVersion: user.tokenVersion };
+  // Refresh token goes in the httpOnly cookie, never the JSON body.
+  res.cookie(REFRESH_COOKIE, signRefreshToken(payload), refreshCookieOpts);
+  return signAccessToken(payload);
+}
+
 export async function login(req: Request, res: Response) {
   const { employeeCode, password } = loginSchema.parse(req.body);
 
@@ -60,12 +75,7 @@ export async function login(req: Request, res: Response) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
-  const payload = { userId: user.id, employeeCode: user.employeeCode, tokenVersion: user.tokenVersion };
-  const accessToken = signAccessToken(payload);
-  const refreshToken = signRefreshToken(payload);
-
-  // Refresh token goes in the httpOnly cookie, never the JSON body.
-  res.cookie(REFRESH_COOKIE, refreshToken, refreshCookieOpts);
+  const accessToken = issueSession(res, user);
 
   // Security audit trail — record the successful login (id + action only, no
   // credentials). Best-effort: never fail the login on an audit write error.
@@ -82,6 +92,10 @@ export async function login(req: Request, res: Response) {
       employeeCode: user.employeeCode,
       departmentId: user.departmentId,
       roles: user.userRoles,
+      // True when someone else chose this password; the client sends the user
+      // straight to the change-password form, and `authenticate` refuses
+      // everything else until it is changed.
+      mustChangePassword: user.mustChangePassword,
     },
   });
 }
@@ -227,7 +241,12 @@ export async function resetPassword(req: Request, res: Response) {
 
   await prisma.$transaction(async (tx) => {
     // Bump the session generation so any token issued before this reset dies.
-    await tx.user.update({ where: { id: user.id }, data: { passwordHash: newHash, tokenVersion: { increment: 1 } } });
+    // The user chose this password themselves (OTP-verified), so it clears any
+    // forced change.
+    await tx.user.update({
+      where: { id: user.id },
+      data: { passwordHash: newHash, tokenVersion: { increment: 1 }, mustChangePassword: false },
+    });
     await tx.passwordOtp.delete({ where: { userId: user.id } });
     await tx.auditLog.create({
       data: {

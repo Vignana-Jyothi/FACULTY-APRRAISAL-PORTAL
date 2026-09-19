@@ -6,6 +6,8 @@ import { parse as parseCsv } from 'csv-parse/sync';
 import prisma from '../utils/prismaClient';
 import { RoleType } from '@prisma/client';
 import { DEPARTMENT_SCOPED, INSTITUTE_WIDE } from '../utils/roles';
+import { DEFAULT_IMPORT_PASSWORD } from '../utils/defaultPassword';
+import { issueSession } from './authController';
 
 const profileUpdateSchema = z.object({
   name: z.string().optional(),
@@ -144,9 +146,13 @@ export async function changePasswordWithOtp(req: Request, res: Response) {
   const sameAsOld = await bcrypt.compare(newPassword, user.passwordHash);
   if (sameAsOld) return res.status(400).json({ error: 'New password must differ from current' });
 
-  await prisma.$transaction(async (tx) => {
+  const tokenVersion = await prisma.$transaction(async (tx) => {
     // Bump the session generation so tokens issued before this change die.
-    await tx.user.update({ where: { id: user.id }, data: { passwordHash: newHash, tokenVersion: { increment: 1 } } });
+    // The user chose this password themselves, so any forced change is done.
+    const updated = await tx.user.update({
+      where: { id: user.id },
+      data: { passwordHash: newHash, tokenVersion: { increment: 1 }, mustChangePassword: false },
+    });
     await tx.passwordOtp.delete({ where: { userId: user.id } });
     await tx.auditLog.create({
       data: {
@@ -156,9 +162,19 @@ export async function changePasswordWithOtp(req: Request, res: Response) {
         entityId: user.id,
       },
     });
+    return updated.tokenVersion;
   });
 
-  return res.json({ message: 'Password updated successfully' });
+  // The tokenVersion bump above killed every session, including this one. The
+  // user has just proved both the old password and the emailed OTP, so hand this
+  // tab a fresh session rather than bouncing them to the login page — the forced
+  // first-sign-in change would otherwise end in an unexplained logout.
+  const accessToken = issueSession(res, {
+    id: user.id,
+    employeeCode: user.employeeCode,
+    tokenVersion,
+  });
+  return res.json({ message: 'Password updated successfully', accessToken, mustChangePassword: false });
 }
 
 // Admin: list all users
@@ -207,7 +223,8 @@ export async function createUser(req: Request, res: Response) {
 
   const user = await prisma.$transaction(async (tx) => {
     const newUser = await tx.user.create({
-      data: { employeeCode, name, email, passwordHash, departmentId, designation },
+      // The admin chose this password, so the user must replace it at first sign-in.
+      data: { employeeCode, name, email, passwordHash, departmentId, designation, mustChangePassword: true },
     });
 
     await tx.userRole.create({
@@ -433,14 +450,8 @@ export async function revokeRole(req: Request, res: Response) {
 // Institutional faculty-roster format. Password, department and role are NOT in
 // the sheet: every row is imported as FACULTY into the admin-selected department
 // with a shared default password (users change it on first login).
-// Password given to bulk-imported accounts on first login. Overridable, but the
-// historical value is the fallback deliberately: 73 real accounts were imported
-// with it and are still using it, so changing the default would not rotate them
-// — it would only make new imports inconsistent with the ones already out there.
-// Rotate properly (force-reset those accounts) rather than editing this line.
-// `||`, not `??`: a blank value (an empty compose `${VAR}`) must not become an
-// empty password for every imported account.
-const DEFAULT_IMPORT_PASSWORD = process.env.DEFAULT_IMPORT_PASSWORD || 'Welcome@123';
+// The shared default password lives in utils/defaultPassword.ts (the backfill
+// script reads the same value).
 
 const TEMPLATE_CSV = `S.NO,EMP ID,Name of the Faculty,Designation,D.O.J,Mobile Number,E - Mail ID
 1,FAC001,John Doe,Assistant Professor,15-08-2020,9876543210,john.doe@vnrvjiet.in
@@ -653,6 +664,8 @@ export async function bulkImportUsers(req: Request, res: Response) {
             name: p.data.name,
             email: p.data.email,
             passwordHash,
+            // Shared default password — must be replaced at first sign-in.
+            mustChangePassword: true,
             designation: p.data.designation || null,
             departmentId: dept.id,
             dateOfJoining,

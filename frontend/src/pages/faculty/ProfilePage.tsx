@@ -1,12 +1,22 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { userApi } from '../../api/users';
+import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
-import { Save, Lock, Eye, EyeOff, Mail, KeyRound } from 'lucide-react';
+import { Save, Lock, Eye, EyeOff, Mail, KeyRound, ShieldAlert } from 'lucide-react';
 
 type PwStage = 'verify' | 'otp';
 
 export default function ProfilePage() {
+  const navigate = useNavigate();
+  const authUser = useAuthStore((s) => s.user);
+  // Narrow cast: AuthUser does not declare mustChangePassword (authStore.ts is
+  // owned by another change); the login payload carries it on the stored user.
+  const storeForced = (authUser as { mustChangePassword?: boolean } | null)?.mustChangePassword === true;
   const [me, setMe] = useState<any>(null);
+  // Someone else chose this password (bulk import / admin create). Until it is
+  // replaced the server refuses everything else, so show only the password form.
+  const forced = storeForced || me?.mustChangePassword === true;
   const [form, setForm] = useState<any>({});
   const [saving, setSaving] = useState(false);
 
@@ -80,8 +90,28 @@ export default function ProfilePage() {
     }
     setPwBusy(true);
     try {
-      await userApi.changePasswordWithOtp(otp, newPassword);
+      const r = await userApi.changePasswordWithOtp(otp, newPassword);
+      // The change ends every session (tokenVersion bump), this one included;
+      // the server hands this tab a fresh token. Adopt it before any other call.
+      const { user: current, login } = useAuthStore.getState();
+      if (r?.accessToken && current) {
+        login(r.accessToken, { ...current, mustChangePassword: false } as typeof current);
+      }
       toast.success('Password updated');
+      if (forced) {
+        // Confirm with the server that the flag is gone, then carry on.
+        const fresh = await userApi.getMe();
+        setMe(fresh);
+        const latest = useAuthStore.getState();
+        if (latest.user && latest.accessToken) {
+          latest.login(latest.accessToken, {
+            ...latest.user,
+            mustChangePassword: fresh.mustChangePassword === true,
+          } as typeof latest.user);
+        }
+        if (fresh.mustChangePassword !== true) navigate('/dashboard', { replace: true });
+        return;
+      }
       // Reset all
       setPwStage('verify');
       setCurrentPassword('');
@@ -123,7 +153,22 @@ export default function ProfilePage() {
       <h1 className="text-2xl font-bold text-ink-primary mb-1">My Profile</h1>
       <p className="text-sm text-ink-muted mb-6">Employee Code: {me.employeeCode}</p>
 
+      {forced && (
+        <div role="alert" className="bg-amber-50 border border-amber-300 rounded-md p-4 mb-6 flex items-start gap-3">
+          <ShieldAlert size={20} className="text-amber-600 shrink-0 mt-0.5" />
+          <div className="text-sm text-amber-900">
+            <p className="font-semibold">Change your password to continue</p>
+            <p className="mt-1">
+              Your password was set by an administrator. Choose a new one below before using the
+              appraisal system. Enter the password you signed in with, and we'll email a code to
+              {' '}<strong>{me.email}</strong> to confirm it's you.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Profile */}
+      {!forced && (
       <form onSubmit={save} className="bg-surface-card border border-surface-border rounded-md shadow-sm p-6 space-y-4 mb-6">
         <h2 className="text-sm font-semibold text-ink-primary pb-2 border-b border-accent-500/30 font-serif">Personal Information</h2>
         <div className="grid grid-cols-2 gap-4">
@@ -151,9 +196,10 @@ export default function ProfilePage() {
           <Save size={16} /> {saving ? 'Saving...' : 'Save Profile'}
         </button>
       </form>
+      )}
 
       {/* Password Change */}
-      <div className="bg-surface-card border border-surface-border rounded-md shadow-sm p-6">
+      <div id="change-password" className="bg-surface-card border border-surface-border rounded-md shadow-sm p-6">
         <h2 className="text-sm font-semibold text-ink-primary pb-2 border-b border-accent-500/30 font-serif flex items-center gap-2 mb-4">
           <Lock size={14} /> Change Password
         </h2>
