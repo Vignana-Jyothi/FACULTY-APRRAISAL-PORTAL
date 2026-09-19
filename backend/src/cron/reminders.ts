@@ -3,11 +3,29 @@ import prisma from '../utils/prismaClient';
 import { enqueueEmail } from '../services/emailService';
 
 /**
- * Daily 9 AM: draft reminders + reviewer digest.
+ * Daily 9 AM: draft reminders (at most weekly per faculty) + reviewer digest (daily).
  * Cron: "0 9 * * *" (Asia/Kolkata default since server local)
  */
 
-const DRAFT_REMINDER_MIN_DAYS_SINCE_EDIT = 3;
+// The draft now stays open all year (it can only be submitted once the Q4
+// review is over), so a daily nudge would mail every faculty almost every day.
+// Owner decision 2026-09-19: at most one reminder a week, and only after a full
+// week without edits.
+const DRAFT_REMINDER_MIN_DAYS_SINCE_EDIT = 7;
+
+/**
+ * ISO-8601 week of a date, as "2026-W38". Used as the draft reminder's dedupe
+ * key, so the daily job sends a faculty at most one reminder per calendar week
+ * however many days it runs.
+ */
+export function isoWeek(d: Date): string {
+  const date = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const day = date.getUTCDay() || 7; // Monday = 1 ... Sunday = 7
+  date.setUTCDate(date.getUTCDate() + 4 - day); // Thursday of this week decides the year
+  const yearStart = Date.UTC(date.getUTCFullYear(), 0, 1);
+  const week = Math.ceil(((date.getTime() - yearStart) / 86400000 + 1) / 7);
+  return `${date.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
 
 async function sendDraftReminders() {
   console.log('[cron] Running draft reminders');
@@ -32,7 +50,7 @@ async function sendDraftReminders() {
       const daysSinceEdit = Math.floor((Date.now() - new Date(lastEdit).getTime()) / (1000 * 60 * 60 * 24));
       if (daysSinceEdit < DRAFT_REMINDER_MIN_DAYS_SINCE_EDIT) continue;
 
-      const today = new Date().toISOString().slice(0, 10);
+      const week = isoWeek(new Date());
       const daysLeft = Math.ceil((new Date(year.endDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 
       await enqueueEmail({
@@ -44,8 +62,8 @@ async function sendDraftReminders() {
           windowCloses: new Date(year.endDate).toLocaleDateString(),
           daysLeft: Math.max(0, daysLeft),
         },
-        // Dedupe per submission per day
-        dedupeKey: `draft_reminder:${sub.id}:${today}`,
+        // At most one per submission per calendar week (see isoWeek).
+        dedupeKey: `draft_reminder:${sub.id}:${week}`,
         honorOptIn: true,
       });
     }
