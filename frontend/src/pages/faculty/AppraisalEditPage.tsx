@@ -1235,15 +1235,15 @@ export default function AppraisalEditPage() {
 
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">2.9 Institute &amp; Industry Linkages</h2>
+                <h2 className="font-semibold text-ink-primary">2.9 Academic / Research Institution Collaborations</h2>
                 <ScoreBadge value={live.cat2.linkages} max={10} />
               </div>
-              <p className="text-xs text-ink-muted mb-3">5 per linkage with an outcome (joint paper / project / shared facilities / student projects) — no outcome scores 0. Max 10 with industry linkages.</p>
+              <p className="text-xs text-ink-muted mb-3">Record any collaboration with an outside university, research lab or institute here. 5 per collaboration with an outcome (joint paper / project / shared facilities / student projects) — no outcome scores 0. Max 10 together with industry linkages below.</p>
               {linkages.fields.map((field, i) => {
                 const row = (watchedValues as any)?.cat2Linkages?.[i] ?? {};
                 return (
                 <div key={field.id} className="grid grid-cols-3 gap-3 mb-2">
-                  <div><label className={labelCls}>Institute Name</label><input {...register(`cat2Linkages.${i}.instituteName`)} className={inputCls} /></div>
+                  <div><label className={labelCls}>Institution Name</label><input {...register(`cat2Linkages.${i}.instituteName`)} className={inputCls} /></div>
                   <div><label className={labelCls}>Contact Person</label><input {...register(`cat2Linkages.${i}.contactPerson`)} className={inputCls} /></div>
                   <div><label className={labelCls}>Outcome (required to score)</label><input {...register(`cat2Linkages.${i}.outcome`)} className={inputCls} /></div>
                   {proofField(`cat2Linkages.${i}.proofFile`)}
@@ -1252,15 +1252,15 @@ export default function AppraisalEditPage() {
                 </div>
                 );
               })}
-              {addRowBtn('Add Linkage', () => linkages.append({ instituteName: '', contactPerson: '', outcome: '', proofFile: '' }))}
+              {addRowBtn('Add Institution Collaboration', () => linkages.append({ instituteName: '', contactPerson: '', outcome: '', proofFile: '' }))}
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">2.9 Industry Linkage (contd.)</h2>
+                <h2 className="font-semibold text-ink-primary">2.9 Industry Linkages (contd.)</h2>
                 <ScoreBadge value={live.cat2.linkages} max={10} />
               </div>
-              <p className="text-xs text-ink-muted mb-3">Scored with Institute Linkages — 5 per linkage with an outcome, 10 max across both.</p>
+              <p className="text-xs text-ink-muted mb-3">Collaborations with a company or industry body. Scored together with the institution collaborations above — 5 per linkage with an outcome, 10 max across both.</p>
               {industryLinkages.fields.map((field, i) => {
                 const row = (watchedValues as any)?.cat2IndustryLinkages?.[i] ?? {};
                 return (

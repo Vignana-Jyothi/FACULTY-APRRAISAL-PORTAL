@@ -14,6 +14,7 @@ import { isOwnerView, stripReviewerAssessment, canSeeReviewerAssessment } from '
 import { DEPT_REVIEW, INSTITUTE_READ, SCRUTINY_POOL, deptIdsFor, hasAnyRole } from '../utils/roles';
 import { dropBlankRows } from '../utils/blankRows';
 import { normalizePublicationAuthors } from '../utils/publicationAuthors';
+import { wouldWipeDraft } from '../utils/wipeGuard';
 
 const FULL_INCLUDE = {
   cat1Courses: true,
@@ -236,6 +237,20 @@ export async function updateAppraisal(req: Request, res: Response) {
   // 2.1 author lists: tidy them, and refuse a paper claimed by another co-author.
   const claimError = normalizePublicationAuthors(categories);
   if (claimError) return res.status(400).json({ error: claimError });
+
+  // Save-race belt: a form that never loaded sends every category empty. Only
+  // then is the stored draft read, so a normal save costs no extra query.
+  const rowKeys = categories && typeof categories === 'object'
+    ? Object.keys(categories).filter((k) => Array.isArray(categories[k]))
+    : [];
+  if (rowKeys.length && rowKeys.every((k) => categories[k].length === 0)) {
+    const stored = await prisma.appraisalSubmission.findUnique({ where: { id: sub.id }, include: FULL_INCLUDE });
+    if (stored && wouldWipeDraft(categories, stored as unknown as Record<string, unknown>)) {
+      return res.status(409).json({
+        error: 'This save would empty every section of your draft, so it was not applied. Reload the page and try again.',
+      });
+    }
+  }
 
   await prisma.$transaction(async (tx) => {
     if (leaveData) {
