@@ -14,7 +14,9 @@
     "seed:prod": "node dist/prisma/seed.js",
     "prisma:studio": "prisma studio --schema=src/prisma/schema.prisma",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "flag-default-passwords": "tsx src/scripts/flag-default-passwords.ts",
+    "flag-default-passwords:prod": "node dist/scripts/flag-default-passwords.js"
   },
   "prisma": {
     "schema": "src/prisma/schema.prisma"

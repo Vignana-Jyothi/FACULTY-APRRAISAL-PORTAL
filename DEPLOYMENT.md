@@ -181,14 +181,26 @@ sample accounts** (`HOD001`–`HOD003`, `FAC11`–`FAC35` on `@college.edu`
 addresses). On a real install, log in as `ADMIN001` and deactivate those sample
 accounts (deleting a user is a deactivation — nothing is erased).
 
-Then, in the admin UI:
-1. Departments — only CSE is active today; EEE/ECE/ME are switched off by design.
-2. Academic year — create it and open submissions.
-3. Cadre targets and review windows.
-4. Bulk-import faculty from CSV. They receive `DEFAULT_IMPORT_PASSWORD`; make
-   them reset it on first login.
-5. Assign each department's HoD and incharges (the REVIEWER role). A role only
+Then set the portal up. **Roles decide who can do each step** (seven since
+2026-09-18): `ADMIN` is maintenance only - accounts, role assignment, email
+queue, audit log - and cannot open appraisals, reports or proofs.
+
+As **ADMIN**:
+1. Create the principal (`PRINCIPAL`), the dean (`DEAN`) and the scrutinizer
+   pool (`SCRUTINIZER`; the 2-3 who also allocate tiers get
+   `SPECIAL_SCRUTINIZER`). These roles are institute-wide and take no
+   department.
+2. Bulk-import faculty from CSV. They receive `DEFAULT_IMPORT_PASSWORD` and the
+   portal makes each of them change it at first sign-in.
+3. Assign each department's HoD and incharges (the `REVIEWER` role). A role only
    works inside its own department.
+
+As the **DEAN**:
+4. Departments - only CSE is active today; EEE/ECE/ME are switched off by design.
+5. Academic year - create it and open submissions.
+6. Cadre targets, tier thresholds and the Q1-Q4 review windows. The appraisal is
+   one draft for the whole year: faculty can submit it only from the day after
+   the **Q4 window ends** (the academic year's end if no Q4 window is set).
 
 ### B. Move existing data from another machine
 
@@ -211,8 +223,17 @@ hashes and proof files all come across.
 ### Either way
 
 - Change the admin password on first login.
-- The ~73 imported CSE accounts still on the old import password `Welcome@123`
-  need a forced reset.
+- Accounts created or imported from now on must change their password at first
+  sign-in. Accounts **restored** from a backup predate that flag: mark every one
+  still on the shared import password so it is forced too (dry run first, then
+  confirm with the database name):
+  ```bash
+  docker compose -f docker-compose.prod.yml exec backend npm run flag-default-passwords:prod
+  docker compose -f docker-compose.prod.yml exec backend npm run flag-default-passwords:prod -- --confirm=faculty_appraisal
+  ```
+- Assign the new roles (principal, dean, scrutinizers) to real people - a
+  restored database only knows the old four roles, and its admin account no
+  longer opens appraisal content.
 
 ---
 
@@ -270,12 +291,17 @@ With email enabled the portal sends real mail to real faculty. A background
 worker sends queued mail every 30 seconds and retries a failure up to 3 times.
 Failed rows show on the admin **Emails** page.
 
-Two things send to many people at once:
-1. **The admin "Run quarterly snapshot" button** — a dry run that only counts
-   recipients until you confirm it.
-2. **The daily 09:00 review-window job** — when a review window ends it mails
-   every opted-in faculty **with nobody clicking anything**. Stop it with
-   `QUARTERLY_AUTOSEND=false` in `.env`.
+Two things can send to many people at once, and both need a person to say yes:
+1. **The dean's "Run quarterly snapshot" button** - a dry run that only counts
+   recipients until the dean confirms it.
+2. **The daily 09:00 review-window job** - it mails faculty only for a review
+   window the dean has **armed**, after previewing the recipient count and a
+   sample email. A window that ends unarmed still takes its snapshot but holds
+   the mail until the dean releases it. `QUARTERLY_AUTOSEND=false` in `.env`
+   stops the job outright.
+
+Draft reminders are sent at most once a week per faculty, and only after a week
+without edits.
 
 On staging, keep `EMAIL_DISABLED=true` or point SMTP at a catch-all mailbox.
 
@@ -294,8 +320,8 @@ These start with the backend — there is nothing to add to the host's cron:
 | Schedule | Job |
 |---|---|
 | Every 30 s | Send queued emails |
-| Daily 09:00 | Reminders |
-| Daily 09:00 | Review-window mail to faculty (kill switch `QUARTERLY_AUTOSEND`) |
+| Daily 09:00 | Draft reminders (at most weekly per faculty) and the reviewers' daily digest |
+| Daily 09:00 | Review-window mail to faculty - only for windows the dean has armed (kill switch `QUARTERLY_AUTOSEND`) |
 | Daily 09:00 | Proof deadlines: a rejected proof not replaced within **14 days** loses its subsection's marks, and the appraisal goes back to the HoD on the reduced marks. The faculty stays on the red list. |
 
 **Timezone.** The jobs use the container's local time. Compose sets
@@ -446,7 +472,7 @@ server errors. See [OBSERVABILITY.md](OBSERVABILITY.md) for the metric names.
 
 ---
 
-## 14. Known gaps (as of 2026-09-14)
+## 14. Known gaps (as of 2026-09-19)
 
 Closed on 2026-09-14: compose now passes every setting and enforces the required
 ones; only the frontend is published; `TZ` defaults to IST; Prometheus scrapes
@@ -456,13 +482,15 @@ and its password is required; `frontend/.env.example` no longer advertises
 moved from end-of-life Node 20 to Node 24, the version development and the
 tests run on.
 
+Closed on 2026-09-19: imported and admin-created accounts are forced to change
+their password at first sign-in (plus a script for restored accounts, §6); the
+quarterly mail needs the dean to arm each review window; roles split into seven
+with the admin as a maintenance-only account.
+
 Still open — fix or accept before go-live:
 
 - [ ] **Proxy hop count** is hard-coded to 1 in `backend/src/app.ts` — the
       deployment team sets it for the real layout (§7).
-- [ ] **Forced password change** at first login does not exist; the imported
-      accounts share `DEFAULT_IMPORT_PASSWORD` (or `Welcome@123`) until each
-      person changes it.
 - [ ] **Not yet run on a Docker host:** the images with the new compose file,
       the pinned monitoring images, the Alloy config, and the backup script's
       compose mode with the restore commands (§10). The compose file itself is
@@ -483,14 +511,17 @@ Still open — fix or accept before go-live:
 - [ ] Proxy hop count set in `backend/src/app.ts` (§7)
 - [ ] Container clock checked on IST (§9)
 - [ ] Admin password changed; seed sample accounts deactivated
-- [ ] `DEFAULT_IMPORT_PASSWORD` set; imported accounts forced to reset
+- [ ] Principal, dean and scrutinizer accounts created and given their roles
+- [ ] `DEFAULT_IMPORT_PASSWORD` set; restored accounts flagged with `flag-default-passwords:prod` (§6)
 - [ ] Test email received (Forgot password)
-- [ ] `QUARTERLY_AUTOSEND` decided, and review windows checked before their end dates
+- [ ] Review windows set by the dean (the Q4 end is when faculty can submit); `QUARTERLY_AUTOSEND` decided; windows armed only when the dean means to mail
 - [ ] `scripts/backup.sh` in cron, copied off the host, restore drill done once
 - [ ] `/health/ready` green; logs readable
-- [ ] End-to-end run: faculty fills → uploads a proof → submits → HoD/incharge
-      verifies → HoD approves → faculty sees the reviewed score /500
+- [ ] End-to-end run: faculty fills the draft → uploads a proof → HoD/incharge
+      verifies it on the draft → after the Q4 window, faculty submits → HoD
+      approves → a dean-assigned scrutinizer finalises → faculty sees the
+      reviewed score /500
 
 ---
 
-**Last updated:** 2026-09-14
+**Last updated:** 2026-09-19

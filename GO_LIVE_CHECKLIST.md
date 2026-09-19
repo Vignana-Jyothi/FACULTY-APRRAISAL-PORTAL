@@ -17,7 +17,7 @@ Legend: **[DEV]** = developer / repository · **[OPS]** = the deployment team.
 | 0.5 | Domain set to `appraisal.vjstartup.com` in `.env.example` and the docs | ✅ |
 | 0.6 | Images built and run on a Docker host | ⚠️ last full build 2026-07-05; the deploy team's first build is the check |
 | 0.7 | Node 24 (`node:24-alpine`) in both Dockerfiles and CI — Node 20 is end-of-life | ✅ |
-| 0.8 | Force a password change at first login (73 imported accounts share one password) | ⬜ open — not built |
+| 0.8 | Force a password change at first login (73 imported accounts share one password) | ✅ built 2026-09-19 - restored accounts need `flag-default-passwords:prod` (DEPLOYMENT.md §6) |
 
 ---
 
@@ -71,8 +71,9 @@ DEPLOYMENT.md §7.
 | 5.1 | Existing data **or** a fresh admin | Restore the developer's `backups/<stamp>/` (DEPLOYMENT.md §6B), or `seed:prod` with `-e SEED_*_PW` values (§6A) |
 | 5.2 | Change the admin password | Immediately |
 | 5.3 | Deactivate the seed's sample accounts | Fresh installs only |
-| 5.4 | Academic year, cadre targets, review windows | Admin UI |
-| 5.5 | Bulk-import faculty; tell them to change the import password | Not enforced by the portal yet (0.8) |
+| 5.4 | Principal, dean and scrutinizer accounts with their roles; HoDs and incharges | Admin UI (the admin is maintenance-only and cannot do 5.4a) |
+| 5.4a | Academic year, cadre targets, tier thresholds, Q1-Q4 review windows | Dean's UI - the Q4 window's end is when faculty can first submit |
+| 5.5 | Bulk-import faculty | The portal makes each change the import password at first sign-in (0.8) |
 | 5.6 | Test email | "Forgot password" for an inbox you control |
 
 ---

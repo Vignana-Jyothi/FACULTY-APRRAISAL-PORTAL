@@ -8,6 +8,27 @@ One-page brief for the deployment team. Full detail in [DEPLOYMENT.md](DEPLOYMEN
 
 ---
 
+## What changed since 2026-09-14 (read this if you saw the earlier handoff)
+
+- **Seven roles.** `ADMIN` is now a maintenance account only (accounts, role
+  assignment, email queue, audit log) and cannot open appraisals, reports or
+  proof files. The **principal** sees everything; the **dean** owns
+  configuration (academic years, departments, cadre targets, tiers, review
+  windows) and assigns the **scrutinizers**, a cross-department final-review
+  pool. HoD, incharge (REVIEWER) and faculty are as before.
+- **The appraisal is one draft for the whole year.** Faculty keep editing it and
+  can submit only after the Q4 review window ends. During the year the HoD and
+  incharge check its proofs and the HoD notes provisional marks.
+- **Imported and admin-created accounts must change their password** at first
+  sign-in; the portal blocks everything else until they do.
+- **The quarterly mail is gated.** The daily job emails faculty only for a
+  review window the dean has **armed** after a preview; an unarmed window holds
+  its mail until released. Draft reminders go out at most once a week.
+- New database tables come in automatically on the next start (the entrypoint
+  runs `prisma db push`); nothing to migrate by hand.
+
+---
+
 ## What this is
 
 A self-contained, Dockerized faculty appraisal portal. One `docker compose` file
@@ -103,9 +124,25 @@ Pick one:
     backend npm run seed:prod
   ```
 
-Then change the admin password, create the academic year, and bulk-import
-faculty. Imported accounts must reset `DEFAULT_IMPORT_PASSWORD` on first login.
-The portal does not force that yet (see GO_LIVE_CHECKLIST.md).
+Then:
+
+1. Change the admin password.
+2. As admin, create the principal, dean and scrutinizer accounts and give each
+   its role, and assign each department's HoD and incharges. The admin cannot
+   do step 3 - it holds no appraisal content.
+3. As the dean: academic year, departments, cadre targets and the Q1-Q4 review
+   windows. The Q4 window's end date is when faculty can first submit.
+4. Bulk-import faculty. They receive `DEFAULT_IMPORT_PASSWORD` and are made to
+   change it at their first sign-in.
+
+**If you restored existing data** (above), flag the accounts that are still on
+the old shared import password so they are forced to change it too - dry run
+first, then confirm with the database name:
+
+```bash
+docker compose -f docker-compose.prod.yml exec backend npm run flag-default-passwords:prod
+docker compose -f docker-compose.prod.yml exec backend npm run flag-default-passwords:prod -- --confirm=faculty_appraisal
+```
 
 ---
 
@@ -117,6 +154,7 @@ The portal does not force that yet (see GO_LIVE_CHECKLIST.md).
 | **Updates** | `scripts/backup.sh`, then `git pull && docker compose -f docker-compose.prod.yml up -d --build backend frontend`. The entrypoint re-syncs the schema and stops on any change that would drop data. |
 | **Health** | `/health` (liveness) and `/health/ready` (database) — internal; the container healthcheck uses them. |
 | **Monitoring** | `--profile monitoring`. Grafana starts with Prometheus and Loki already connected; Alloy ships every container's logs. Reach Grafana with `ssh -L 3000:127.0.0.1:3000 <server>`. Alloy mounts the Docker socket read-only. |
+| **Mail** | `EMAIL_DISABLED=false` mails real faculty. Nothing bulk goes out unless the dean arms a review window after previewing it (or confirms the snapshot button). `QUARTERLY_AUTOSEND=false` stops the quarterly job outright. |
 | **Firewall** | Public: 80/443 only. |
 
 ---

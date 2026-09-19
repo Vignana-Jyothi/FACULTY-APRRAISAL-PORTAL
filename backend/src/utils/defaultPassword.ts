@@ -3,7 +3,7 @@
 // with it, so changing the default would not rotate them — it would only make
 // new imports inconsistent with the ones already out there. Those accounts are
 // forced to change it instead (User.mustChangePassword, and
-// scripts/flag-default-passwords.ts for the ones imported before the flag).
+// src/scripts/flag-default-passwords.ts for the ones imported before the flag).
 // `||`, not `??`: a blank value (an empty compose `${VAR}`) must not become an
 // empty password for every imported account.
 //

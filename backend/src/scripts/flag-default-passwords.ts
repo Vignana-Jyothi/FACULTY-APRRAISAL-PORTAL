@@ -14,13 +14,17 @@
  * Defaults to a dry run that only reports who would be flagged. Writing needs
  * the target database named explicitly, as in wipe-except-admin.ts:
  *
- *   npx tsx scripts/flag-default-passwords.ts                       # dry run
- *   npx tsx scripts/flag-default-passwords.ts --confirm=<dbname>    # set the flag
+ *   npm run flag-default-passwords                                  # dry run (dev)
+ *   npm run flag-default-passwords:prod                             # dry run (inside the production container)
+ *   npm run flag-default-passwords:prod -- --confirm=<dbname>       # set the flag
+ *
+ * It lives under src/ so `npm run build` compiles it into dist/: the production
+ * image prunes dev tools, so a script outside src/ could not run there.
  */
 import 'dotenv/config';
 import bcrypt from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
-import { DEFAULT_IMPORT_PASSWORD } from '../src/utils/defaultPassword';
+import { DEFAULT_IMPORT_PASSWORD } from '../utils/defaultPassword';
 
 const prisma = new PrismaClient();
 
@@ -64,7 +68,7 @@ ${matches.map((m) => `  ${m.employeeCode}`).join('\n')}
 
   if (!write) {
     console.log(`DRY RUN — nothing was written.
-To flag them:  npx tsx scripts/flag-default-passwords.ts --confirm=${db}
+To flag them:  npm run flag-default-passwords:prod -- --confirm=${db}   (dev: npm run flag-default-passwords -- --confirm=${db})
 `);
     return;
   }
@@ -85,7 +89,7 @@ To flag them:  npx tsx scripts/flag-default-passwords.ts --confirm=${db}
         action: 'PASSWORD_CHANGE_FORCED',
         entityType: 'User',
         entityId: m.id,
-        metadata: { reason: 'default import password', by: 'scripts/flag-default-passwords.ts' },
+        metadata: { reason: 'default import password', by: 'src/scripts/flag-default-passwords.ts' },
       })),
     });
     return updated.count;
