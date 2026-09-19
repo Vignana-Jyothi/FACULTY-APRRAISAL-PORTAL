@@ -5,12 +5,11 @@ import app from '../app';
 import prisma from '../utils/prismaClient';
 import { createFixture, type Fixture, type FixtureUser } from './helpers/fixtures';
 
-// Proofs are verified between submission and the decision. Rejecting a proof
-// on a DRAFT used to flip the draft to HOLD (locking the faculty out of their
-// own form), red-list them and email them — before they had submitted.
-//
-// Only VERIFIED is exercised on an open submission, so a run queues no mail.
-// Owns its department, faculty and HoD.
+// Proofs are checked on the draft during the year and through the review, up
+// to the decision (owner decision 2026-09-19). Rejecting a proof on a DRAFT
+// used to flip the draft to HOLD (locking the faculty out of their own form)
+// and red-list them; now it only marks the proof and emails the faculty
+// (@fixture.invalid — never delivered). Owns its department, faculty and HoD.
 
 const bearer = (t: string) => ({ Authorization: `Bearer ${t}` });
 const PROOF = 'https://example.com/status-proof.pdf';
@@ -49,22 +48,22 @@ afterAll(async () => {
   await fixture?.destroy();
 });
 
-describe('proof verification only runs while the appraisal is under review', () => {
+describe('proof verification runs on the draft and until the decision', () => {
   it('has a working fixture (guards against a vacuous pass)', () => {
     expect(ready).toBe(true);
   });
 
-  it('refuses to reject a proof on a DRAFT — no hold, no red list, no mail', async () => {
+  it('rejects a proof on a DRAFT without holding it — no hold, no red list, the faculty is told', async () => {
     if (!ready) return;
     const res = await verify('REJECTED');
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/submitted/i);
+    expect(res.status).toBe(200);
 
     const sub = await prisma.appraisalSubmission.findUniqueOrThrow({ where: { id: subId } });
     expect(sub.status).toBe('DRAFT');
     expect(sub.redListed).toBe(false);
     expect(sub.heldAt).toBeNull();
-    expect(await prisma.emailNotification.count({ where: { toUserId: faculty.id, template: 'proof_rejected' } })).toBe(0);
+    expect(sub.proofDeadlineAt).toBeNull();
+    expect(await prisma.emailNotification.count({ where: { toUserId: faculty.id, template: 'proof_rejected' } })).toBe(1);
   });
 
   it('refuses to change a proof on a decided appraisal', async () => {

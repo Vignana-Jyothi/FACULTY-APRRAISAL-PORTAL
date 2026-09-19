@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import {
-  BarChart2, FileText, BookOpen, User, Users, Settings, LayoutDashboard, Mail, Activity, Menu, X, Target, ShieldCheck, AlertTriangle, Gauge, CalendarClock, Gavel, UploadCloud, Layers,
+  BarChart2, FileText, FilePen, BookOpen, User, Users, Settings, LayoutDashboard, Mail, Activity, Menu, X, Target, ShieldCheck, AlertTriangle, Gauge, CalendarClock, Gavel, UploadCloud, Layers,
 } from 'lucide-react';
 import BrandHeader from './BrandHeader';
 import Footer from './Footer';
@@ -112,6 +112,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   if (isHodOrReviewer()) {
     add('/dashboard', 'Dashboard', LayoutDashboard);
     add('/reviews', 'Review Queue', FileText);
+    add('/drafts', 'Drafts in progress', FilePen);
     add('/uploads', 'Uploads', UploadCloud);
     if (hasRole('HOD')) add('/reports/department', 'Reports', BarChart2);
   }

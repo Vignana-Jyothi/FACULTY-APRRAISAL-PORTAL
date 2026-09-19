@@ -30,6 +30,7 @@ import * as cadreTarget from '../controllers/cadreTargetController';
 import * as cadreTier from '../controllers/cadreTierController';
 import * as reviewWindow from '../controllers/reviewWindowController';
 import * as verification from '../controllers/verificationController';
+import * as draftReview from '../controllers/draftReviewController';
 import * as tracking from '../controllers/trackingController';
 import * as feedback from '../controllers/feedbackController';
 import * as oversight from '../controllers/oversightController';
@@ -130,6 +131,13 @@ router.get('/appraisals/:id/score', authenticate, appraisal.getScore);
 router.get('/reviews/pending', authenticate, roleGuard(DEPT_REVIEW), review.listPendingReviews);
 router.post('/appraisals/:id/review', authenticate, roleGuard(DEPT_REVIEW), reviewerGuard, review.submitReview);
 router.get('/appraisals/:id/review', authenticate, review.getReview);
+
+// Draft carry-over (2026-09-19): the department checks a draft's proofs during
+// the year, and the HoD notes provisional marks that pre-fill the real review.
+// Who may read/write is decided per submission in the controller.
+router.get('/reviews/drafts', authenticate, roleGuard([...DEPT_REVIEW, ...SEES_ALL]), draftReview.listDrafts);
+router.get('/appraisals/:id/draft-review', authenticate, draftReview.getDraftReview);
+router.put('/appraisals/:id/draft-review', authenticate, draftReview.putDraftReview);
 
 // Final review — the scrutinizer layer above the HoD, assigned by the dean.
 router.get('/final-reviewers/pool', authenticate, roleGuard(CONFIG), finalReview.listScrutinizerPool);

@@ -26,6 +26,11 @@ export default function ReviewQueuePage() {
         title="Review Queue"
         subtitle={`${pending.length} submission(s) awaiting review`}
         breadcrumbs={[{ label: 'Home' }, { label: 'Review Queue' }]}
+        actions={
+          <Link to="/drafts" className="text-sm border border-surface-border px-3 py-1.5 rounded hover:bg-surface-muted">
+            Drafts in progress →
+          </Link>
+        }
       />
 
       {pending.length === 0 ? (

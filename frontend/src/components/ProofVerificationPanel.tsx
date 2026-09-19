@@ -6,8 +6,10 @@ import { useAuthStore } from '../store/authStore';
 import { uploadApi } from '../api/uploads';
 import { verificationApi, type ProofListResponse, type ProofRow } from '../api/verification';
 
-// Mirrors the server's PROOF_REVIEW_STATUSES (verificationController).
-const PROOF_REVIEW_STATUSES = ['SUBMITTED', 'UNDER_REVIEW', 'HOLD', 'FINAL_REVIEW'];
+// Mirrors the server's PROOF_CHECK_STATUSES (verificationController): proofs
+// are checked on the draft during the year and through the review, up to the
+// decision (owner decision 2026-09-19).
+const PROOF_CHECK_STATUSES = ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'HOLD', 'FINAL_REVIEW'];
 
 const STATUS_STYLE: Record<ProofRow['status'], string> = {
   VERIFIED: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -83,9 +85,10 @@ export default function ProofVerificationPanel({
 
   const { proofs, summary, submission } = data;
   const sections = Array.from(new Set(proofs.map((p) => p.section)));
-  // Same window the server enforces (PROOF_REVIEW_STATUSES): after submission,
-  // before the decision. A draft is still the faculty's to change.
-  const inReview = PROOF_REVIEW_STATUSES.includes(submission.status);
+  // Same window the server enforces (PROOF_CHECK_STATUSES): from the draft to
+  // the decision. On a draft a reject only asks the faculty to replace it.
+  const inReview = PROOF_CHECK_STATUSES.includes(submission.status);
+  const isDraft = submission.status === 'DRAFT';
   const canAct = canEdit && inReview;
 
   return (
@@ -112,12 +115,18 @@ export default function ProofVerificationPanel({
         </div>
       )}
 
-      {canAct && !summary.allVerified && summary.total > 0 && (
+      {canAct && isDraft && summary.total > 0 && (
+        <p className="mb-3 text-xs text-ink-muted">
+          This is a draft in progress. Verified proofs carry into the final submission. Rejecting one emails the
+          faculty to replace it — the draft is not held or red-listed.
+        </p>
+      )}
+      {canAct && !isDraft && !summary.allVerified && summary.total > 0 && (
         <p className="mb-3 text-xs text-amber-700">Approval is blocked until every proof is verified.</p>
       )}
       {canEdit && !inReview && summary.total > 0 && (
         <p className="mb-3 text-xs text-ink-muted">
-          Proofs can be verified or rejected once the appraisal is submitted, and until it is decided (now {submission.status}).
+          Proofs can be verified or rejected on the draft and until the appraisal is decided (now {submission.status}).
         </p>
       )}
 
@@ -144,6 +153,9 @@ export default function ProofVerificationPanel({
                         {p.status === 'VERIFIED' ? <CheckCircle size={11} /> : p.status === 'REJECTED' ? <XCircle size={11} /> : <Clock size={11} />}
                         {p.status}
                       </span>
+                      {p.status === 'REJECTED' && p.comment && (
+                        <span className="text-red-700 truncate max-w-[200px]" title={p.comment}>“{p.comment}”</span>
+                      )}
                       <div className="flex-1" />
                       {canAct && (
                         <>

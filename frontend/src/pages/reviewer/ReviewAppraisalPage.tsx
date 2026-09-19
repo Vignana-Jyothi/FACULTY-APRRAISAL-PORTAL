@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { appraisalApi } from '../../api/appraisals';
+import { appraisalApi, type DraftReview } from '../../api/appraisals';
 import toast from 'react-hot-toast';
 import { CheckCircle, XCircle, Eye } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
@@ -50,12 +50,28 @@ import { sponsoredProjectWarnings } from '../../utils/sponsoredProjects';
 import { patentWarnings } from '../../utils/patents';
 import { citationWarnings } from '../../utils/citations';
 
-export default function ReviewAppraisalPage() {
+const CAT_FIELDS = ['cat1Score', 'cat2Score', 'cat3Score', 'cat4Score', 'cat5Score'] as const;
+const CAT6_FIELDS = ['cat6Punctuality', 'cat6Professionalism', 'cat6Willingness', 'cat6Cordiality', 'cat6Classroom'] as const;
+const numOrNull = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+/**
+ * `review` (default): the one real HoD review of a submitted appraisal.
+ * `draft`: a draft in progress during the year (owner decision 2026-09-19) -
+ * the department checks its proofs, and the HoD notes provisional Cat 1-5
+ * overrides, Cat 6 and a comment that pre-fill the real review later. No
+ * approve / reject here. The incharge sees it read-only.
+ */
+export default function ReviewAppraisalPage({ mode = 'review' }: { mode?: 'review' | 'draft' }) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const isDraftMode = mode === 'draft';
   const [submission, setSubmission] = useState<any>(null);
   const [score, setScore] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [draftReview, setDraftReview] = useState<DraftReview | null>(null);
+  const hasRole = useAuthStore((s) => s.hasRole);
+  // Only the HoD writes the draft review (the server checks the department).
+  const draftLocked = isDraftMode && !hasRole('HOD');
   // Category 6 and the /550 grand total belong to the department's own
   // assessment. Only the roles allowed to see core values get those blocks —
   // everyone else stays on the /500 scale. Ownership wins over role: a
@@ -82,15 +98,29 @@ export default function ReviewAppraisalPage() {
     Promise.all([
       appraisalApi.get(id!),
       appraisalApi.getScore(id!),
-    ]).then(([sub, sc]) => {
+      // The HoD's provisional marks from the year, if any. Absent or not
+      // readable just means "seed from the engine".
+      appraisalApi.getDraftReview(id!).catch(() => null),
+    ]).then(([sub, sc, dr]) => {
       setSubmission(sub);
       setScore(sc);
-      // Seed the reviewer's marks with what the engine computed, so the form
-      // starts from the evidence and the reviewer only edits what they disagree with.
+      setDraftReview(dr);
+      // Seed the marks from the draft review where the HoD noted one, else
+      // from what the engine computed off the evidence, so the reviewer only
+      // edits what they disagree with.
       reset((prev: any) => ({
         ...prev,
-        cat1Score: sc.cat1.total, cat2Score: sc.cat2.total, cat3Score: sc.cat3.total,
-        cat4Score: sc.cat4.total, cat5Score: sc.cat5.total,
+        cat1Score: dr?.cat1Score ?? sc.cat1.total,
+        cat2Score: dr?.cat2Score ?? sc.cat2.total,
+        cat3Score: dr?.cat3Score ?? sc.cat3.total,
+        cat4Score: dr?.cat4Score ?? sc.cat4.total,
+        cat5Score: dr?.cat5Score ?? sc.cat5.total,
+        cat6Punctuality: dr?.cat6Punctuality ?? 0,
+        cat6Professionalism: dr?.cat6Professionalism ?? 0,
+        cat6Willingness: dr?.cat6Willingness ?? 0,
+        cat6Cordiality: dr?.cat6Cordiality ?? 0,
+        cat6Classroom: dr?.cat6Classroom ?? 0,
+        overallComment: dr?.overallComment ?? '',
       }));
     }).catch(() => toast.error('Failed to load')).finally(() => setLoading(false));
   }, [id]);
@@ -104,7 +134,28 @@ export default function ReviewAppraisalPage() {
   const awarded = watch(['cat1Score', 'cat2Score', 'cat3Score', 'cat4Score', 'cat5Score']);
   const awardedTotal = awarded.reduce((sum: number, v: any) => sum + (Number(v) || 0), 0);
 
+  const saveDraft = async (data: any) => {
+    // A category left at the engine's figure is not an override: store null,
+    // so the final review re-seeds from the evidence as it stands then.
+    const engine = [score.cat1.total, score.cat2.total, score.cat3.total, score.cat4.total, score.cat5.total];
+    const body: Record<string, number | string | null> = {};
+    CAT_FIELDS.forEach((f, i) => {
+      const v = numOrNull(data[f]);
+      body[f] = v == null || Math.abs(v - engine[i]) < 0.001 ? null : v;
+    });
+    if (showCoreValues) CAT6_FIELDS.forEach((f) => { body[f] = numOrNull(data[f]); });
+    body.overallComment = data.overallComment?.trim() ? data.overallComment.trim() : null;
+    try {
+      const saved = await appraisalApi.saveDraftReview(id!, body);
+      setDraftReview(saved);
+      toast.success('Draft review saved');
+    } catch (e: any) {
+      toast.error(e.response?.data?.error ?? 'Save failed');
+    }
+  };
+
   const onSubmit = async (data: any) => {
+    if (isDraftMode) return saveDraft(data);
     // Approval cannot be revisited (the API returns "Already approved"), so make
     // the reviewer confirm the marks they are locking in.
     if (data.status === 'APPROVED') {
@@ -134,15 +185,17 @@ export default function ReviewAppraisalPage() {
   if (loading) return <div className="text-sm text-ink-muted">Loading...</div>;
   if (!submission) return <div className="text-sm text-danger-500">Not found</div>;
 
+  // Draft mode is editable only by the HoD, and only while it is still a draft.
+  const formLocked = isDraftMode && (draftLocked || submission.status !== 'DRAFT');
+
   return (
     <div className="max-w-5xl">
       <PageHeader
-        title={`Review: ${submission.user?.name}`}
+        title={`${isDraftMode ? 'Draft in progress' : 'Review'}: ${submission.user?.name}`}
         subtitle={`${submission.user?.employeeCode} — Submission #${submission.submissionNumber} — ${submission.academicYear?.label}`}
-        breadcrumbs={[
-          { label: 'Review Queue', to: '/reviews' },
-          { label: submission.user?.name },
-        ]}
+        breadcrumbs={isDraftMode
+          ? [{ label: 'Drafts in progress', to: '/drafts' }, { label: submission.user?.name }]
+          : [{ label: 'Review Queue', to: '/reviews' }, { label: submission.user?.name }]}
         actions={
           <button
             onClick={() => navigate(`/appraisal/${id}/edit`)}
@@ -152,6 +205,27 @@ export default function ReviewAppraisalPage() {
           </button>
         }
       />
+
+      {isDraftMode && submission.status !== 'DRAFT' && (
+        <div className="mb-4 bg-amber-50 border border-amber-200 rounded p-3 text-sm text-amber-900">
+          This appraisal has been submitted ({submission.status}), so the draft review is closed.
+          {' '}Review it from the Review Queue, where the draft review pre-fills the form.
+        </div>
+      )}
+      {isDraftMode && submission.status === 'DRAFT' && (
+        <div className="mb-4 bg-primary-50 border border-primary-200 rounded p-3 text-sm text-primary-900">
+          The faculty is still working on this draft. Check proofs as they come in; verified proofs carry into the
+          submission. {draftLocked
+            ? 'The HoD notes the draft review; you can read it here.'
+            : 'Your draft review is provisional, never shown to the faculty, and pre-fills your review once they submit.'}
+        </div>
+      )}
+      {!isDraftMode && draftReview && (
+        <div className="mb-4 bg-accent-50 border border-accent-200 rounded p-3 text-sm text-ink-primary">
+          Marks{showCoreValues ? ', Core Values' : ''} and the overall comment are <strong>pre-filled from your draft review</strong>
+          {' '}(saved {new Date(draftReview.updatedAt).toLocaleDateString()}). They become final only when you submit this review.
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-6">
         {/* Left: Submission data summary */}
@@ -164,7 +238,7 @@ export default function ReviewAppraisalPage() {
                   <span>Category</span>
                   <span className="flex gap-4">
                     <span className="w-20 text-right">Self</span>
-                    <span className="w-20 text-right">HoD Review</span>
+                    <span className="w-20 text-right">{isDraftMode ? 'Draft' : 'HoD Review'}</span>
                   </span>
                 </div>
                 {[
@@ -191,6 +265,7 @@ export default function ReviewAppraisalPage() {
                         <span className="w-20 flex items-center justify-end gap-1">
                           <input
                             type="number" min="0" max={max} step="0.5"
+                            readOnly={formLocked}
                             {...register(field as any, { valueAsNumber: true })}
                             className={`w-14 text-right border rounded px-1 py-0.5 text-xs bg-surface-card text-ink-primary ${changed ? 'border-accent-500' : 'border-surface-border'}`}
                           />
@@ -221,7 +296,9 @@ export default function ReviewAppraisalPage() {
                   </span>
                 </div>
                 <p className="text-[10px] text-ink-muted pt-1">
-                  The review column starts from what the engine computed off the submitted evidence. Edit any
+                  {draftReview
+                    ? 'The review column starts from the draft review where one was noted, else from what the engine computed.'
+                    : 'The review column starts from what the engine computed off the submitted evidence.'} Edit any
                   category you disagree with — a changed mark is highlighted with the difference.
                   {showCoreValues && ' Cat 6 is scored in the Core Values card below. Both totals are recorded.'}
                 </p>
@@ -491,6 +568,7 @@ export default function ReviewAppraisalPage() {
 
         {/* Right: Review form */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <fieldset disabled={formLocked} className="space-y-4">
           {showCoreValues && (
             <Card>
               <h2 className="text-sm font-semibold text-ink-primary mb-3 pb-2 border-b border-accent-500/30 font-serif">Category 6 — Core Values (0-10 each)</h2>
@@ -513,6 +591,16 @@ export default function ReviewAppraisalPage() {
             </Card>
           )}
 
+          {isDraftMode ? (
+            <Card>
+              <h2 className="text-sm font-semibold text-ink-primary mb-3 pb-2 border-b border-accent-500/30 font-serif">Draft review note</h2>
+              <p className="text-[10px] text-ink-muted mb-3">Provisional and never shown to the faculty. Pre-fills the overall comment of the review.</p>
+              <textarea rows={4} {...register('overallComment')} className={inputCls} />
+              {draftReview && (
+                <p className="text-[10px] text-ink-muted mt-2">Last saved {new Date(draftReview.updatedAt).toLocaleString()}</p>
+              )}
+            </Card>
+          ) : (<>
           <Card>
             <h2 className="text-sm font-semibold text-ink-primary mb-3 pb-2 border-b border-accent-500/30 font-serif">Comments</h2>
             <p className="text-[10px] text-ink-muted mb-3">Released to faculty on approval/rejection</p>
@@ -555,13 +643,20 @@ export default function ReviewAppraisalPage() {
             </div>
           </Card>
 
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full bg-primary-600 text-white py-2.5 rounded font-medium text-sm hover:bg-primary-700 disabled:opacity-50"
-          >
-            {isSubmitting ? 'Submitting...' : 'Submit Review'}
-          </button>
+          </>)}
+          </fieldset>
+
+          {!formLocked && (
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full bg-primary-600 text-white py-2.5 rounded font-medium text-sm hover:bg-primary-700 disabled:opacity-50"
+            >
+              {isDraftMode
+                ? (isSubmitting ? 'Saving...' : 'Save draft review')
+                : (isSubmitting ? 'Submitting...' : 'Submit Review')}
+            </button>
+          )}
         </form>
       </div>
     </div>
