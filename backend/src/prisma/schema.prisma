@@ -271,6 +271,14 @@ model ReviewWindow {
   endDate        DateTime
   enabled        Boolean  @default(true)
   lastRunAt      DateTime? // set when the automation fired, guards against re-runs
+  // Mass-mail gate (2026-09-19). The window only emails faculty if the dean has
+  // armed it after seeing a preview. A window that comes due unarmed still takes
+  // its snapshot but holds the mail (heldAt) until the dean releases it.
+  // Changing the dates disarms it again.
+  armedAt        DateTime?
+  armedById      String?
+  heldAt         DateTime?
+  releasedAt     DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

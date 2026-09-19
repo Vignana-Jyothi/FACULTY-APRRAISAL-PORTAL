@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { Quarter } from '@prisma/client';
 import prisma from '../utils/prismaClient';
 import { enqueueEmail } from '../services/emailService';
+import { renderTemplate, TEMPLATE_SUBJECTS } from '../services/emailTemplates';
 import { TRACKING_INCLUDE, loadTrackingContext, computeRow, latestPerFaculty, type TrackingRow } from '../services/trackingService';
 import { computeScore } from '../services/scoringEngine';
 import { categoryRemarks } from '../services/categoryRemarks';
@@ -51,21 +52,88 @@ export function buildQuarterlyPayload(sub: any, row: TrackingRow, yearLabel: str
   };
 }
 
-async function snapshotYear(academicYearId: string, quarter: Quarter): Promise<number> {
-  const year = await prisma.academicYear.findUnique({ where: { id: academicYearId } });
-  if (!year) return 0;
+export const quarterlyDedupeKey = (userId: string, academicYearId: string, quarter: Quarter) =>
+  `quarterly_feedback:${userId}:${academicYearId}:${quarter}`;
 
+interface YearItem { sub: any; row: TrackingRow }
+
+// Every faculty's latest submission in the AY, with its computed tracking row.
+async function loadYearItems(academicYearId: string) {
+  const year = await prisma.academicYear.findUnique({ where: { id: academicYearId } });
+  if (!year) return null;
   const ctx = await loadTrackingContext(academicYearId);
   const submissions = await prisma.appraisalSubmission.findMany({
     where: { academicYearId },
     include: TRACKING_INCLUDE,
     orderBy: { submissionNumber: 'desc' },
   });
+  const items: YearItem[] = latestPerFaculty(submissions).map((sub) => ({
+    sub,
+    row: computeRow(sub, ctx, year.startDate),
+  }));
+  return { year, items };
+}
 
-  let count = 0;
-  for (const sub of latestPerFaculty(submissions)) {
-    const row = computeRow(sub, ctx, year.startDate);
+/**
+ * The one recipient selection for the quarterly mail: of these items, the ones
+ * `enqueueEmail` would actually queue — the user has an address, has not opted
+ * out, and has not already been sent this quarter's feedback (dedupe key). The
+ * job, the dean's preview and a release all go through here.
+ */
+async function selectMailable(items: YearItem[], academicYearId: string, quarter: Quarter): Promise<YearItem[]> {
+  if (!items.length) return [];
+  const userIds = items.map((i) => i.row.faculty.id);
+  const [users, sent] = await Promise.all([
+    prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, email: true, emailOptIn: true } }),
+    prisma.emailNotification.findMany({
+      where: { dedupeKey: { in: userIds.map((id) => quarterlyDedupeKey(id, academicYearId, quarter)) } },
+      select: { dedupeKey: true },
+    }),
+  ]);
+  const byId = new Map(users.map((u) => [u.id, u]));
+  const sentKeys = new Set(sent.map((r) => r.dedupeKey));
+  return items.filter((i) => {
+    const u = byId.get(i.row.faculty.id);
+    return !!u?.email && u.emailOptIn && !sentKeys.has(quarterlyDedupeKey(u.id, academicYearId, quarter));
+  });
+}
 
+// Queue the quarterly_feedback mail for each item. Same payload and dedupe key
+// whether the job or a release sends it, so the two can never double-send.
+async function enqueueQuarterly(items: YearItem[], academicYearId: string, yearLabel: string, quarter: Quarter) {
+  let queued = 0;
+  for (const { sub, row } of items) {
+    try {
+      const id = await enqueueEmail({
+        toUserId: row.faculty.id,
+        template: 'quarterly_feedback',
+        payload: buildQuarterlyPayload(sub, row, yearLabel, quarter),
+        dedupeKey: quarterlyDedupeKey(row.faculty.id, academicYearId, quarter),
+        honorOptIn: true,
+      });
+      if (id) queued++;
+    } catch (e) {
+      console.error('[email] enqueue quarterly_feedback failed:', e);
+    }
+  }
+  return queued;
+}
+
+/**
+ * Snapshot every faculty's standing for the AY and quarter. `sendEmail` decides
+ * whether the quarterly feedback mail is queued as well — an unarmed review
+ * window snapshots but holds the mail.
+ */
+async function snapshotYear(
+  academicYearId: string,
+  quarter: Quarter,
+  opts: { sendEmail: boolean } = { sendEmail: true },
+): Promise<number> {
+  const loaded = await loadYearItems(academicYearId);
+  if (!loaded) return 0;
+  const { year, items } = loaded;
+
+  for (const { row } of items) {
     await prisma.trackingSnapshot.upsert({
       where: { userId_academicYearId_quarter: { userId: row.faculty.id, academicYearId, quarter } },
       create: {
@@ -78,23 +146,56 @@ async function snapshotYear(academicYearId: string, quarter: Quarter): Promise<n
         actuals: row.actuals as any, eligible: row.eligibility.eligible, tier: row.tier ?? null,
       },
     });
-    count++;
-
-    // Auto-feedback email (provisional quarterly standing) — sent directly to
-    // the faculty, no HoD step. Category remarks + target status.
-    try {
-      await enqueueEmail({
-        toUserId: row.faculty.id,
-        template: 'quarterly_feedback',
-        payload: buildQuarterlyPayload(sub, row, year.label, quarter),
-        dedupeKey: `quarterly_feedback:${row.faculty.id}:${academicYearId}:${quarter}`,
-        honorOptIn: true,
-      });
-    } catch (e) {
-      console.error('[email] enqueue quarterly_feedback failed:', e);
-    }
   }
-  return count;
+
+  // Auto-feedback email (provisional quarterly standing) — sent directly to
+  // the faculty, no HoD step. Category remarks + target status.
+  if (opts.sendEmail) {
+    await enqueueQuarterly(await selectMailable(items, academicYearId, quarter), academicYearId, year.label, quarter);
+  }
+  return items.length;
+}
+
+export interface WindowMailPreview {
+  recipients: number;
+  sample: { to: string; subject: string; html: string } | null;
+}
+
+/**
+ * What a review window's mail would be: how many faculty it reaches, and one
+ * of those emails rendered in full. Reads only — nothing is queued or sent.
+ */
+export async function previewWindowMail(academicYearId: string, quarter: Quarter): Promise<WindowMailPreview> {
+  const loaded = await loadYearItems(academicYearId);
+  if (!loaded) return { recipients: 0, sample: null };
+  const mailable = await selectMailable(loaded.items, academicYearId, quarter);
+  if (!mailable.length) return { recipients: 0, sample: null };
+  const first = mailable[0];
+  const payload = buildQuarterlyPayload(first.sub, first.row, loaded.year.label, quarter);
+  const user = await prisma.user.findUnique({ where: { id: first.row.faculty.id }, select: { email: true } });
+  return {
+    recipients: mailable.length,
+    sample: {
+      to: user?.email ?? '',
+      subject: TEMPLATE_SUBJECTS.quarterly_feedback(payload),
+      html: renderTemplate('quarterly_feedback', payload),
+    },
+  };
+}
+
+/** Recipient count only — the selection `previewWindowMail` uses, without rendering. */
+export async function countWindowRecipients(academicYearId: string, quarter: Quarter): Promise<number> {
+  const loaded = await loadYearItems(academicYearId);
+  if (!loaded) return 0;
+  return (await selectMailable(loaded.items, academicYearId, quarter)).length;
+}
+
+/** Queue a held window's mail now. Dedupe keys make a repeat a no-op. */
+export async function releaseWindowMail(academicYearId: string, quarter: Quarter): Promise<number> {
+  const loaded = await loadYearItems(academicYearId);
+  if (!loaded) return 0;
+  const mailable = await selectMailable(loaded.items, academicYearId, quarter);
+  return enqueueQuarterly(mailable, academicYearId, loaded.year.label, quarter);
 }
 
 // Run the snapshot for a given AY (or all open AYs) for the current quarter.
@@ -157,7 +258,7 @@ export async function previewQuarterlySnapshot(
         select: { id: true, email: true, emailOptIn: true },
       }),
       prisma.emailNotification.findMany({
-        where: { dedupeKey: { in: userIds.map((id) => `quarterly_feedback:${id}:${y.id}:${quarter}`) } },
+        where: { dedupeKey: { in: userIds.map((id) => quarterlyDedupeKey(id, y.id, quarter)) } },
         select: { dedupeKey: true },
       }),
     ]);
@@ -168,7 +269,7 @@ export async function previewQuarterlySnapshot(
       const u = byId.get(id);
       if (!u || !u.email) { noEmail++; continue; }
       if (!u.emailOptIn) { optedOut++; continue; }
-      if (sentKeys.has(`quarterly_feedback:${id}:${y.id}:${quarter}`)) { alreadySent++; continue; }
+      if (sentKeys.has(quarterlyDedupeKey(id, y.id, quarter))) { alreadySent++; continue; }
       recipients++;
     }
   }
@@ -208,14 +309,28 @@ export async function runDueReviewWindows(
   if (due.length) {
     // Say what is about to go out before it goes out, so the log shows the
     // blast radius even when nobody was watching.
-    console.warn(`[cron] ${due.length} review window(s) due — about to snapshot and email faculty for each`);
+    console.warn(`[cron] ${due.length} review window(s) due — about to snapshot each (armed ones also email faculty)`);
   }
+  let held = 0;
   for (const w of due) {
-    faculty += await snapshotYear(w.academicYearId, w.quarter);
-    await prisma.reviewWindow.update({ where: { id: w.id }, data: { lastRunAt: at } });
+    // Mass-mail gate: the window only emails if the dean armed it after seeing
+    // the preview. Unarmed, the snapshot is still taken but the mail is held
+    // until the dean releases it.
+    const armed = !!w.armedAt;
+    faculty += await snapshotYear(w.academicYearId, w.quarter, { sendEmail: armed });
+    if (armed) {
+      await prisma.reviewWindow.update({ where: { id: w.id }, data: { lastRunAt: at } });
+    } else {
+      held++;
+      console.warn(
+        `[cron] Review window ${w.quarter} (AY ${w.academicYearId}, id ${w.id}) is NOT ARMED — ` +
+          'snapshot taken, quarterly feedback email HELD. The dean must release it from Review Windows.'
+      );
+      await prisma.reviewWindow.update({ where: { id: w.id }, data: { lastRunAt: at, heldAt: at } });
+    }
   }
-  if (due.length) console.log(`[cron] Review windows fired: ${due.length}, ${faculty} faculty`);
-  return { windows: due.length, faculty };
+  if (due.length) console.log(`[cron] Review windows fired: ${due.length} (${held} held), ${faculty} faculty`);
+  return { windows: due.length, faculty, held };
 }
 
 export function startQuarterlySnapshotCron() {

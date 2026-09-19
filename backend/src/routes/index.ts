@@ -165,6 +165,11 @@ router.put('/admin/faculty-tiers', authenticate, roleGuard(TIER), tracking.setFa
 router.get('/admin/review-windows', authenticate, roleGuard(CONFIG), reviewWindow.listReviewWindows);
 router.put('/admin/review-windows', authenticate, roleGuard(CONFIG), reviewWindow.upsertReviewWindow);
 router.delete('/admin/review-windows/:id', authenticate, roleGuard(CONFIG), reviewWindow.deleteReviewWindow);
+// Mass-mail gate: preview, arm/disarm, release held mail (dean + principal).
+router.get('/admin/review-windows/:id/preview', authenticate, roleGuard(CONFIG), reviewWindow.previewReviewWindow);
+router.post('/admin/review-windows/:id/arm', authenticate, roleGuard(CONFIG), reviewWindow.armReviewWindow);
+router.post('/admin/review-windows/:id/disarm', authenticate, roleGuard(CONFIG), reviewWindow.disarmReviewWindow);
+router.post('/admin/review-windows/:id/release', authenticate, roleGuard(CONFIG), reviewWindow.releaseReviewWindow);
 
 // W6 — annual HoD feedback
 router.get('/appraisals/:id/feedback', authenticate, feedback.getFeedback);
