@@ -130,7 +130,7 @@
   <header class="top">
     <div class="eyebrow">VNRVJIET · Faculty Appraisal Portal · architecture</div>
     <h1>Appraisal Portal System Map</h1>
-    <p class="lede">How a faculty self-appraisal travels from the browser to the database and back out as a score, a PDF, a HoD review and an email. Public address: <code>https://appraisal.vjstartup.com</code>. Every box and arrow below is drawn from the code at <code>acc8a49</code>, not from the design documents. Places where the running system and the intended one disagree are marked <span class="chip gap">gap</span>.</p>
+    <p class="lede">How a faculty self-appraisal travels from the browser to the database and back out as a score, a PDF, a HoD review and an email. Public address: <code>https://appraisal.vjstartup.com</code>. Every box and arrow below is drawn from the code at <code>ed5c6a1</code>, not from the design documents. Places where the running system and the intended one disagree are marked <span class="chip gap">gap</span>.</p>
     <dl class="facts">
       <div><dt>Client</dt><dd>React 19 · Vite 8 · Tailwind 4</dd></div>
       <div><dt>Server</dt><dd>Node 24 · Express 4 · Prisma 6 · Postgres 15</dd></div>
@@ -425,6 +425,8 @@
           <tr><td><code>verification</code></td><td></td><td></td><td class="c"><span class="dot"></span></td><td></td><td class="c"><span class="dot"></span></td><td></td><td>Verify or reject proofs, replace a rejected one, red list, clear hold</td></tr>
           <tr><td><code>review</code></td><td class="c"><span class="dot hot"></span></td><td></td><td class="c"><span class="dot"></span></td><td></td><td class="c"><span class="dot"></span></td><td></td><td>HoD review (blocked until all proofs verified), unlock, reopen</td></tr>
           <tr><td><code>finalReview</code></td><td class="c"><span class="dot hot"></span></td><td></td><td></td><td></td><td class="c"><span class="dot"></span></td><td></td><td>Dean assigns reviewers; one approval finalises, one reject holds</td></tr>
+          <tr><td><code>draftReview</code></td><td></td><td></td><td class="c"><span class="dot"></span></td><td></td><td></td><td></td><td>HoD's provisional marks on a draft; the department's list of drafts in progress</td></tr>
+          <tr><td><code>oversight</code></td><td class="c"><span class="dot hot"></span></td><td class="c"><span class="dot"></span></td><td></td><td></td><td></td><td></td><td>Dean and principal dashboard: status counts, pending final reviews, tier progress</td></tr>
           <tr><td><code>feedback</code></td><td class="c"><span class="dot hot"></span></td><td class="c"><span class="dot"></span></td><td></td><td class="c"><span class="dot"></span></td><td class="c"><span class="dot"></span></td><td class="c"><span class="dot"></span></td><td>Annual HoD feedback: auto-draft, save, issue, PDF</td></tr>
           <tr><td><code>tracking</code> · <code>cadreTier</code></td><td></td><td class="c"><span class="dot"></span></td><td></td><td></td><td class="c"><span class="dot"></span></td><td></td><td>Tracking view, manual tier and eligibility, quarterly snapshot</td></tr>
           <tr><td><code>report</code></td><td class="c"><span class="dot hot"></span></td><td class="c"><span class="dot"></span></td><td></td><td></td><td></td><td></td><td>Department, institute and per-criterion reports, Excel export</td></tr>
@@ -439,8 +441,8 @@
         <thead><tr><th>Job</th><th>When</th><th>What it does</th><th>Safety</th></tr></thead>
         <tbody>
           <tr><td>Mail worker</td><td class="mono">every 30 s</td><td>Sends up to 10 queued mails per tick; each gets 3 attempts</td><td>Reserved test domains are closed out, never sent</td></tr>
-          <tr><td>Reminders</td><td class="mono">daily 09:00</td><td>Nudges faculty whose appraisal is still a draft; sends reviewers a digest of their queue</td><td>Respects each user's email opt-out</td></tr>
-          <tr><td>Review windows</td><td class="mono">daily 09:00</td><td>For any enabled window ending today: snapshot every faculty's standing and send the quarterly email</td><td>Kill switch <code>QUARTERLY_AUTOSEND=false</code>; opt-out respected</td></tr>
+          <tr><td>Reminders</td><td class="mono">daily 09:00</td><td>Nudges a faculty whose draft has gone a full week without edits, at most once a week; sends reviewers a daily digest of their queue</td><td>Opt-out respected; the week is the dedupe key</td></tr>
+          <tr><td>Review windows</td><td class="mono">daily 09:00</td><td>For any enabled window ending today: snapshot every faculty's standing and send the quarterly email</td><td>Mails only if the dean armed the window after a preview; otherwise the mail is held until released. Kill switch <code>QUARTERLY_AUTOSEND=false</code></td></tr>
           <tr><td>Proof deadline</td><td class="mono">daily 09:00</td><td>14 days after the first rejection, voids the marks of still-rejected proofs; the appraisal returns to the HoD queue</td><td>Faculty stays red-listed; the reason is kept</td></tr>
           <tr><td>Run snapshot (dean)</td><td class="mono">on demand</td><td>Same as a review window, fired from the tracking screen</td><td>Dry run unless the dean confirms</td></tr>
         </tbody>
@@ -450,7 +452,7 @@
 
   <section id="lifecycle">
     <h2><span class="sn">04</span>Appraisal lifecycle</h2>
-    <p class="claim">Each faculty member files one appraisal per academic year, and it moves through eight statuses. The orange path is the normal route. A rejected proof parks the appraisal on HOLD until the faculty replaces the proof, the HoD clears the hold, or the 14-day deadline voids those marks.</p>
+    <p class="claim">Each faculty member keeps <strong>one draft for the whole academic year</strong> and submits it once, only after the year's Q4 review window is over (00:00 IST the next day; the academic year's end if no Q4 window is set). While it is a draft, the department's HoD and incharge check its proofs, and the HoD notes a draft review (Cat 1-5 overrides and Cat 6) that pre-fills the real review after submission. From submission on it moves through the statuses below; the orange path is the normal route. A proof rejected after submission parks the appraisal on HOLD until the faculty replaces it, the HoD clears the hold, or the 14-day deadline voids those marks.</p>
     <figure>
       <div class="scroll">
       <svg class="dg" viewBox="0 0 1060 360" role="img" aria-label="Status machine: draft to submitted; HoD approves to final review or straight to approved; one final approval approves; HoD or final reject; proof rejection puts it on hold and back to the HoD queue; faculty may withdraw while submitted.">
@@ -480,6 +482,7 @@
 
         <line class="e-hot" x1="180" y1="137" x2="252" y2="137" marker-end="url(#s-h)"/>
         <text class="l-hot" x="216" y="129" text-anchor="middle">submit</text>
+        <text class="l" x="216" y="156" text-anchor="middle">after Q4</text>
         <path class="e" d="M330,112 V20 H875 V37" marker-end="url(#s-a)"/>
         <text class="l" x="600" y="14" text-anchor="middle">HoD approves · no final reviewers assigned</text>
         <line class="e-hot" x1="405" y1="128" x2="497" y2="72" marker-end="url(#s-h)"/>
@@ -501,13 +504,14 @@
         <text class="l" x="626" y="232">final reject</text>
       </svg>
       </div>
-      <figcaption>The faculty member is emailed only on a final decision (APPROVED or REJECTED). A HoD approval that hands off to final review sends nothing yet. Proofs can be verified or rejected only in SUBMITTED, UNDER_REVIEW, HOLD and FINAL_REVIEW. In DRAFT the form still belongs to the faculty, and a decided appraisal has to be reopened first.</figcaption>
+      <figcaption>The faculty member is emailed only on a final decision (APPROVED or REJECTED). A HoD approval that hands off to final review sends nothing yet. Proofs can be verified or rejected in DRAFT (during the year), SUBMITTED, UNDER_REVIEW, HOLD and FINAL_REVIEW. A rejection on a DRAFT only marks the proof and emails the faculty — no HOLD, no red list, no deadline; the draft stays editable. A decided appraisal has to be reopened first.</figcaption>
     </figure>
     <div class="tablebox">
       <table>
         <thead><tr><th>Override</th><th>From</th><th>To</th><th>Who · side effects</th></tr></thead>
         <tbody>
           <tr><td>Reopen review</td><td class="mono">APPROVED · REJECTED · FINAL_REVIEW</td><td class="mono">SUBMITTED</td><td>Dean. Final-review sign-offs reset to pending; reason audited.</td></tr>
+          <tr><td>Draft review</td><td class="mono">DRAFT</td><td class="mono">DRAFT</td><td>HoD of the department, any time in the year: provisional Cat 1-5 overrides and Cat 6 that pre-fill the real review. Never shown to the faculty; the dean sees it without Cat 6.</td></tr>
           <tr><td>Unlock</td><td class="mono">any</td><td class="mono">DRAFT</td><td>Dean. Faculty emailed once per submitted state.</td></tr>
           <tr><td>Clear hold</td><td class="mono">HOLD</td><td class="mono">UNDER_REVIEW</td><td>HoD or dean of the department. Red-list flag removed.</td></tr>
           <tr><td>Deadline void</td><td class="mono">HOLD</td><td class="mono">SUBMITTED</td><td>Daily job, 14 days after the first rejection. Voided sources score 0; red list kept.</td></tr>
@@ -720,7 +724,7 @@
 
   <section id="data">
     <h2><span class="sn">08</span>Data model</h2>
-    <p class="claim">The schema has 54 Prisma models. At its centre is <code>AppraisalSubmission</code>: one per faculty member per academic year, carrying 32 category tables that mirror the official form, section by section. Reviews, proof checks and feedback hang off the submission. Tracking settings hang off the year.</p>
+    <p class="claim">The schema has 54 Prisma models. At its centre is <code>AppraisalSubmission</code>: one per faculty member per academic year, carrying 32 category tables that mirror the official form, section by section. Reviews, proof checks, the HoD's draft review and feedback hang off the submission. Tracking settings hang off the year.</p>
     <figure>
       <div class="scroll">
       <svg class="dg" viewBox="0 0 1060 440" role="img" aria-label="Entity groups: people (User, UserRole, Department), year and targets, the appraisal submission with 32 category tables and uploaded files, review and feedback records, operations tables, and retired FPGP tables.">
@@ -839,12 +843,12 @@
         <thead><tr><th>Role</th><th>Adds these screens</th></tr></thead>
         <tbody>
           <tr><td>Every user (faculty)</td><td class="mono">/dashboard · /appraisal/:id/edit · /appraisal/:id · /profile · /final-review (only when assigned)</td></tr>
-          <tr><td>Reviewer (incharge)</td><td class="mono">/reviews · /reviews/:id · /uploads · /uploads/:submissionId</td></tr>
-          <tr><td>HoD</td><td class="mono">everything a reviewer has · /tracking · /red-list · /reports/department</td></tr>
+          <tr><td>Reviewer (incharge)</td><td class="mono">/reviews · /reviews/:id · /drafts (proofs only) · /uploads · /uploads/:submissionId</td></tr>
+          <tr><td>HoD</td><td class="mono">everything a reviewer has · /drafts · /tracking · /red-list · /reports/department</td></tr>
           <tr><td>Scrutinizer</td><td class="mono">/final-review · /profile — one submission at a time, only once the dean assigns it</td></tr>
           <tr><td>Special scrutinizer</td><td class="mono">everything a scrutinizer has · /tracking (tier and eligibility editable)</td></tr>
-          <tr><td>Dean</td><td class="mono">/dean/appraisals · academic-years · cadre-targets · cadre-tiers · review-windows · departments · /tracking · /reports/institute</td></tr>
-          <tr><td>Principal</td><td class="mono">everything the dean has · /principal/appraisals · /red-list · /reports/department — and the only role that sees Category 6 and the /550</td></tr>
+          <tr><td>Dean</td><td class="mono">/oversight · /dean/appraisals · academic-years · cadre-targets · cadre-tiers · review-windows · departments · /tracking · /reports/institute</td></tr>
+          <tr><td>Principal</td><td class="mono">/oversight · everything the dean has · /principal/appraisals · /red-list · /reports/department — and the only role that sees Category 6 and the /550</td></tr>
           <tr><td>Admin (maintenance)</td><td class="mono">/admin/dashboard · users · incharges · emails · audit — no appraisal content at all</td></tr>
         </tbody>
       </table>
@@ -854,13 +858,12 @@
   <section id="gaps">
     <h2><span class="sn">10</span>Known gaps</h2>
     <p class="claim">The deployment wiring was fixed on 14 September 2026 (<code>090c1de</code>, <code>33bb98c</code>). What remains is either the deployment team's to do on the real host, or not code at all.</p>
-    <p class="claim"><span class="chip ok">closed</span>Only the frontend is published. Required settings are enforced by compose, and every setting is passed through. <code>TZ</code> defaults to IST. Prometheus scrapes <code>backend:5000</code>. Alloy ships logs to Loki. Grafana's password is required and its data sources are provisioned. A blank password setting no longer becomes an empty password. Node 20 is replaced by Node 24 in the images and CI.</p>
+    <p class="claim"><span class="chip ok">closed</span>Only the frontend is published. Required settings are enforced by compose, and every setting is passed through. <code>TZ</code> defaults to IST. Prometheus scrapes <code>backend:5000</code>. Alloy ships logs to Loki. Grafana's password is required and its data sources are provisioned. A blank password setting no longer becomes an empty password. Node 20 is replaced by Node 24 in the images and CI. Imported accounts must change the shared default password at first sign-in, and the quarterly mail goes out only for a review window the dean has armed.</p>
     <div class="tablebox">
       <table>
         <thead><tr><th>Still open</th><th>Where</th><th>Effect</th><th>Who · fix</th></tr></thead>
         <tbody>
           <tr><td><span class="chip gap">gap</span>Proxy hop count</td><td class="mono">backend/src/app.ts:72</td><td>Hard-coded to 1. Behind the campus proxy and nginx, every user shares one IP for the rate limits</td><td>Deployment team: change it to the real count (2) before building</td></tr>
-          <tr><td><span class="chip gap">gap</span>No forced password change</td><td class="mono">auth · users</td><td>The 73 imported accounts share one password until each person changes it</td><td>Developer: flag the account at import, redirect to change-password at first login</td></tr>
           <tr><td><span class="chip gap">gap</span>Never run on a Docker host</td><td class="mono">compose · images · backup.sh</td><td>Compose validated offline and CI green on Node 24, but the images, the monitoring stack and the backup's compose mode have not run together</td><td>Deployment team: first build, then the restore drill (DEPLOYMENT.md §10)</td></tr>
           <tr><td><span class="chip gap">gap</span>Backups not scheduled</td><td class="mono">host cron</td><td><code>scripts/backup.sh</code> runs only by hand</td><td>Deployment team: nightly cron and an off-host copy</td></tr>
           <tr><td><span class="chip gap">gap</span>Loki keeps logs forever</td><td class="mono">bundled local-config</td><td>No retention limit, so disk use grows</td><td>Deployment team: a retention setting, or prune</td></tr>
@@ -871,7 +874,7 @@
   </section>
 
   <footer>
-    Drawn from the code at <code>acc8a49</code> (19 Sep 2026), repository <code>FACULTY-APRRAISAL-PORTAL</code>. Sources: <code>backend/src/app.ts</code>, <code>routes/index.ts</code>, <code>prisma/schema.prisma</code>, the services and cron folders, <code>docker-compose.prod.yml</code>, <code>monitoring/</code>, <code>frontend/nginx.conf</code> and <code>frontend/src/App.tsx</code>. Every setting is listed in <code>ENV_SETUP.md</code>. Figures scroll sideways on narrow screens.
+    Drawn from the code at <code>ed5c6a1</code> (19 Sep 2026), repository <code>FACULTY-APRRAISAL-PORTAL</code>. Sources: <code>backend/src/app.ts</code>, <code>routes/index.ts</code>, <code>prisma/schema.prisma</code>, the services and cron folders, <code>docker-compose.prod.yml</code>, <code>monitoring/</code>, <code>frontend/nginx.conf</code> and <code>frontend/src/App.tsx</code>. Every setting is listed in <code>ENV_SETUP.md</code>. Figures scroll sideways on narrow screens.
   </footer>
 </div>
 </body>
