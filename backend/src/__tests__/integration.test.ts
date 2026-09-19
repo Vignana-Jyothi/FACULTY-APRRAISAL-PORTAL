@@ -3,6 +3,7 @@ import request from 'supertest';
 import { RoleType } from '@prisma/client';
 import app from '../app';
 import { createFixture, FIXTURE_PW, type Fixture, type FixtureUser } from './helpers/fixtures';
+import { submitAt, submitAfterGate } from './helpers/submitGate';
 
 // Integration tests hit the real Express app + DB.
 // If the DB is unreachable the suite skips itself (so CI without a database
@@ -158,8 +159,12 @@ describe('Full appraisal workflow', () => {
     expect(score.status).toBe(200);
     expect(score.body.cat2.total).toBeGreaterThanOrEqual(15);
 
-    // Submit
-    const submitted = await request(app).post(`/api/appraisals/${subId}/submit`).set('Authorization', `Bearer ${facTok}`);
+    // Submit. The draft carries across the year: submitting is refused until
+    // the Q4 review window ends (owner decision 2026-09-19), then allowed.
+    const early = await submitAt(subId, faculty.id, -60_000);
+    expect(early.res.status).toBe(400);
+    expect(early.res.body.error).toMatch(/Submission opens on/);
+    const { res: submitted } = await submitAfterGate(subId, faculty.id);
     expect(submitted.status).toBe(200);
 
     // The department's HoD approves

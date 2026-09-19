@@ -13,7 +13,10 @@ export const TEMPLATE_SUBJECTS: Record<EmailTemplateKey, (p: any) => string> = {
   draft_reminder: (p) => `Reminder — Complete your ${p.year} appraisal`,
   reviewer_daily_digest: (p) => `Pending Reviews — ${p.pendingCount} appraisal(s)`,
   password_otp: (_p) => `VNRVJIET Faculty Portal — Password Change OTP`,
-  proof_rejected: (p) => `Action needed — Proof rejected, appraisal ${p.year} on hold`,
+  // On a draft (checked during the year) nothing is held — just replace the proof.
+  proof_rejected: (p) => p.draft
+    ? `Action needed — Proof rejected on your ${p.year} appraisal draft`
+    : `Action needed — Proof rejected, appraisal ${p.year} on hold`,
   proof_rejected_hod: (p) => `Red List — ${p.facultyName}'s ${p.year} appraisal held`,
   hold_cleared: (p) => `Hold cleared — Appraisal ${p.year} back under review`,
   quarterly_feedback: (p) => `${p.quarter} feedback — Appraisal ${p.year} (provisional)`,
@@ -219,7 +222,7 @@ const TEMPLATES: Record<EmailTemplateKey, (p: any) => string> = {
     <p>Dear <strong>${esc(p.name)}</strong>,</p>
     <p>Your Faculty Appraisal for <strong>${p.year}</strong> is currently in <strong>DRAFT</strong> status.</p>
     ${p.windowCloses ? `<p>Submission window closes on <strong>${p.windowCloses}</strong>${p.daysLeft != null ? ` (<strong>${p.daysLeft} day(s) remaining</strong>)` : ''}.</p>` : ''}
-    <p>Complete and submit before the deadline.</p>
+    <p>Your draft carries across the whole year — keep it up to date as you go. It can be submitted once the Q4 review window ends.</p>
     <p style="margin-top:16px"><a href="${FRONTEND_URL}/dashboard" style="background:#1e3a5f;color:#fff;padding:10px 18px;border-radius:4px;text-decoration:none;font-size:14px;font-weight:600">Continue Appraisal</a></p>
     <p style="margin-top:24px;color:#94a3b8;font-size:11px">You're receiving this reminder based on your email preferences. <a href="${FRONTEND_URL}/profile" style="color:#94a3b8">Manage preferences</a>.</p>
   `),
@@ -251,13 +254,15 @@ const TEMPLATES: Record<EmailTemplateKey, (p: any) => string> = {
   proof_rejected: (p) => layout('Proof Rejected — Action Needed', `
     <h2 style="margin:0 0 8px;color:#dc2626">Proof Rejected</h2>
     <p>Dear <strong>${esc(p.name)}</strong>,</p>
-    <p>A proof on your Faculty Appraisal for <strong>${p.year}</strong> (Submission #${p.submissionNumber}) was <strong style="color:#dc2626">rejected</strong>, and your submission is now <strong>ON HOLD</strong>.</p>
+    <p>A proof on your Faculty Appraisal for <strong>${p.year}</strong> (Submission #${p.submissionNumber}) was <strong style="color:#dc2626">rejected</strong>${p.draft ? '. Your draft is still open for editing.' : ', and your submission is now <strong>ON HOLD</strong>.'}</p>
     <table cellpadding="6" cellspacing="0" style="width:100%;border:1px solid #e2e8f0;border-radius:4px;margin:12px 0;font-size:13px">
       <tr><td style="color:#64748b;width:120px">Section</td><td style="color:#0f172a">${esc(p.section)}</td></tr>
       <tr><td style="color:#64748b">Item</td><td style="color:#0f172a">${esc(p.item)}${p.field ? ` (${esc(p.field)})` : ''}</td></tr>
       ${p.comment ? `<tr><td style="color:#64748b;vertical-align:top">Reason</td><td style="color:#dc2626">${esc(p.comment)}</td></tr>` : ''}
     </table>
-    <p style="color:#64748b;font-size:13px">Please re-upload the correct proof (a file or a valid share link). Your HoD will clear the hold once the corrected proof is verified.</p>
+    <p style="color:#64748b;font-size:13px">${p.draft
+      ? 'Please replace the proof in your draft (a file or a valid share link). The new proof goes back to your HoD for verification.'
+      : 'Please re-upload the correct proof (a file or a valid share link). Your HoD will clear the hold once the corrected proof is verified.'}</p>
     <p style="margin-top:16px"><a href="${FRONTEND_URL}/appraisal/${p.submissionId}/edit" style="background:#1e3a5f;color:#fff;padding:10px 18px;border-radius:4px;text-decoration:none;font-size:14px;font-weight:600">Fix Proof</a></p>
   `),
 

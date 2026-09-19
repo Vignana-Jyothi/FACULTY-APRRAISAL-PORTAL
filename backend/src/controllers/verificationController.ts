@@ -32,17 +32,20 @@ function canVerifyProof(user: NonNullable<Request['user']>, ownerId: string, own
   );
 }
 
-// Proofs are checked as part of the review, so only between submission and the
-// decision. A DRAFT is still the faculty's to edit: rejecting a proof there
-// flipped it to HOLD (locking the form), red-listed the faculty and emailed
-// them before they had submitted anything. A decided appraisal (APPROVED /
-// REJECTED / WITHDRAWN) is reopened first rather than changed from here.
+// Proofs are checked on the draft during the year and through the review, up
+// to the decision (owner decision 2026-09-19 — the draft carries across the
+// year). A DRAFT is still the faculty's to edit, so rejecting a proof there
+// only marks the proof and asks the faculty to replace it: no HOLD, no red
+// list, no correction deadline. Those apply once the appraisal is submitted.
+// A decided appraisal (APPROVED / REJECTED / WITHDRAWN) is reopened first
+// rather than changed from here.
 export const PROOF_REVIEW_STATUSES: SubmissionStatus[] = [
   SubmissionStatus.SUBMITTED,
   SubmissionStatus.UNDER_REVIEW,
   SubmissionStatus.HOLD,
   SubmissionStatus.FINAL_REVIEW,
 ];
+export const PROOF_CHECK_STATUSES: SubmissionStatus[] = [SubmissionStatus.DRAFT, ...PROOF_REVIEW_STATUSES];
 
 // Who may manage the red-list / clear a hold: the HoD or incharge of the
 // faculty's own department, or the principal institute-wide.
@@ -101,7 +104,8 @@ const verifySchema = z.object({
 });
 
 // POST /appraisals/:id/proofs/verify — mark one proof verified/rejected.
-// Reject puts the submission on HOLD and red-lists the faculty.
+// On a submitted appraisal, reject puts it on HOLD and red-lists the faculty.
+// On a DRAFT, reject marks the proof and emails the faculty — nothing else.
 export async function verifyProof(req: Request, res: Response) {
   const sub = await prisma.appraisalSubmission.findUnique({
     where: { id: req.params.id },
@@ -114,11 +118,12 @@ export async function verifyProof(req: Request, res: Response) {
   if (!canVerifyProof(req.user!, sub.userId, sub.user.departmentId)) {
     return res.status(403).json({ error: 'Only the HoD or incharge can verify uploads' });
   }
-  if (!PROOF_REVIEW_STATUSES.includes(sub.status)) {
+  if (!PROOF_CHECK_STATUSES.includes(sub.status)) {
     return res.status(400).json({
-      error: `Proofs are checked once the appraisal is submitted and before it is decided — this one is ${sub.status}`,
+      error: `Proofs are checked on the draft and until the appraisal is decided — this one is ${sub.status}`,
     });
   }
+  const isDraft = sub.status === SubmissionStatus.DRAFT;
 
   const { url, status, comment } = verifySchema.parse(req.body);
 
@@ -134,7 +139,7 @@ export async function verifyProof(req: Request, res: Response) {
       where: { id: pv.id },
       data: { status, verifiedById: req.user!.id, verifiedAt: new Date(), comment: comment ?? null },
     });
-    if (status === 'REJECTED') {
+    if (status === 'REJECTED' && !isDraft) {
       await tx.appraisalSubmission.update({
         where: { id: sub.id },
         data: {
@@ -154,12 +159,13 @@ export async function verifyProof(req: Request, res: Response) {
         action: `PROOF_${status}`,
         entityType: 'ProofVerification',
         entityId: pv.id,
-        metadata: { submissionId: sub.id, url },
+        metadata: { submissionId: sub.id, url, onDraft: isDraft },
       },
     });
   });
 
-  // Notify on reject — faculty (must re-upload) + dept HoD(s) (red list).
+  // Notify on reject — faculty (must re-upload) + dept HoD(s) (red list). A
+  // draft is not held or red-listed, so only the faculty hears about it.
   if (status === 'REJECTED') {
     try {
       const base = {
@@ -174,10 +180,10 @@ export async function verifyProof(req: Request, res: Response) {
       await enqueueEmail({
         toUserId: sub.userId,
         template: 'proof_rejected',
-        payload: { name: sub.user.name, ...base },
+        payload: { name: sub.user.name, ...base, draft: isDraft },
         dedupeKey: proofRejectedKey(pv.id, url),
       });
-      const hods = await prisma.userRole.findMany({
+      const hods = isDraft ? [] : await prisma.userRole.findMany({
         where: { role: 'HOD', isActive: true, departmentId: sub.user.departmentId ?? undefined },
         select: { userId: true },
       });

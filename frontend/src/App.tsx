@@ -11,6 +11,7 @@ import FinalReviewPage from './pages/reviewer/FinalReviewPage';
 import UploadsPage from './pages/reviewer/UploadsPage';
 import FacultyUploadsPage from './pages/reviewer/FacultyUploadsPage';
 import ReviewAppraisalPage from './pages/reviewer/ReviewAppraisalPage';
+import DraftsPage from './pages/reviewer/DraftsPage';
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import AdminUsersPage from './pages/admin/AdminUsersPage';
 import AdminAcademicYearsPage from './pages/admin/AdminAcademicYearsPage';
@@ -79,6 +80,15 @@ export default function App() {
         {/* Reviewer / HoD */}
         <Route path="/reviews" element={
           <ProtectedRoute roles={DEPT_REVIEW}><ReviewQueuePage /></ProtectedRoute>
+        } />
+        {/* Drafts in progress: the department checks proofs on a draft during
+            the year and the HoD notes a provisional draft review. Its own path, so
+            the Review Queue link is not highlighted as well. */}
+        <Route path="/drafts" element={
+          <ProtectedRoute roles={DEPT_REVIEW}><DraftsPage /></ProtectedRoute>
+        } />
+        <Route path="/drafts/:id" element={
+          <ProtectedRoute roles={DEPT_REVIEW}><ReviewAppraisalPage mode="draft" /></ProtectedRoute>
         } />
         <Route path="/reviews/:id" element={
           <ProtectedRoute roles={DEPT_REVIEW}><ReviewAppraisalPage /></ProtectedRoute>

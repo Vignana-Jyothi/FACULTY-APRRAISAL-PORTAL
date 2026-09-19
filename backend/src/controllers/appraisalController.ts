@@ -15,6 +15,7 @@ import { DEPT_REVIEW, INSTITUTE_READ, SCRUTINY_POOL, deptIdsFor, hasAnyRole } fr
 import { dropBlankRows } from '../utils/blankRows';
 import { normalizePublicationAuthors } from '../utils/publicationAuthors';
 import { wouldWipeDraft } from '../utils/wipeGuard';
+import { submitOpensAt, formatOpensAt } from '../services/submitGate';
 
 const FULL_INCLUDE = {
   cat1Courses: true,
@@ -218,7 +219,10 @@ export async function getAppraisal(req: Request, res: Response) {
     if (!assigned) return res.status(403).json({ error: 'Forbidden' });
   }
 
-  return res.json(serializeByRole(req, sub));
+  // When the draft may be submitted (end of the Q4 review window) — the form
+  // disables its Submit button until then. Same helper the submit gate uses.
+  const opensAt = await submitOpensAt(sub.academicYearId);
+  return res.json({ ...serializeByRole(req, sub), submitOpensAt: opensAt ? opensAt.toISOString() : null });
 }
 
 export async function updateAppraisal(req: Request, res: Response) {
@@ -413,6 +417,16 @@ export async function submitAppraisal(req: Request, res: Response) {
 
   const year = await prisma.academicYear.findUnique({ where: { id: sub.academicYearId } });
   if (!year?.submissionOpen) return res.status(400).json({ error: 'Submission window is closed' });
+
+  // One draft carries across the whole year; it can be submitted only once the
+  // Q4 review window has ended (or the academic year, with no Q4 window).
+  const opensAt = await submitOpensAt(sub.academicYearId);
+  if (opensAt && Date.now() < opensAt.getTime()) {
+    return res.status(400).json({
+      error: `Submission opens on ${formatOpensAt(opensAt)}, once the year's Q4 review is over. Keep working on this draft until then.`,
+      submitOpensAt: opensAt.toISOString(),
+    });
+  }
 
   const submittedAt = new Date();
 

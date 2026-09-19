@@ -438,6 +438,7 @@ model AppraisalSubmission {
   voidedSources   String[]
 
   user         User         @relation(fields: [userId], references: [id])
+  draftReview  DraftReview?
   academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
 
   cat1Courses             Cat1Course[]
@@ -1000,6 +1001,36 @@ model AppraisalReview {
 
   submission AppraisalSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
   reviewer   User                @relation(fields: [reviewerId], references: [id])
+}
+
+// The HoD's provisional marks on a DRAFT appraisal during the year (owner
+// decision 2026-09-19). The draft carries across all four quarters and cannot
+// be submitted until the Q4 review window ends; meanwhile the HoD may verify
+// proofs and note draft Cat 1-5 overrides and a draft Cat 6. These pre-fill the
+// one real review after submission, where they become final. Cat 6 here obeys
+// the same visibility gate as AppraisalReview (utils/reviewVisibility).
+model DraftReview {
+  id           String   @id @default(uuid())
+  submissionId String   @unique
+  reviewerId   String
+
+  cat1Score Float?
+  cat2Score Float?
+  cat3Score Float?
+  cat4Score Float?
+  cat5Score Float?
+
+  cat6Punctuality     Float?
+  cat6Professionalism Float?
+  cat6Willingness     Float?
+  cat6Cordiality      Float?
+  cat6Classroom       Float?
+
+  overallComment String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  submission AppraisalSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 }
 
 // A dean-assigned final reviewer's sign-off on an annual appraisal — the review

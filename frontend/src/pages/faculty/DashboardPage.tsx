@@ -107,6 +107,13 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {drafts > 0 && (
+        <div className="bg-primary-50 border border-primary-200 rounded p-3 mb-4 text-sm text-primary-900">
+          Your draft carries across the whole academic year — keep adding to it each quarter. Submission opens
+          once, after the Q4 review is over; the exact date is shown on the draft's Preview &amp; Submit step.
+        </div>
+      )}
+
       {/* Submissions list */}
       <Card padding="none">
         <div className="px-5 py-3 border-b border-surface-border">
@@ -128,7 +135,9 @@ export default function DashboardPage() {
                       Submission #{sub.submissionNumber} — {sub.academicYear?.label}
                     </div>
                     <div className="text-xs text-ink-muted">
-                      {sub.submittedAt ? `Submitted ${new Date(sub.submittedAt).toLocaleDateString()}` : 'Not submitted'}
+                      {sub.submittedAt
+                        ? `Submitted ${new Date(sub.submittedAt).toLocaleDateString()}`
+                        : sub.status === 'DRAFT' ? 'Draft — open all year, submit after the Q4 review window' : 'Not submitted'}
                     </div>
                   </div>
                 </div>

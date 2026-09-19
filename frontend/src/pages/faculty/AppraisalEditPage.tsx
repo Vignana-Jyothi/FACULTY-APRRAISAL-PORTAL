@@ -3,8 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useForm, useFieldArray, useWatch, Controller } from 'react-hook-form';
 import { appraisalApi } from '../../api/appraisals';
 import toast from 'react-hot-toast';
-import { ArrowLeft, ArrowRight, Plus, Send } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Plus, Send, CheckCircle, XCircle, Clock, Lock } from 'lucide-react';
 import FileUpload from '../../components/FileUpload';
+import { verificationApi, type ProofRow } from '../../api/verification';
 import SelectWithOther from '../../components/SelectWithOther';
 import { toDateInputs } from '../../utils/dateInputs';
 import { useAuthStore } from '../../store/authStore';
@@ -124,6 +125,16 @@ export default function AppraisalEditPage() {
   const [saving, setSaving] = useState(false);
   const [score, setScore] = useState<any>(null);
   const [scoreLoading, setScoreLoading] = useState(false);
+  // Each proof's verification state, keyed by its URL, so the status sits next
+  // to the field it belongs to. The department checks proofs on the draft
+  // during the year (owner decision 2026-09-19).
+  const [proofStatus, setProofStatus] = useState<Map<string, ProofRow>>(new Map());
+  const loadProofStatus = () => {
+    if (!id) return;
+    verificationApi.listProofs(id)
+      .then((d) => setProofStatus(new Map(d.proofs.map((p) => [p.url, p]))))
+      .catch(() => { /* statuses are a convenience; the form works without them */ });
+  };
 
   const { register, control, reset, getValues, setValue } = useForm({
     defaultValues: {
@@ -351,6 +362,11 @@ export default function AppraisalEditPage() {
   };
 
   useEffect(() => {
+    loadProofStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, step]);
+
+  useEffect(() => {
     if (step === 6 && id) loadScore();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, id]);
@@ -359,6 +375,15 @@ export default function AppraisalEditPage() {
   // (HoD/Reviewer/Admin see the full form but can never edit it).
   const isOwner = !!submission && submission.userId === currentUser?.id;
   const readOnly = !!submission && (submission.status !== 'DRAFT' || !isOwner);
+
+  // The draft carries across the whole year; submitting opens when the Q4
+  // review window ends (else the academic year). The server enforces it too.
+  const opensAt: Date | null = submission?.submitOpensAt ? new Date(submission.submitOpensAt) : null;
+  const submitLocked = !!opensAt && Date.now() < opensAt.getTime();
+  const opensAtLabel = opensAt
+    ? opensAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+    : '';
+  const rejectedProofs = [...proofStatus.values()].filter((p) => p.status === 'REJECTED');
 
   const inputCls = "w-full border border-surface-border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500";
   const labelCls = "block text-xs font-medium text-ink-secondary mb-1";
@@ -371,7 +396,10 @@ export default function AppraisalEditPage() {
         control={control}
         name={name as any}
         render={({ field }) => (
-          <FileUpload value={field.value} onChange={field.onChange} readOnly={readOnly} />
+          <>
+            <FileUpload value={field.value} onChange={field.onChange} readOnly={readOnly} />
+            <ProofStatusNote row={field.value ? proofStatus.get(String(field.value).trim()) : undefined} />
+          </>
         )}
       />
     </div>
@@ -528,6 +556,28 @@ export default function AppraisalEditPage() {
           </span>
         )}
       </div>
+
+      {!readOnly && submission?.status === 'DRAFT' && (
+        <div className="mb-4 bg-primary-50 border border-primary-200 rounded p-3 text-sm text-primary-900">
+          This draft carries across the whole academic year — keep adding to it quarter by quarter.
+          {opensAt && (submitLocked
+            ? <> Submission opens on <strong>{opensAtLabel}</strong>, once the Q4 review is over.</>
+            : <> Submission is open — submit once your appraisal for the year is complete.</>)}
+          {' '}Your HoD may check your proofs along the way.
+        </div>
+      )}
+
+      {isOwner && submission?.status === 'DRAFT' && rejectedProofs.length > 0 && (
+        <div className="mb-4 bg-red-50 border border-red-200 rounded p-3 text-sm text-red-800">
+          <strong>{rejectedProofs.length} proof{rejectedProofs.length === 1 ? ' was' : 's were'} rejected.</strong>{' '}
+          Replace {rejectedProofs.length === 1 ? 'it' : 'each one'} in its section (marked “Rejected” next to the field):
+          <ul className="mt-1 list-disc list-inside text-xs">
+            {rejectedProofs.map((p) => (
+              <li key={p.id}>{p.section} — {p.item} ({p.field}){p.comment ? `: ${p.comment}` : ''}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {readOnly && (
         <div className="mb-4 bg-amber-50 border border-amber-200 rounded p-3 text-sm text-amber-900">
@@ -1753,7 +1803,9 @@ export default function AppraisalEditPage() {
             </div>
 
             <div className="bg-amber-50 border border-amber-200 rounded p-3 text-sm text-amber-900">
-              Once submitted, you cannot edit until the reviewer responds.
+              {submitLocked
+                ? <>Submission opens on <strong>{opensAtLabel}</strong>, once the Q4 review is over. Until then this draft stays open — keep it up to date through the year.</>
+                : 'Submit once, when your appraisal for the year is complete. After that you cannot edit until the reviewer responds.'}
             </div>
           </div>
         )}
@@ -1793,17 +1845,53 @@ export default function AppraisalEditPage() {
                 Next <ArrowRight size={14} />
               </button>
             ) : !readOnly ? (
-              <button
-                type="button"
-                onClick={submitAppraisal}
-                className="flex items-center gap-2 text-sm bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-              >
-                <Send size={14} /> Submit Appraisal
-              </button>
+              <div className="flex flex-col items-end gap-1">
+                <button
+                  type="button"
+                  onClick={submitAppraisal}
+                  disabled={submitLocked || saving}
+                  title={submitLocked ? `Submission opens on ${opensAtLabel}` : undefined}
+                  className="flex items-center gap-2 text-sm bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitLocked ? <Lock size={14} /> : <Send size={14} />} Submit Appraisal
+                </button>
+                {submitLocked && (
+                  <span className="text-xs text-ink-muted">
+                    Submission opens on {opensAtLabel}
+                  </span>
+                )}
+              </div>
             ) : null}
           </div>
         </div>
       </form>
+    </div>
+  );
+}
+
+// A proof's verification state, shown under its field. Nothing until the
+// department has looked at it (or before the first save creates the row).
+function ProofStatusNote({ row }: { row: ProofRow | undefined }) {
+  if (!row) return null;
+  if (row.status === 'VERIFIED') {
+    return (
+      <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-emerald-700">
+        <CheckCircle size={11} /> Verified
+      </div>
+    );
+  }
+  if (row.status === 'REJECTED') {
+    return (
+      <div className="mt-1 rounded border border-red-200 bg-red-50 px-2 py-1 text-[11px] text-red-700">
+        <span className="inline-flex items-center gap-1 font-semibold"><XCircle size={11} /> Rejected</span>
+        {row.comment ? <> — {row.comment}</> : null}
+        <div className="text-red-600">Replace this proof (remove it and upload or link a corrected one).</div>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-ink-muted">
+      <Clock size={11} /> Pending verification
     </div>
   );
 }
