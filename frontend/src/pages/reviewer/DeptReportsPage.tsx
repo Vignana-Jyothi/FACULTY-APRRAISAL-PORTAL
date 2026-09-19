@@ -143,14 +143,14 @@ export default function DeptReportsPage() {
                   <th className="text-left px-4 py-2.5 font-medium">Faculty</th>
                   {seesAllDepts && <th className="text-left px-4 py-2.5 font-medium">Dept</th>}
                   <th className="text-left px-4 py-2.5 font-medium">Designation</th>
-                  <th className="text-left px-3 py-2.5 font-medium">C1</th>
-                  <th className="text-left px-3 py-2.5 font-medium">C2</th>
-                  <th className="text-left px-3 py-2.5 font-medium">C3</th>
-                  <th className="text-left px-3 py-2.5 font-medium">C4</th>
-                  <th className="text-left px-3 py-2.5 font-medium">C5</th>
-                  <th className="text-left px-3 py-2.5 font-medium">Total</th>
-                  {showGrand && <th className="text-left px-3 py-2.5 font-medium">Score by HoD</th>}
-                  {showGrand && <th className="text-left px-3 py-2.5 font-medium">Reviewed</th>}
+                  <th className="text-left px-3 py-2.5 font-medium">C1 /150</th>
+                  <th className="text-left px-3 py-2.5 font-medium">C2 /150</th>
+                  <th className="text-left px-3 py-2.5 font-medium">C3 /100</th>
+                  <th className="text-left px-3 py-2.5 font-medium">C4 /50</th>
+                  <th className="text-left px-3 py-2.5 font-medium">C5 /50</th>
+                  <th className="text-left px-3 py-2.5 font-medium">Reviewed /500</th>
+                  {showGrand && <th className="text-left px-3 py-2.5 font-medium">Core values /50</th>}
+                  {showGrand && <th className="text-left px-3 py-2.5 font-medium">Grand total /550</th>}
                   <th className="text-left px-4 py-2.5 font-medium">Uploads</th>
                 </tr>
               </thead>

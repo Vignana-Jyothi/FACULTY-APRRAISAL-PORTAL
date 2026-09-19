@@ -5,22 +5,13 @@ import * as XLSX from 'xlsx';
 import { computeScore } from '../services/scoringEngine';
 import { TRACKING_INCLUDE } from '../services/trackingService';
 import { AuthUser } from '../middleware/auth';
+import { csvSafe } from '../utils/csvSafe';
 import { CONFIG, deptIdsFor, hasAnyRole } from '../utils/roles';
 import {
   canSeeReviewerAssessment,
   seesReviewerAssessmentEverywhere,
   stripReviewerAssessment,
 } from '../utils/reviewVisibility';
-
-// Neutralise spreadsheet formula injection. A cell whose text begins with
-// = + - @ (or a leading tab/CR that Excel trims first) is run as a formula by
-// Excel / LibreOffice — e.g. =HYPERLINK / =WEBSERVICE can exfiltrate data or
-// chain a command. Faculty control name and designation, so prefix any such
-// value with a single quote, which forces the cell to be read as text.
-function csvSafe<T>(v: T): T | string {
-  if (typeof v === 'string' && /^[=+\-@\t\r]/.test(v)) return `'${v}`;
-  return v;
-}
 
 // Dept scoping for report reads. The dean and the principal see every
 // department (or an optional single-dept filter); a department caller is
@@ -208,17 +199,23 @@ export async function exportReport(req: Request, res: Response) {
       'Designation': csvSafe(r.submission.user.designation ?? ''),
       'Department': csvSafe(r.submission.user.department?.name ?? ''),
       'Academic Year': csvSafe(r.submission.academicYear.label),
-      'C1': r.cat1Score ?? '',
-      'C2': r.cat2Score ?? '',
-      'C3': r.cat3Score ?? '',
-      'C4': r.cat4Score ?? '',
-      'C5': r.cat5Score ?? '',
-      'Total': r.totalScore ?? '',
-      'Score by HoD': cat6Visible
+      // Every score column names its scale. Self and reviewed stay side by side
+      // because HR needs both assessments separately.
+      'Self /500': r.selfTotalScore ?? '',
+      'C1 /150': r.cat1Score ?? '',
+      'C2 /150': r.cat2Score ?? '',
+      'C3 /100': r.cat3Score ?? '',
+      'C4 /50': r.cat4Score ?? '',
+      'C5 /50': r.cat5Score ?? '',
+      'Reviewed /500': r.totalScore ?? '',
+      'Core values (Cat 6) /50': cat6Visible
         ? ((r.cat6Punctuality ?? 0) + (r.cat6Professionalism ?? 0) + (r.cat6Willingness ?? 0) + (r.cat6Cordiality ?? 0) + (r.cat6Classroom ?? 0))
         : '',
-      'Reviewed': cat6Visible ? (r.grandTotal ?? '') : '',
-      'Status': r.status,
+      'Grand total /550': cat6Visible ? (r.grandTotal ?? '') : '',
+      // The HoD's decision is not the appraisal's standing: an approval that
+      // went on to final review is still waiting on a scrutinizer.
+      'HoD decision': r.status,
+      'Appraisal status': r.submission.status,
     };
   });
 

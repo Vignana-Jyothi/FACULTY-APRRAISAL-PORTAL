@@ -312,16 +312,16 @@ describe('the remaining report surfaces', () => {
     const hodRes = await request(app).get('/api/reports/export').set(bearer(hodTok));
     expect(hodRes.status).toBe(200);
     const find = (body: any[], code: string) => body.find((r: any) => r['Employee Code'] === code);
-    expect(find(hodRes.body, owner.employeeCode)?.['Reviewed']).toBe(ownerScores.grandTotal);
-    expect(find(hodRes.body, hod.employeeCode)?.['Reviewed']).toBe('');
-    expect(find(hodRes.body, hod.employeeCode)?.['Score by HoD']).toBe('');
+    expect(find(hodRes.body, owner.employeeCode)?.['Grand total /550']).toBe(ownerScores.grandTotal);
+    expect(find(hodRes.body, hod.employeeCode)?.['Grand total /550']).toBe('');
+    expect(find(hodRes.body, hod.employeeCode)?.['Core values (Cat 6) /50']).toBe('');
 
     const dean = await request(app)
       .get(`/api/reports/export?dept=${fixture!.deptId}`)
       .set(bearer(deanTok));
     expect(dean.status).toBe(200);
-    expect(find(dean.body, owner.employeeCode)?.['Reviewed']).toBe('');
-    expect(find(dean.body, owner.employeeCode)?.['Score by HoD']).toBe('');
+    expect(find(dean.body, owner.employeeCode)?.['Grand total /550']).toBe('');
+    expect(find(dean.body, owner.employeeCode)?.['Core values (Cat 6) /50']).toBe('');
   });
 
   it('a department incharge is refused the score report outright', async () => {

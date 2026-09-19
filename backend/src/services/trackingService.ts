@@ -95,6 +95,9 @@ export function computeRow(
     cadreLabel: cadre ? CADRE_LABEL[cadre] : null,
     expYears: Math.round(expYears * 10) / 10,
     actuals: shownActuals,
+    // The scale the shown total is on: a self-assessed total and a reviewed
+    // /500 are out of 500; the reviewed grand total with Category 6 is /550.
+    scoreScale: (actuals.totalScoreSource === 'HOD' && !maskCoreValues ? 550 : 500) as 500 | 550,
     // Computed actuals-vs-cadre-targets detail. Kept as the reference the dean
     // reads when deciding, but it no longer decides eligibility itself.
     eligibility,

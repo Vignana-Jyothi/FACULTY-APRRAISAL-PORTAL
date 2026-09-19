@@ -10,8 +10,8 @@ type Crit = { group: string; key: string; label: string; max?: number; get: (r: 
 
 // Category totals + every subsection from the scoringEngine breakdown.
 const CATALOG: Crit[] = [
-  { group: 'Totals', key: 'grand', label: 'Grand Total (reviewed)', max: 550, get: (r) => r.grandTotal },
-  { group: 'Totals', key: 'self', label: 'Self Total', max: 500, get: (r) => r.breakdown.selfTotal },
+  { group: 'Totals', key: 'grand', label: 'Grand total /550', max: 550, get: (r) => r.grandTotal },
+  { group: 'Totals', key: 'self', label: 'Self total /500', max: 500, get: (r) => r.breakdown.selfTotal },
   { group: 'Totals', key: 'c1t', label: 'Cat 1 — Teaching (total)', max: 150, get: (r) => r.breakdown.cat1.total },
   { group: 'Totals', key: 'c2t', label: 'Cat 2 — Research (total)', max: 150, get: (r) => r.breakdown.cat2.total },
   { group: 'Totals', key: 'c3t', label: 'Cat 3 — Development (total)', max: 100, get: (r) => r.breakdown.cat3.total },

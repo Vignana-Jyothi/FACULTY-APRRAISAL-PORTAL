@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { Tier } from '@prisma/client';
 import { z } from 'zod';
 import * as XLSX from 'xlsx';
+import { csvSafe } from '../utils/csvSafe';
 import prisma from '../utils/prismaClient';
 import { buildTrackingRows, summarize, type TrackingRow } from '../services/trackingService';
 import { triggerQuarterlySnapshot, previewQuarterlySnapshot } from '../cron/quarterlySnapshot';
@@ -74,16 +75,22 @@ export async function setFacultyTier(req: Request, res: Response) {
 
 function exportRow(r: TrackingRow) {
   return {
-    'Employee Code': r.faculty.employeeCode,
-    Name: r.faculty.name,
-    Department: r.department?.name ?? '',
-    Designation: r.faculty.designation ?? '',
+    'Employee Code': csvSafe(r.faculty.employeeCode),
+    Name: csvSafe(r.faculty.name),
+    Department: csvSafe(r.department?.name ?? ''),
+    Designation: csvSafe(r.faculty.designation ?? ''),
     Cadre: r.cadreLabel ?? 'Unassigned',
     'Exp (yr)': r.expYears,
     Tier: r.tier ?? '',
     Eligible: r.eligible == null ? 'Not decided' : r.eligible ? 'Yes' : 'No',
+    // One column used to hold a self total /500, a reviewed /500 and a grand
+    // total /550 with nothing saying which. The scale and its basis now travel
+    // with every row.
     'Total Score': r.actuals.totalScore,
-    'Score Source': r.actuals.totalScoreSource,
+    'Out of': r.scoreScale,
+    'Score Basis': r.actuals.totalScoreSource === 'SELF'
+      ? 'Self-assessed (no review yet)'
+      : r.scoreScale === 550 ? 'Reviewed incl. core values' : 'Reviewed',
     Feedback: r.actuals.feedback,
     Indexed: r.actuals.indexedCount,
     Journals: r.actuals.journalCount,
