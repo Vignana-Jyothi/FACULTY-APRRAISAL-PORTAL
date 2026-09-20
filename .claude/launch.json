@@ -2,9 +2,26 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "appraisal-backend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "cwd": "backend",
+      "port": 5000
+    },
+    {
       "name": "appraisal-frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "--port", "5180", "--strictPort"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5180",
+        "--strictPort"
+      ],
       "cwd": "frontend",
       "port": 5180
     }

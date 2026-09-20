@@ -26,7 +26,7 @@ enum SubmissionStatus {
   DRAFT
   SUBMITTED
   UNDER_REVIEW
-  FINAL_REVIEW // HoD approved; awaiting the 2 dean-assigned final reviewers
+  FINAL_REVIEW // HoD approved; awaiting the dean-assigned scrutinizers (any number; one approval finalises)
   APPROVED
   REJECTED
   WITHDRAWN
@@ -260,9 +260,11 @@ model AcademicYear {
   reviewWindows ReviewWindow[]
 }
 
-// W8 — admin-configured quarterly review window per (AY, quarter). The quarterly
+// W8 — dean-configured quarterly review window per (AY, quarter). The quarterly
 // snapshot + auto-feedback automation fires on the window's endDate; a daily
-// checker runs any enabled window ending that day. Admin sets start/end freely.
+// checker runs any enabled window ending that day. The dean sets start/end
+// freely, and the Q4 window's end is when faculty may first submit the year's
+// draft (services/submitGate.ts).
 model ReviewWindow {
   id             String   @id @default(uuid())
   academicYearId String

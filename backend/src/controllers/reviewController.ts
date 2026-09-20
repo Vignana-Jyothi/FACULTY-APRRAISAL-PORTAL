@@ -286,11 +286,13 @@ export async function getReview(req: Request, res: Response) {
 }
 
 /**
- * Admin-only reopen for re-review.
+ * Reopen for re-review — the dean or the principal (the CONFIG role set; the
+ * admin is a maintenance account and holds no appraisal content since the
+ * 2026-09-18 role rework).
  *
  * An approval is final for the reviewer — submitReview refuses a second one
  * ("Already approved") so marks cannot be quietly rewritten after the fact.
- * That leaves no way to correct a genuine mistake, so an admin can send the
+ * That leaves no way to correct a genuine mistake, so the dean can send the
  * submission back to SUBMITTED for the HoD to review again.
  *
  * Distinct from adminUnlock, which sends it to DRAFT for the FACULTY to edit.
