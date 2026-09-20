@@ -1,5 +1,32 @@
 # Faculty Appraisal System — Full Low-Level Design (LLD)
-> **For Claude Code**: Build this system exactly as specified. Read every section before writing any code. All scoring rules, data models, visibility rules, and role logic are defined here. Do not deviate.
+
+> ⚠️ **Historical document — June 2026. Do not build from it.** This is the
+> original specification the system was first implemented from. The shipped
+> system has since diverged from it in several load-bearing ways:
+>
+> - **Roles**: the 4 roles in §2 are now **7** — `ADMIN` (maintenance only, no
+>   appraisal content), `PRINCIPAL`, `DEAN`, `SCRUTINIZER`,
+>   `SPECIAL_SCRUTINIZER`, `HOD`, `REVIEWER`, `FACULTY`.
+>   `backend/src/utils/roles.ts` is the single source of the role sets.
+> - **Visibility**: Category 6 and the /550 grand total are gated by
+>   **ownership**, not role, in `backend/src/utils/reviewVisibility.ts`. Faculty
+>   do see the reviewer's Category 1–5 marks and the reviewed /500 after a
+>   decision.
+> - **Workflow**: one draft carries the whole academic year and may be submitted
+>   only from the day after the Q4 review window ends; proof verification and a
+>   provisional HoD draft review happen on that draft; an approved review then
+>   goes to dean-assigned cross-department scrutinizers.
+> - **FPGP**: retired 2026-09-13. The controllers, services and UI were deleted;
+>   only the database models remain, so every FPGP section here is dead.
+> - **Stack**: React 19 and Node 24, not React 18.
+> - **Scoring**: revised table by table against the official FPAS PDF during
+>   2026-08/09. Where this document and `backend/src/services/scoringEngine.ts`
+>   disagree, the engine is correct.
+>
+> For the system as it stands, read [README.md](README.md),
+> [HANDOFF.md](HANDOFF.md) and `docs/architecture.html`. The data-model and
+> scoring chapters below remain useful as background on *why* things are shaped
+> as they are.
 
 ---
 

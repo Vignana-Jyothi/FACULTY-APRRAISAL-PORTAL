@@ -1,51 +1,171 @@
 # Session Handoff — VNRVJIET Faculty Appraisal System
 
-_Last updated: 2026-07-06. Paste this into a new session to resume context._
+_Last updated: 2026-09-20, against `main` at `0f82705`. Paste this into a new
+session to resume context._
 
 ## Environment
 
-- **Repo:** `C:/dev/p1` — use this absolute path. (The agent's session cwd may point at a stale OneDrive path; ignore it.)
-- **Git:** repo on branch `main`, remote `origin` = `github.com/dheerajpatel56/FACULTY-APRRAISAL-PORTAL`. Working tree clean, everything pushed.
-- **Backend:** `cd backend && npm run dev` → `http://localhost:5000` (runs `tsx watch`, hot-reloads on `src/` save; dependency changes need a manual restart). Health: `GET /health`, `GET /health/ready`.
-- **Frontend:** `cd frontend && npm run dev` → `http://localhost:5173` (proxies `/api` → :5000). A preview launch config `appraisal-frontend` runs it on `:5180` (strictPort).
-- **DB:** PostgreSQL, database `faculty_appraisal`, user `postgres`, password `Dheeraj@123`. `psql` at `/c/Program Files/PostgreSQL/18/bin/psql.exe`. Open academic year label = `2026-27`.
-- **Email:** `EMAIL_DISABLED=true` in dev (SMTP creds invalid). All queued emails end up `FAILED`/`PENDING` — expected, not a bug.
-- **Stack:** Backend = Node + TS, Express 4, Prisma 6, Postgres, JWT, Nodemailer, Puppeteer (PDF), SheetJS (Excel export), Vitest. Frontend = React 18 + TS, Vite, Tailwind v4, Axios, Zustand, react-hook-form + Zod, SheetJS (client-side xlsx).
+- **Repo:** `C:/dev/p1` — use this absolute path. (The agent's session cwd may
+  point at a stale OneDrive path; ignore it. A relative path silently resolves
+  to an empty directory.)
+- **Git:** branch `main`, remote `origin` =
+  `github.com/dheerajpatel56/FACULTY-APRRAISAL-PORTAL`.
+- **Backend:** `cd backend && npm run dev` → `http://localhost:5000` (runs
+  `tsx watch`, hot-reloads on `src/` save; dependency changes need a manual
+  restart). Health: `GET /health`, `GET /health/ready`.
+- **Frontend:** `cd frontend && npm run dev` → `http://localhost:5173` (proxies
+  `/api` → :5000). The preview launch config `appraisal-frontend` in
+  `.claude/launch.json` runs it on `:5180` (strictPort); that origin is already
+  in `FRONTEND_URL`.
+- **DB:** PostgreSQL, database `faculty_appraisal`. Credentials live in
+  `backend/.env` (`DATABASE_URL`) — not in this file and not in Git. The Prisma
+  CLI does **not** pick `DATABASE_URL` up on its own here; export it from
+  `backend/.env` first, and grep out that single line rather than dot-sourcing
+  the file (one value contains `<`, which breaks a bash source).
+- **Email:** `EMAIL_DISABLED=false` in `backend/.env` — **SMTP is live and mail
+  goes to real `@vnrvjiet.in` addresses.** See "Hazards" below.
+- **Stack:** Backend = Node 24 + TS, Express 4, Prisma 6, Postgres, JWT,
+  Nodemailer, Puppeteer (PDF), SheetJS (Excel), node-cron, pino, Vitest.
+  Frontend = React 19 + TS, Vite, Tailwind v4, Axios, Zustand, react-hook-form +
+  Zod, Recharts, SheetJS.
 
-## What shipped this session (all on `origin/main`)
+## Where the rules live
 
-Latest commit: `e2c36a9`. In order:
+Four files carry policy that is easy to re-derive wrongly. Import from them;
+never restate the rule inline.
 
-1. `25b9deb` — docs: Phase 10 E2E regression test recorded in `PROJECT_HISTORY.md`.
-2. `e3a54d4` — Bulk faculty import switched to institutional roster format: `S.NO, EMP ID, Name of the Faculty, Designation, D.O.J, Mobile Number, E - Mail ID`. Headers fuzzy-matched (aliases + normalization). Every row imports as **FACULTY** into an admin-selected department (required, applied to all rows), password `Welcome@123`. `D.O.J` accepts `DD-MM-YYYY` or `YYYY-MM-DD`.
-3. `8751b56` — Admin Users table: checkbox row selection + select-all + bulk delete.
-4. `da792a3` — Bulk import accepts `.xlsx/.xls` (first sheet parsed client-side to CSV via SheetJS, lazy-loaded). Uses patched **SheetJS 0.20.3** from the SheetJS CDN (npm's `xlsx@0.18.5` has open CVEs).
-5. `2fd1c9e` — Security: `npm audit` = **0 vulnerabilities** in both repos. multer 2.1.1→2.2.0, nodemailer 8→9.0.3, xlsx→0.20.3, esbuild + form-data via audit fix. No source changes needed.
-6. `248949d` — Bulk import auto-detects the real header row: skips leading title banners (e.g. `CSE-TEACHING`) and mid-sheet section banners (e.g. `CSE-NON TEACHING`); error rows cite true spreadsheet line numbers. Verified on a real 76-row staff sheet → 73/73 faculty parsed, 0 false errors.
-7. `f1803b8` — README rewritten to match reality (correct env var names, HoD role, Tailwind v4, Puppeteer PDF, xlsx import, bulk delete, doc index).
-8. `722c662` + `e2c36a9` — **Blank-row score bug fixed** (see below).
+| File | Owns |
+|---|---|
+| `backend/src/utils/roles.ts` | Every "which roles may do this" set. Routes and helpers import these. |
+| `backend/src/utils/reviewVisibility.ts` | The single gate for Category 6 and the /550 grand total. |
+| `backend/src/services/submitGate.ts` | When a year's draft may be submitted. |
+| `backend/src/services/scoringEngine.ts` | The scoring rules — see the banner at its top: a scoring change moves four files together. |
 
-## Bug fixed: empty appraisal scored non-zero
+`frontend/src/App.tsx` mirrors the role sets for routing, and
+`frontend/src/components/Layout.tsx` builds the menu additively per role.
 
-**Symptom:** faculty who entered nothing still had a self-score (~170). Cause: the appraisal edit form's "Add Row" buttons append placeholder rows with dropdown/enum defaults (and `count:1` for projects); autosave/Save Draft persisted them, and the scoring engine scored the blanks (e.g. a blank course with `periodPlanned=0` hit `0/0 = NaN` → fell to the `base=4` branch; blank journal `indexed=NONE` → 5; etc.).
+## The model, in short
 
-**Fix (both layers, same predicate — a row counts only if a free-text identifier contains an alphanumeric char):**
-- Backend `722c662` — `updateAppraisal` in `backend/src/controllers/appraisalController.ts` drops blank rows before persisting (defends direct API calls + FPGP reconciliation).
-- Frontend `e2c36a9` — `saveData` in `frontend/src/pages/faculty/AppraisalEditPage.tsx` strips blank rows before sending (`stripBlankRows` / `ROW_CONTENT_FIELDS`); "Add Project" now defaults `count:0` so untouched project rows drop via the `count>0` filter.
+- **Seven roles.** `ADMIN` is maintenance only (accounts, role assignment, email
+  queue, audit) and holds no appraisal content. `PRINCIPAL` sees everything
+  institute-wide including Cat 6 and the /550. `DEAN` owns configuration and
+  tier allocation and assigns scrutinizers. `SCRUTINIZER` /
+  `SPECIAL_SCRUTINIZER` are the cross-department final-review pool (the special
+  ones also allocate tiers). `HOD`, `REVIEWER` (department incharge) and
+  `FACULTY` are unchanged.
+- **Departments are isolated.** `HOD`/`REVIEWER` carry a `departmentId` and only
+  for their own department; `assignRole` rejects anything else and rejects a
+  `departmentId` on the institute-wide roles. A scrutinizer reaches a submission
+  only through a `FinalReview` assignment, never through a standing role. Only
+  **CSE** is active right now — EEE, ECE and ME are switched off by design.
+- **One draft per faculty per academic year**, carried across Q1–Q4. It may be
+  submitted only from the day after the enabled Q4 review window ends (the
+  academic year's end date stands in when there is no enabled Q4 window) —
+  `submitGate.submitOpensAt`.
+- **During the year** the HoD/incharge verify proofs on the draft (a rejection
+  there only marks the proof and emails the faculty — no HOLD, no red list), and
+  the HoD may record a **draft review** (Cat 1–5 overrides + Cat 6 + comment)
+  that pre-fills the real review. It is never shown to the owner.
+- **After submission:** HoD review (approval is blocked while any proof is
+  unverified, minus voided ones) → dean-assigned scrutinizers → one approval
+  finalises.
+- **Cat 6 and the /550 are withheld by ownership, not role.** The owner never
+  sees them, whatever else they are — including a HoD reading their own row. The
+  principal sees them everywhere; a faculty's own department HoD/incharge sees
+  theirs. The dean, the scrutinizers and the admin get the /500.
+  `GET /appraisals/:id` strips *all* reviewer scores for the owner;
+  `GET /appraisals/:id/review` gives the owner the Cat 1–5 marks and the
+  reviewed /500 once the decision is made, stripped of Cat 6 and the grand total.
+- **Forced password change.** Bulk-imported and admin-created accounts are
+  flagged `mustChangePassword`; `middleware/auth.ts` blocks every route but
+  `/users/me` and the password change until it is done, and `ProtectedRoute`
+  pins the SPA to `/profile`. After restoring real data, run
+  `npm run flag-default-passwords -- --confirm=<dbname>` to backfill the flag
+  for accounts imported before it existed.
+- **Anything a scorer reads can be blank.** Guard every division and every band
+  chain — an empty "Periods Planned" once divided by zero and paid full marks
+  for 1.1.
 
-Verified in-browser: adding a blank journal + Save Draft persists 0 rows, selfTotal stays 0. Backend: 85/85 tests pass; empty→0, real WOS journal→15.
+## Hazards
 
-## Open / known items
+- **Mail is live.** Two paths send in bulk and both are gated:
+  - the dean's **Run quarterly snapshot** button on `/tracking` — a dry run that
+    reports the recipient count and only sends on explicit confirmation;
+  - the daily 09:00 review-window job (`cron/quarterlySnapshot.ts`) — it mails
+    only for a window the dean **armed** after a preview. An unarmed window that
+    comes due still takes its snapshot but **holds** the mail until the dean
+    releases it (`341cbb5`). `QUARTERLY_AUTOSEND=false` stops the job entirely.
 
-- **Non-admin seed logins return 401** (`HOD001/hod123`, `HOD002`, `FAC13`, `FAC11`, `CSE003`); only `ADMIN001/admin123` works. Cause not diagnosed (NOT the test suite — it only touches ADMIN001). **User does not want this fixed right now.** If a workflow needs a HoD/faculty login later: `cd backend && npm run seed`, or reset a single password.
-- **Imported CSE faculty** exist in DB from a real staff-list import (codes like `98CSE011`, password `Welcome@123`). `98CSE011`'s polluted draft was cleaned. Other imported faculty who opened the form may have stale blank rows in drafts — these self-clean on the next save now. A one-time bulk-clean of all existing drafts was offered but not run.
-- Reference/E2E driver scripts live in `backend/scripts/` (`live-workflow.mjs`, `smoke-all.mjs`). Note: `live-workflow.mjs` includes an `hod-sign` FPGP step that is now optional — current design auto-approves FPGP via target evaluation (`ACCEPTED` / `NEEDS_REVIEW`).
+  Never arm or release a window against real faculty to "test" it. Test suites
+  mail only `@fixture.invalid` users, which the worker never sends to.
+- **Never run `prisma migrate dev` or `migrate reset`.** The schema has drifted
+  from the migration history, so migrate offers to reset — which destroys the
+  real bulk-imported faculty accounts. Use `npm run prisma:push`.
+  `npm run prisma:migrate` is wired to a guard that refuses.
+- **Never re-seed a populated database.** `npm run seed` blocks when it finds
+  users it does not own; `--force` would put fake HOD001–003 accounts alongside
+  the real heads of department.
+- `backend/scripts/wipe-except-admin.ts` deletes every non-admin user and all
+  appraisals. Dry-run by default; needs `--confirm=<dbname>`.
+- Start the dev servers with the Browser pane's launch entries rather than Bash,
+  and never kill node processes you did not start — the backend may be running
+  in the user's own terminal.
+
+## Testing
+
+```bash
+cd backend  && npm test    # Vitest, unit + integration
+cd frontend && npm test    # tsc --noEmit + Vitest
+```
+
+The backend suites run against the **real configured database**. Every suite
+owns its fixtures through `src/__tests__/helpers/fixtures.ts` and leaves the
+database as it found it; no suite uses seed accounts. Fixture users live on
+`@fixture.invalid` (the email worker never sends to reserved domains), and the
+global cron/sweep functions take a scope so a test cannot void or mail real
+faculty's rows.
+
+Build/typecheck/test after each change and report pass/fail before moving on.
+Test changes **live** — start the servers, drive the real API or the browser,
+report actual before/after numbers, then clean up the test data and confirm the
+database is as you found it. Do **not** append to `VERIFY_CHECKLIST.md`; that
+practice was retired on 2026-08-28 and the file stays only as a record.
+
+## Recent work on `main`
+
+| Commit | What |
+|---|---|
+| `acc8a49` | Seven-role hierarchy — admin/principal/dean/scrutinizer split |
+| `775251a` | Save-race guard: a save that would wipe a populated draft is refused (409) |
+| `6141728` | Oversight dashboard for dean + principal, with a department picker |
+| `b5dfdfe` | Forced password change when someone else chose the password |
+| `341cbb5` | The dean arms each review window before any quarterly mail |
+| `40e0d96` | Every exported score names its scale; HoD decision vs appraisal status |
+| `b33413c`, `133395d` | One draft carries the year; proofs and a draft review on it; draft reminders at most weekly |
+| `8e86059`, `0f82705` | Docs: system map, deployment and IT handoff follow the above |
 
 ## Gotchas when driving the app in a browser
 
-- Login form uses react-hook-form; setting inputs via simple fill can race it. Reliable pattern: native value setter + dispatch `input` event, then `form.requestSubmit()`.
-- The preview screenshot tool timed out intermittently this session — prefer `read_page` / DOM inspection via JS for verification.
+- The login form uses react-hook-form; setting inputs by simple fill can race
+  it. Reliable pattern: native value setter + dispatch an `input` event, then
+  `form.requestSubmit()`.
+- The frontend preview runs on **:5180** (`:5173` belongs to another project).
+- Prefer `read_page` / DOM inspection over screenshots — the screenshot tool has
+  timed out intermittently.
+- Bash heredocs eat backslashes in regexes; write such scripts to a file instead.
+- `.claude/launch.json` currently defines only the `appraisal-frontend` entry.
 
 ## Docs in the repo
 
-`README.md` (updated), `PROJECT_HISTORY.md` (Phases 0–10), `FACULTY_APPRAISAL_SYSTEM_LLD.md`, `TUTORIAL.md`, `DEPLOYMENT.md`, `GO_LIVE_CHECKLIST.md`, `IT_HANDOFF.md`, `OBSERVABILITY.md`, `FILE_UPLOAD_PLAN.md`, `FPGP_AUTOACCEPT_PLAN.md`, `CAT_ALIGNMENT_PLAN.md`, `sample_appraisal.md`, `sample_fpgp.md`, `frontend/README.md`.
+Current: `README.md`, `TUTORIAL.md`, this file, `docs/architecture.html`,
+`DEPLOYMENT.md`, `ENV_SETUP.md`, `SECRETS.md`, `GO_LIVE_CHECKLIST.md`,
+`IT_HANDOFF.md`, `OBSERVABILITY.md`.
+
+Historical, kept for the record and **not** descriptions of the system as it
+stands: `FACULTY_APPRAISAL_SYSTEM_LLD.md` (the original June 2026 build spec),
+`PROJECT_HISTORY.md` (through Phase 10, July 2026), `VERIFY_CHECKLIST.md`,
+`CAT_ALIGNMENT_PLAN.md`, `FILE_UPLOAD_PLAN.md`, `FPGP_AUTOACCEPT_PLAN.md`,
+`sample_appraisal.md`, `sample_fpgp.md`.
+
+FPGP was retired on 2026-09-13: controllers, services and UI deleted, the
+database models kept so historical plans survive. It is not a feature.

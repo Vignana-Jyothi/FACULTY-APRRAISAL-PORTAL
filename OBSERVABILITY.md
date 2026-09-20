@@ -2,15 +2,19 @@
 
 Backend exposes endpoints for Prometheus (metrics), Loki (logs), and Grafana (dashboards over both).
 
-## Endpoints (root path, no auth — scrape on internal network only)
+## Endpoints (root path — scrape on internal network only)
 
 | Endpoint | Purpose |
 |----------|---------|
-| `GET /metrics` | Prometheus exposition — Node defaults (CPU, mem, GC, event loop) + HTTP metrics |
+| `GET /metrics` | Prometheus exposition — Node defaults (CPU, mem, GC, event loop) + HTTP metrics. Open when `METRICS_TOKEN` is unset; when it is set, requires `Authorization: Bearer <token>` and answers 401 otherwise |
 | `GET /health` | Liveness — process up, no DB touch (k8s `livenessProbe`) |
 | `GET /health/ready` | Readiness — pings DB (`SELECT 1`); 503 if down (k8s `readinessProbe`) |
 
-> These are at the **root**, not under `/api`. Don't expose `/metrics` publicly — restrict via firewall/ingress or put behind the scrape network.
+> These are at the **root**, not under `/api`. `/health` and `/health/ready`
+> stay open for the container and proxy probes. Don't expose `/metrics`
+> publicly — restrict via firewall/ingress or put it behind the scrape network,
+> and set `METRICS_TOKEN` (adding the matching bearer token to the Prometheus
+> scrape config) if it can be reached from anywhere else.
 
 ## Metrics emitted
 

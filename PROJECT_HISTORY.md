@@ -2,6 +2,15 @@
 
 A chronological record of everything built, fixed, and decided across the development of this system. Newest phases at the bottom.
 
+> **This log stops at Phase 10 (July 2026) and is history, not a description of
+> the system as it stands.** Much of what it records has since been superseded —
+> the four-role model became seven roles, the quarterly submission became one
+> draft carried across the whole academic year, and the FPGP module was retired
+> on 2026-09-13 (code deleted, database models kept). For the current system
+> read [README.md](README.md), [TUTORIAL.md](TUTORIAL.md),
+> [HANDOFF.md](HANDOFF.md) and `docs/architecture.html`; for what changed after
+> July, read `git log`.
+
 ---
 
 ## Phase 0 — Foundation
@@ -187,7 +196,10 @@ The dev database was cleared to **ADMIN001 only** multiple times on request (del
 
 ---
 
-## Current State
+## State as of Phase 10 (2026-07-05)
+
+_A snapshot of where things stood when this log was last appended to. Kept as
+written; every line below has since moved on._
 
 - Backend + frontend both build clean.
 - 47 tests passing (40 unit + 7 integration), CI configured.
@@ -196,5 +208,11 @@ The dev database was cleared to **ADMIN001 only** multiple times on request (del
 - **Before deploy**: set real Gmail SMTP creds + `EMAIL_DISABLED=false`, rotate JWT secrets + seeded passwords, restart backend to load latest changes.
 
 ## Plan / Reference Files
+
+As referenced during those phases. Several have since been deleted from the
+repository (`APPRAISAL_FORM_IMPL_PLAN.md`, `FPGP_V2_IMPL_PLAN.md`,
+`UI_REDESIGN_PLAN.md`, `MISSING_PAGES_PLAN.md`, `EMAIL_NOTIFICATIONS_PLAN.md`,
+`REMAINING_TASKS.md`, `DESCRIPTION.md`); [README.md](README.md) carries the
+current documentation index.
 
 `FACULTY_APPRAISAL_SYSTEM_LLD.md` · `APPRAISAL_FORM_IMPL_PLAN.md` · `FPGP_V2_IMPL_PLAN.md` · `UI_REDESIGN_PLAN.md` · `MISSING_PAGES_PLAN.md` · `EMAIL_NOTIFICATIONS_PLAN.md` · `REMAINING_TASKS.md` · `FILE_UPLOAD_PLAN.md` · `OBSERVABILITY.md` · `README.md` · `DESCRIPTION.md` · `TUTORIAL.md`

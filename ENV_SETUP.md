@@ -70,7 +70,7 @@ These are the mistakes that look fine but misbehave:
 |---|---|
 | `EMAIL_DISABLED=TRUE` **sends real mail** | Only the exact lowercase `true` turns mail off (`emailService.ts:6`). `TRUE`, `True`, `yes` and `1` all count as *not disabled*. |
 | `SMTP_SECURE=TRUE` is off | Same rule (`emailService.ts:15`): only the exact lowercase `true` counts. |
-| `QUARTERLY_AUTOSEND=no` **keeps sending** | Only `false` (any case) stops it (`quarterlySnapshot.ts:196`). Anything else, blank included, means *send*. |
+| `QUARTERLY_AUTOSEND=no` **keeps the job running** | Only `false` (any case) stops it (`quarterlySnapshot.ts:297`). Anything else, blank included, means *run*. (The job still mails only for a window the dean armed — see the row below.) |
 | `JWT_EXPIRES_IN=120` means 120 **milliseconds** | A duration needs a unit: `15m`, `8h`, `7d`. A bare number is read as milliseconds, which logs everyone out instantly. |
 | `DB_PASSWORD` with `@ / : # + =` breaks the database | It sits inside a URL. Use hex only: `openssl rand -hex 24`. Base64 is not safe. |
 | `FRONTEND_URL=https://appraisal.vjstartup.com/` | The trailing slash makes CORS reject every browser call. Give scheme and host only: no slash, no path. |
@@ -119,7 +119,7 @@ development machine. Step 2 above does the first four.
 | Variable | Default | Format | Read by | What it does |
 |---|---|---|---|---|
 | `EMAIL_DISABLED` | none — **required** | `true` or `false`, lowercase | `emailService.ts:6` | `false` sends real mail to real faculty. `true` marks mail as sent without sending it. **Staging: `true`.** |
-| `QUARTERLY_AUTOSEND` | `true` | `true` / `false` | `quarterlySnapshot.ts:196` | `false` stops the daily 09:00 job that emails every opted-in faculty member when a review window ends |
+| `QUARTERLY_AUTOSEND` | `true` | `true` / `false` | `quarterlySnapshot.ts:297` | `false` stops the daily 09:00 review-window job outright. Left on, the job takes each due window's criteria snapshot but emails faculty **only for a window the dean armed after a preview**; an unarmed window's mail is held until the dean releases it |
 | `TZ` | `Asia/Kolkata` | IANA zone name | the Node clock: the 09:00 jobs in `cron/reminders.ts` and `cron/quarterlySnapshot.ts`, and dates in emails and PDFs | Wrong or blank: UTC, so "09:00" fires at 14:30 IST |
 | `MAX_UPLOAD_MB` | `5` | positive number | `middleware/upload.ts:39` | Per-file upload limit; pasted links are exempt. An invalid value logs a warning and uses 5 |
 | `JWT_EXPIRES_IN` | `8h` | duration **with unit**: `15m`, `8h` | `utils/jwt.ts:4` | Access-token lifetime |

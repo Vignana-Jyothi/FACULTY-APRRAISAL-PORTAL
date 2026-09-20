@@ -30,9 +30,12 @@ rules around those values.
 - [ ] `.env` is `chmod 600` and not in Git.
 - [ ] `ADMIN001`'s password changed at first login. If the seed ran without
       `SEED_ADMIN_PW`, it is the public `admin123` until then.
-- [ ] Imported faculty told to change `DEFAULT_IMPORT_PASSWORD` (or
-      `Welcome@123`, for the 73 accounts imported before it existed). The
-      portal does not force the change yet.
+- [x] The portal forces the change: accounts created by an admin or bulk import
+      are flagged `mustChangePassword` and can reach nothing but their own
+      profile and the password change until they replace it. For the 73 accounts
+      imported before the flag existed, run
+      `npm run flag-default-passwords:prod -- --confirm=<dbname>` once after
+      restoring the data (dry run without `--confirm`).
 - [x] Dev scripts take credentials from `ADMIN_PW` / `HOD_PW` / `FACULTY_PW` /
       `TEST_EMAIL`, with no fallback.
 - [x] A blank `SEED_*_PW` or `DEFAULT_IMPORT_PASSWORD` falls back instead of
@@ -45,10 +48,12 @@ rules around those values.
 Only the exact lowercase `true` disables it, so `TRUE` sends. Two paths send in
 bulk:
 
-- the admin "Run quarterly snapshot" button, which is a dry run until
-  explicitly confirmed;
-- the daily 09:00 review-window job, which fires on a window's end date **with
-  nobody clicking anything**. `QUARTERLY_AUTOSEND=false` stops it.
+- the dean's "Run quarterly snapshot" button on Tracking, which is a dry run
+  until explicitly confirmed;
+- the daily 09:00 review-window job, which fires on a window's end date. It
+  mails only for a window the **dean armed after a preview** — an unarmed window
+  that comes due takes its snapshot and holds the mail until the dean releases
+  it. `QUARTERLY_AUTOSEND=false` stops the job outright.
 
 Point a staging deployment at a catch-all mailbox, or keep
 `EMAIL_DISABLED=true` there.
