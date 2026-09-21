@@ -97,3 +97,16 @@ jobs:
       - name: Build
         working-directory: frontend
         run: npm run build
+
+  deploy:
+    name: Deploy to Gamma Server
+    needs: [backend, frontend]
+    if: github.ref == 'refs/heads/main'
+    runs-on: gamma
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start containers
+        run: docker compose -f docker-compose.prod.yml up -d --build
+
