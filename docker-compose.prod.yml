@@ -69,7 +69,7 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - ./backend/uploads:/app/uploads
+      - uploads_data:/app/uploads
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:5000/health"]
@@ -157,3 +157,4 @@ volumes:
   loki_data:
   alloy_data:
   grafana_data:
+  uploads_data:
