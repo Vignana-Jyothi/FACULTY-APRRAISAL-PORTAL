@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { RoleType } from '@prisma/client';
 import app from '../app';
+import prisma from '../utils/prismaClient';
 import { createFixture, type Fixture, type FixtureUser } from './helpers/fixtures';
 
 // Category 6 (core values) and the /550 grand total are the reviewer's
@@ -59,7 +60,6 @@ let scrutinizerId = '', subId = '';
 // to them.
 let hodSubId = '';
 // { totalScore /500, grandTotal /550 } per submission, read as the principal.
-let ownerScores: { totalScore: number; grandTotal: number };
 let ownerScores: { totalScore: number; grandTotal: number };
 let hodScores: { totalScore: number; grandTotal: number };
 let yearId = '';
