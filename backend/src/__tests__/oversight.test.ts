@@ -34,12 +34,18 @@ beforeAll(async () => {
     scrutinizer = await fixture.addUser({ name: 'SCR', role: RoleType.SCRUTINIZER });
     if (![principal, dean, admin, hod, fac, scrutinizer].every((u) => u.token)) return;
 
-    yearId = (await prisma.academicYear.findFirstOrThrow({
-      where: { submissionOpen: true }, orderBy: { startDate: 'desc' },
-    })).id;
+    const newYear = await prisma.academicYear.create({
+      data: {
+        label: 'Oversight Test Year',
+        startDate: new Date(),
+        endDate: new Date(Date.now() + 86400000),
+        submissionOpen: false,
+      },
+    });
+    yearId = newYear.id;
 
     // HoD-approved, waiting on the scrutinizer.
-    finalSubId = await fixture.createSubmission(fac, { status: 'FINAL_REVIEW', submittedAt: new Date() });
+    finalSubId = await fixture.createSubmission(fac, { academicYearId: yearId, status: 'FINAL_REVIEW', submittedAt: new Date() });
     await prisma.appraisalReview.create({
       data: {
         submissionId: finalSubId, reviewerId: hod.id, reviewerRole: 'HOD', status: 'FINAL_REVIEW',
@@ -52,7 +58,7 @@ beforeAll(async () => {
     })).id;
 
     // Red-listed, on hold.
-    await fixture.createSubmission(fac2, { status: 'HOLD', redListed: true, submittedAt: new Date() });
+    await fixture.createSubmission(fac2, { academicYearId: yearId, status: 'HOLD', redListed: true, submittedAt: new Date() });
 
     // Tier + eligibility decided for one faculty, not the other.
     await prisma.facultyTier.create({
@@ -77,7 +83,7 @@ describe('oversight summary', () => {
   it('is closed to the admin, a HoD, a scrutinizer and a faculty member (403)', async () => {
     if (!ready) return;
     for (const u of [admin, hod, scrutinizer, fac]) {
-      const res = await request(app).get('/api/oversight/summary').set(bearer(u.token));
+      const res = await request(app).get(`/api/oversight/summary?academicYearId=${yearId}`).set(bearer(u.token));
       expect(res.status).toBe(403);
     }
   });
@@ -90,7 +96,7 @@ describe('oversight summary', () => {
 
   it('lists the pending final review with faculty and scrutinizer names', async () => {
     if (!ready) return;
-    const res = await request(app).get('/api/oversight/summary').set(bearer(dean.token));
+    const res = await request(app).get(`/api/oversight/summary?academicYearId=${yearId}`).set(bearer(dean.token));
     expect(res.status).toBe(200);
     expect(res.body.year.id).toBe(yearId);
     const row = res.body.finalReviews.pending.find((p: any) => p.id === finalReviewId);
@@ -103,7 +109,7 @@ describe('oversight summary', () => {
 
   it('counts statuses, red-listing and tier/eligibility allocation', async () => {
     if (!ready) return;
-    const res = await request(app).get('/api/oversight/summary').set(bearer(dean.token));
+    const res = await request(app).get(`/api/oversight/summary?academicYearId=${yearId}`).set(bearer(dean.token));
     const b = res.body;
     expect(b.submissions.byStatus.FINAL_REVIEW).toBeGreaterThanOrEqual(1);
     expect(b.submissions.byStatus.HOLD).toBeGreaterThanOrEqual(1);
@@ -119,7 +125,7 @@ describe('oversight summary', () => {
 
   it('the principal gets the average grand total /550', async () => {
     if (!ready) return;
-    const res = await request(app).get('/api/oversight/summary').set(bearer(principal.token));
+    const res = await request(app).get(`/api/oversight/summary?academicYearId=${yearId}`).set(bearer(principal.token));
     expect(res.status).toBe(200);
     const agg = await prisma.appraisalReview.aggregate({
       where: { submission: { academicYearId: yearId }, grandTotal: { not: null } },
@@ -131,7 +137,7 @@ describe('oversight summary', () => {
 
   it('the dean payload carries no /550 figure, only the reviewed /500', async () => {
     if (!ready) return;
-    const res = await request(app).get('/api/oversight/summary').set(bearer(dean.token));
+    const res = await request(app).get(`/api/oversight/summary?academicYearId=${yearId}`).set(bearer(dean.token));
     expect(res.status).toBe(200);
     const agg = await prisma.appraisalReview.aggregate({
       where: { submission: { academicYearId: yearId }, totalScore: { not: null } },
