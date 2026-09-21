@@ -60,7 +60,9 @@ let scrutinizerId = '', subId = '';
 let hodSubId = '';
 // { totalScore /500, grandTotal /550 } per submission, read as the principal.
 let ownerScores: { totalScore: number; grandTotal: number };
+let ownerScores: { totalScore: number; grandTotal: number };
 let hodScores: { totalScore: number; grandTotal: number };
+let yearId = '';
 
 beforeAll(async () => {
   try {
@@ -83,8 +85,18 @@ beforeAll(async () => {
     scrutinizerTok = scrutinizer.token;
     if (!hodTok || !deanTok || !principalTok || !adminTok || !scrutinizerTok || !inchargeTok) return;
 
-    subId = await fixture.createSubmission(owner, { status: 'SUBMITTED' });
-    hodSubId = await fixture.createSubmission(hod, { status: 'SUBMITTED' });
+    const newYear = await fixture.users.length ? prisma.academicYear.create({
+      data: {
+        label: 'RoleVisibility Test Year',
+        startDate: new Date(),
+        endDate: new Date(Date.now() + 86400000),
+        submissionOpen: false,
+      },
+    }) : null;
+    if (newYear) yearId = newYear.id;
+
+    subId = await fixture.createSubmission(owner, { academicYearId: yearId, status: 'SUBMITTED' });
+    hodSubId = await fixture.createSubmission(hod, { academicYearId: yearId, status: 'SUBMITTED' });
 
     // The HoD reviews it, entering the Cat 6 marks that everything below is
     // about. Without a review there is nothing to leak and the suite is vacuous.
@@ -213,12 +225,12 @@ describe('Cat 6 / grand total — who sees the reviewer assessment', () => {
   it('the department report is stripped for the dean and full for the HoD', async () => {
     if (!ready) return;
     const dean = await request(app)
-      .get(`/api/reports/department?dept=${fixture!.deptId}`)
+      .get(`/api/reports/department?dept=${fixture!.deptId}&academicYearId=${yearId}`)
       .set(bearer(deanTok));
     expect(dean.status).toBe(200);
     expectNoAssessment(dean.body);
 
-    const hodRes = await request(app).get('/api/reports/department').set(bearer(hodTok));
+    const hodRes = await request(app).get(`/api/reports/department?academicYearId=${yearId}`).set(bearer(hodTok));
     expect(hodRes.status).toBe(200);
     const row = hodRes.body.find((r: any) => r.submission?.id === subId);
     expect(row?.grandTotal).toBeTypeOf('number');
@@ -231,7 +243,7 @@ describe('Cat 6 / grand total — who sees the reviewer assessment', () => {
 describe('GET /tracking — the /550 is masked per row, by ownership', () => {
   it('shows a HoD the /550 for faculty in their department', async () => {
     if (!ready) return;
-    const res = await request(app).get('/api/tracking').set(bearer(hodTok));
+    const res = await request(app).get(`/api/tracking?academicYearId=${yearId}`).set(bearer(hodTok));
     expect(res.status).toBe(200);
     const row = res.body.rows.find((r: any) => r.faculty.id === owner.id);
     expect(row).toBeDefined();
@@ -241,7 +253,7 @@ describe('GET /tracking — the /550 is masked per row, by ownership', () => {
 
   it('does NOT show a HoD the /550 on their OWN row', async () => {
     if (!ready) return;
-    const res = await request(app).get('/api/tracking').set(bearer(hodTok));
+    const res = await request(app).get(`/api/tracking?academicYearId=${yearId}`).set(bearer(hodTok));
     expect(res.status).toBe(200);
     const mine = res.body.rows.find((r: any) => r.faculty.id === hod.id);
     expect(mine).toBeDefined();
@@ -253,7 +265,7 @@ describe('GET /tracking — the /550 is masked per row, by ownership', () => {
 
   it('gives the principal the /550 everywhere, including rows they review', async () => {
     if (!ready) return;
-    const res = await request(app).get('/api/tracking').set(bearer(principalTok));
+    const res = await request(app).get(`/api/tracking?academicYearId=${yearId}`).set(bearer(principalTok));
     expect(res.status).toBe(200);
     const row = res.body.rows.find((r: any) => r.faculty.id === owner.id);
     expect(row?.actuals.totalScore).toBe(ownerScores.grandTotal);
@@ -261,7 +273,7 @@ describe('GET /tracking — the /550 is masked per row, by ownership', () => {
 
   it('gives the dean the reviewed /500 on every row', async () => {
     if (!ready) return;
-    const res = await request(app).get('/api/tracking').set(bearer(deanTok));
+    const res = await request(app).get(`/api/tracking?academicYearId=${yearId}`).set(bearer(deanTok));
     expect(res.status).toBe(200);
     for (const [id, s] of [[owner.id, ownerScores], [hod.id, hodScores]] as const) {
       const row = res.body.rows.find((r: any) => r.faculty.id === id);
@@ -273,13 +285,13 @@ describe('GET /tracking — the /550 is masked per row, by ownership', () => {
 
   it('masks /tracking/export the same way, own row included', async () => {
     if (!ready) return;
-    const res = await request(app).get('/api/tracking/export').set(bearer(hodTok));
+    const res = await request(app).get(`/api/tracking/export?academicYearId=${yearId}`).set(bearer(hodTok));
     expect(res.status).toBe(200);
     const find = (code: string) => res.body.find((r: any) => r['Employee Code'] === code);
     expect(find(owner.employeeCode)?.['Total Score']).toBe(ownerScores.grandTotal);
     expect(find(hod.employeeCode)?.['Total Score']).toBe(hodScores.totalScore);
 
-    const dean = await request(app).get('/api/tracking/export').set(bearer(deanTok));
+    const dean = await request(app).get(`/api/tracking/export?academicYearId=${yearId}`).set(bearer(deanTok));
     expect(dean.status).toBe(200);
     const deanRow = dean.body.find((r: any) => r['Employee Code'] === owner.employeeCode);
     expect(deanRow?.['Total Score']).toBe(ownerScores.totalScore);
@@ -289,7 +301,7 @@ describe('GET /tracking — the /550 is masked per row, by ownership', () => {
 describe('the remaining report surfaces', () => {
   it('/reports/criteria: HoD sees the /550 for their faculty but not for themselves', async () => {
     if (!ready) return;
-    const res = await request(app).get('/api/reports/criteria').set(bearer(hodTok));
+    const res = await request(app).get(`/api/reports/criteria?academicYearId=${yearId}`).set(bearer(hodTok));
     expect(res.status).toBe(200);
     const row = (id: string) => res.body.rows.find((r: any) => r.faculty.id === id);
     expect(row(owner.id)?.grandTotal).toBe(ownerScores.grandTotal);
@@ -301,7 +313,7 @@ describe('the remaining report surfaces', () => {
   it('/reports/criteria: the dean gets no grand total at all', async () => {
     if (!ready) return;
     const res = await request(app)
-      .get(`/api/reports/criteria?dept=${fixture!.deptId}`)
+      .get(`/api/reports/criteria?dept=${fixture!.deptId}&academicYearId=${yearId}`)
       .set(bearer(deanTok));
     expect(res.status).toBe(200);
     for (const r of res.body.rows) expect(r.grandTotal).toBeNull();
@@ -309,7 +321,7 @@ describe('the remaining report surfaces', () => {
 
   it('/reports/export: the Cat 6 columns are blank for the dean and on a HoD\'s own row', async () => {
     if (!ready) return;
-    const hodRes = await request(app).get('/api/reports/export').set(bearer(hodTok));
+    const hodRes = await request(app).get(`/api/reports/export?academicYearId=${yearId}`).set(bearer(hodTok));
     expect(hodRes.status).toBe(200);
     const find = (body: any[], code: string) => body.find((r: any) => r['Employee Code'] === code);
     expect(find(hodRes.body, owner.employeeCode)?.['Grand total /550']).toBe(ownerScores.grandTotal);
@@ -317,7 +329,7 @@ describe('the remaining report surfaces', () => {
     expect(find(hodRes.body, hod.employeeCode)?.['Core values (Cat 6) /50']).toBe('');
 
     const dean = await request(app)
-      .get(`/api/reports/export?dept=${fixture!.deptId}`)
+      .get(`/api/reports/export?dept=${fixture!.deptId}&academicYearId=${yearId}`)
       .set(bearer(deanTok));
     expect(dean.status).toBe(200);
     expect(find(dean.body, owner.employeeCode)?.['Grand total /550']).toBe('');
@@ -330,7 +342,7 @@ describe('the remaining report surfaces', () => {
     // the department's per-faculty totals and the criteria ranking stay with
     // the HoD. The guard refuses them rather than returning an empty report.
     for (const path of ['/api/reports/department', '/api/reports/criteria', '/api/reports/export']) {
-      const res = await request(app).get(path).set(bearer(inchargeTok));
+      const res = await request(app).get(`${path}?academicYearId=${yearId}`).set(bearer(inchargeTok));
       expect(res.status).toBe(403);
     }
   });
