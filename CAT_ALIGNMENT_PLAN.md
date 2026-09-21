@@ -7,7 +7,7 @@ Target category maxima (form):
 - Cat1 = 150 (1.1·50 + 1.2·80 + 1.3·20)
 - Cat2 = 150 (50+10+10+10+25+10+10+5+10+10)
 - Cat3 = 100 (10+20+20+20+25+5)
-- Cat4 = 50 (40+10)  ✅ already correct
+- Cat4 = 50 (40+10)  ✅ already correct.
 - Cat5 = 50 (15+10+20+5)  ✅ scoring correct, data-shape fixes only
 - Cat6 = 50 (HoD)  ✅ correct
 - Grand total = 550
