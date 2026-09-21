@@ -465,12 +465,22 @@ describe('reports/department dept-scope', () => {
 // Only the dry-run path is exercised here on purpose — asserting the confirmed
 // path would queue real mail into the dev database.
 describe('quarterly snapshot send-gate', () => {
+  // Scoped to this fixture's own users, not to the template alone. The template
+  // is not exclusive to this suite — reviewWindowGate releases a window and
+  // queues quarterly_feedback for its own faculty, and vitest runs the files in
+  // parallel, so a table-wide count picks up its rows between the two reads
+  // here and the test fails on mail it did not send. A send by the endpoint
+  // under test could only ever reach these users, so this is the exact scope.
+  const queuedHere = () => prisma.emailNotification.count({
+    where: {
+      template: 'quarterly_feedback',
+      toUserId: { in: fixture!.users.map((u) => u.id) },
+    },
+  });
+
   it('defaults to a dry run and queues nothing', async () => {
     if (!ready) return;
-    // Scope the count to the template this endpoint would send. Counting every
-    // notification made the test flaky: other suites run in parallel and queue
-    // their own mail between the two reads.
-    const before = await prisma.emailNotification.count({ where: { template: 'quarterly_feedback' } });
+    const before = await queuedHere();
 
     const res = await request(app)
       .post('/api/admin/tracking/snapshot')
@@ -481,15 +491,12 @@ describe('quarterly snapshot send-gate', () => {
     expect(res.body.dryRun).toBe(true);
     expect(typeof res.body.recipients).toBe('number');
     expect(res.body.message).toMatch(/Dry run/i);
-    expect(await prisma.emailNotification.count({ where: { template: 'quarterly_feedback' } })).toBe(before);
+    expect(await queuedHere()).toBe(before);
   });
 
   it('treats a non-true confirm as a dry run', async () => {
     if (!ready) return;
-    // Scope the count to the template this endpoint would send. Counting every
-    // notification made the test flaky: other suites run in parallel and queue
-    // their own mail between the two reads.
-    const before = await prisma.emailNotification.count({ where: { template: 'quarterly_feedback' } });
+    const before = await queuedHere();
 
     const res = await request(app)
       .post('/api/admin/tracking/snapshot')
@@ -498,6 +505,6 @@ describe('quarterly snapshot send-gate', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.dryRun).toBe(true);
-    expect(await prisma.emailNotification.count({ where: { template: 'quarterly_feedback' } })).toBe(before);
+    expect(await queuedHere()).toBe(before);
   });
 });
