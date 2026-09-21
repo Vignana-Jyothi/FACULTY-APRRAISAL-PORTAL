@@ -31,8 +31,8 @@ services:
   backend:
     build: ./backend
     environment:
-      # DB_PASSWORD sits inside a URL here, so it must be URL-safe (hex).
-      DATABASE_URL: postgresql://appraisal_user:${DB_PASSWORD:?set DB_PASSWORD in .env}@postgres:5432/faculty_appraisal
+      # You provide the entire DATABASE_URL in your .env file
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
       # Auth
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
