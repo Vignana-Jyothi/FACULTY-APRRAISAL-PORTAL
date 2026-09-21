@@ -71,7 +71,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Submissions and tiers reference the year, so the fixture goes first. The
+  // year is created straight through prisma, so destroy() knows nothing about
+  // it and the row outlives every run without this.
   await fixture?.destroy();
+  if (yearId) await prisma.academicYear.delete({ where: { id: yearId } });
 });
 
 describe('oversight summary', () => {

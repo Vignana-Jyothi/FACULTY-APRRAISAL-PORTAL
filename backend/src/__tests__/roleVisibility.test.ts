@@ -85,15 +85,19 @@ beforeAll(async () => {
     scrutinizerTok = scrutinizer.token;
     if (!hodTok || !deanTok || !principalTok || !adminTok || !scrutinizerTok || !inchargeTok) return;
 
-    const newYear = await fixture.users.length ? prisma.academicYear.create({
+    // Its own year, so the /tracking and /reports queries below can only ever
+    // reach this suite's rows. vitest runs the suites in parallel, and an empty
+    // academicYearId falls back to "the current year" — the whole table,
+    // including fixtures that are being torn down as this one reads them.
+    const newYear = await prisma.academicYear.create({
       data: {
         label: 'RoleVisibility Test Year',
         startDate: new Date(),
         endDate: new Date(Date.now() + 86400000),
         submissionOpen: false,
       },
-    }) : null;
-    if (newYear) yearId = newYear.id;
+    });
+    yearId = newYear.id;
 
     subId = await fixture.createSubmission(owner, { academicYearId: yearId, status: 'SUBMITTED' });
     hodSubId = await fixture.createSubmission(hod, { academicYearId: yearId, status: 'SUBMITTED' });
@@ -147,7 +151,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Submissions reference the year, so the fixture goes first. The year is
+  // created straight through prisma, so destroy() knows nothing about it and
+  // the row outlives every run without this.
   await fixture?.destroy();
+  if (yearId) await prisma.academicYear.delete({ where: { id: yearId } });
 });
 
 describe('Cat 6 / grand total — who sees the reviewer assessment', () => {
