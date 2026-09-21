@@ -9,7 +9,7 @@ on:
 jobs:
   backend:
     name: Backend — build + test
-    runs-on: ${{ github.ref == 'refs/heads/main' && 'gamma' || 'ubuntu-latest' }}
+    runs-on: ${{ github.ref == 'refs/heads/main' && 'gamma' || 'dev-ai' }}
 
     services:
       postgres:
@@ -73,7 +73,7 @@ jobs:
 
   frontend:
     name: Frontend — lint + build
-    runs-on: ${{ github.ref == 'refs/heads/main' && 'gamma' || 'ubuntu-latest' }}
+    runs-on: ${{ github.ref == 'refs/heads/main' && 'gamma' || 'dev-ai' }}
 
     steps:
       - uses: actions/checkout@v4
