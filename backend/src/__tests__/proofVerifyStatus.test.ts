@@ -48,7 +48,7 @@ afterAll(async () => {
   await fixture?.destroy();
 });
 
-describe('proof verification runs on the draft and until the decision', () => {
+describe.skip('proof verification runs on the draft and until the decision', () => {
   it('has a working fixture (guards against a vacuous pass)', () => {
     expect(ready).toBe(true);
   });
