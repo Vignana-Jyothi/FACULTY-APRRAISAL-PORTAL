@@ -16,7 +16,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "flag-default-passwords": "tsx src/scripts/flag-default-passwords.ts",
-    "flag-default-passwords:prod": "node dist/scripts/flag-default-passwords.js"
+    "flag-default-passwords:prod": "node dist/scripts/flag-default-passwords.js",
+    "bootstrap-admin": "tsx src/scripts/bootstrap-admin.ts",
+    "bootstrap-admin:prod": "node dist/scripts/bootstrap-admin.js"
   },
   "prisma": {
     "schema": "src/prisma/schema.prisma"

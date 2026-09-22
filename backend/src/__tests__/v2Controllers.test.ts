@@ -35,11 +35,31 @@ beforeAll(async () => {
     faculty = await fixture.addUser({ name: 'FAC' });
     facTok = faculty.token;
     if (!principalTok || !hodTok || !facTok) return;
-    // A draft in the open year, so the faculty has a row on /tracking.
-    await fixture.createSubmission(faculty);
-    const years = await request(app).get('/api/academic-years').set(bearer(principalTok));
-    const open = years.body.find((y: any) => y.submissionOpen) ?? years.body[0];
-    openYearId = open?.id ?? '';
+
+    // This suite's own year, not the shared open one. /tracking and
+    // /tracking/export scan every submission in the year they are given
+    // (trackingService.buildTrackingRows), and other suites create submissions
+    // in the shared open year and delete their users on teardown. vitest runs
+    // the files in parallel, so borrowing that year let /tracking/export read a
+    // submission whose user was already gone — the TRACKING_INCLUDE user join
+    // returned null and the endpoint 500'd. A private year holds only this
+    // suite's rows, so nothing else can be mid-teardown inside it.
+    // submissionOpen stays false: this suite addresses the year by id in every
+    // call, so it needs no "open" status — and a second open year would be
+    // picked up by other suites' createSubmission (findFirstOrThrow on
+    // submissionOpen), landing their rows here and colliding with the teardown
+    // below that deletes this year.
+    const year = await prisma.academicYear.create({
+      data: {
+        label: 'V2 Test Year',
+        startDate: new Date(),
+        endDate: new Date(Date.now() + 86400000),
+        submissionOpen: false,
+      },
+    });
+    openYearId = year.id;
+    // A draft in that year, so the faculty has a row on /tracking.
+    await fixture.createSubmission(faculty, { academicYearId: openYearId });
     ready = !!openYearId;
   } catch {
     console.warn('[v2] DB unreachable — skipping V2 suite.');
@@ -48,7 +68,10 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Submissions reference the year, so the fixture goes first. The year is
+  // created straight through prisma, so destroy() knows nothing about it.
   await fixture?.destroy();
+  if (openYearId) await prisma.academicYear.delete({ where: { id: openYearId } }).catch(() => {});
 });
 
 describe('V2 fixture', () => {
