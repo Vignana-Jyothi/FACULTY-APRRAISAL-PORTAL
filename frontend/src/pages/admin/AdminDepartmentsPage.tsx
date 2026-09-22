@@ -7,7 +7,6 @@ import Card from '../../components/Card';
 
 export default function AdminDepartmentsPage() {
   const [depts, setDepts] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ code: '', name: '' });
   const [editId, setEditId] = useState<string | null>(null);
@@ -20,13 +19,12 @@ export default function AdminDepartmentsPage() {
 
   const load = () => {
     setLoading(true);
-    Promise.all([
-      userApi.listDepartments(showInactive),
-      userApi.listUsers(),
-    ]).then(([d, u]) => {
-      setDepts(d);
-      setUsers(u);
-    }).catch(() => toast.error('Failed to load'))
+    // Departments only. The list carries each department's faculty count and
+    // HoD, so this page never touches the ADMIN-only /admin/users endpoint that
+    // used to 403 it for the very dean/principal it is meant for.
+    userApi.listDepartments(showInactive)
+      .then((d) => setDepts(d))
+      .catch(() => toast.error('Failed to load'))
       .finally(() => setLoading(false));
   };
 
@@ -83,11 +81,6 @@ export default function AdminDepartmentsPage() {
     }
   };
 
-  const facultyCount = (deptId: string) => users.filter((u) => u.departmentId === deptId).length;
-  const hod = (deptId: string) => {
-    const u = users.find((u) => u.userRoles?.some((r: any) => r.role === 'HOD' && r.departmentId === deptId));
-    return u ? `${u.name} (${u.employeeCode})` : '—';
-  };
 
   const inputCls = "w-full border border-surface-border rounded px-3 py-2 text-sm bg-surface-base focus:outline-none focus:ring-2 focus:ring-primary-500";
 
@@ -184,8 +177,8 @@ export default function AdminDepartmentsPage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-2.5 text-ink-secondary">{hod(d.id)}</td>
-                      <td className="px-4 py-2.5 text-ink-secondary">{facultyCount(d.id)}</td>
+                      <td className="px-4 py-2.5 text-ink-secondary">{d.hod ?? '—'}</td>
+                      <td className="px-4 py-2.5 text-ink-secondary">{d.facultyCount ?? 0}</td>
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-3">
                           <button onClick={() => startEdit(d)} className="flex items-center gap-1 text-xs text-ink-secondary hover:text-primary-600">
