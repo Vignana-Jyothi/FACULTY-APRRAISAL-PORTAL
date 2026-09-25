@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm, useFieldArray, useWatch, Controller } from 'react-hook-form';
 import { appraisalApi } from '../../api/appraisals';
@@ -388,6 +389,39 @@ export default function AppraisalEditPage() {
   const inputCls = "w-full border border-surface-border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500";
   const labelCls = "block text-xs font-medium text-ink-secondary mb-1";
 
+  // Numeric field that refuses a value outside its range. HTML min/max only
+  // guard the spinner arrows, so a faculty could still type 150 into a 0–100
+  // box or 9 into a "feedback out of 5" box and have it scored (attendance and
+  // pass % are capped in the engine, but feedback and raw counts are not). This
+  // clamps every keystroke: an over-max value snaps to max, a below-min to min,
+  // and an integer field drops any fraction — so an out-of-range figure can
+  // never be entered, let alone stored. Returns props to spread on the input.
+  const numField = (
+    name: string,
+    opts: { min?: number; max?: number; integer?: boolean; step?: number | string } = {},
+  ) => {
+    const { min, max, integer, step } = opts;
+    const reg = register(name as any, { valueAsNumber: true });
+    return {
+      ...reg,
+      type: 'number' as const,
+      ...(min != null ? { min } : {}),
+      ...(max != null ? { max } : {}),
+      ...(step != null ? { step } : integer ? { step: 1 } : {}),
+      onChange: (e: ChangeEvent<HTMLInputElement>) => {
+        const raw = e.target.value;
+        if (raw !== '' && Number.isFinite(Number(raw))) {
+          let n = Number(raw);
+          if (integer) n = Math.trunc(n);
+          if (min != null && n < min) n = min;
+          if (max != null && n > max) n = max;
+          if (String(n) !== raw) e.target.value = String(n);
+        }
+        return reg.onChange(e);
+      },
+    };
+  };
+
   // Proof-file upload cell bound to a react-hook-form field path
   const proofField = (name: string, label = 'Proof') => (
     <div>
@@ -663,11 +697,11 @@ export default function AppraisalEditPage() {
                     </div>
                     <div>
                       <label className={labelCls}>Periods Planned</label>
-                      <input type="number" {...register(`cat1Courses.${i}.periodPlanned`, { valueAsNumber: true })} className={inputCls} />
+                      <input {...numField(`cat1Courses.${i}.periodPlanned`, { min: 0, integer: true })} className={inputCls} />
                     </div>
                     <div>
                       <label className={labelCls}>Periods Conducted</label>
-                      <input type="number" {...register(`cat1Courses.${i}.periodsConducted`, { valueAsNumber: true })} className={inputCls} />
+                      <input {...numField(`cat1Courses.${i}.periodsConducted`, { min: 0, integer: true })} className={inputCls} />
                     </div>
                     <div>
                       <label className={labelCls}>Novel Pedagogy Method</label>
@@ -720,19 +754,19 @@ export default function AppraisalEditPage() {
                     </div>
                     <div>
                       <label className={labelCls}>Class Size (Y)</label>
-                      <input type="number" {...register(`cat1CourseResults.${i}.classSize`, { valueAsNumber: true })} className={inputCls} />
+                      <input {...numField(`cat1CourseResults.${i}.classSize`, { min: 0, integer: true })} className={inputCls} />
                     </div>
                     <div>
                       <label className={labelCls}>Feedback Received (0-5)</label>
-                      <input type="number" step="0.01" {...register(`cat1CourseResults.${i}.feedbackReceived`, { valueAsNumber: true })} className={inputCls} />
+                      <input {...numField(`cat1CourseResults.${i}.feedbackReceived`, { min: 0, max: 5, step: '0.01' })} className={inputCls} />
                     </div>
                     <div>
                       <label className={labelCls}>Avg. Attendance %</label>
-                      <input type="number" step="0.01" min="0" max="100" {...register(`cat1CourseResults.${i}.avgAttendancePct`, { valueAsNumber: true })} className={inputCls} />
+                      <input {...numField(`cat1CourseResults.${i}.avgAttendancePct`, { min: 0, max: 100, step: '0.01' })} className={inputCls} />
                     </div>
                     <div>
                       <label className={labelCls}>Pass %</label>
-                      <input type="number" step="0.01" min="0" max="100" {...register(`cat1CourseResults.${i}.passPercentage`, { valueAsNumber: true })} className={inputCls} />
+                      <input {...numField(`cat1CourseResults.${i}.passPercentage`, { min: 0, max: 100, step: '0.01' })} className={inputCls} />
                     </div>
                   </div>
                   <button type="button" onClick={() => courseResults.remove(i)} className="text-red-400 text-xs mt-2">Remove</button>
@@ -771,7 +805,7 @@ export default function AppraisalEditPage() {
                       <>
                         <div>
                           <label className={labelCls}>Number of Projects Guided ({row.course === 'MTECH' ? 'students' : 'batches'})</label>
-                          <input type="number" min={0} step={1} {...register(`cat1Projects.${i}.count`, { valueAsNumber: true })} className={inputCls} />
+                          <input {...numField(`cat1Projects.${i}.count`, { min: 0, integer: true })} className={inputCls} />
                         </div>
                         <button type="button" onClick={() => projects.remove(i)} className="text-red-400 text-xs">Remove</button>
                         <div className="col-span-3 text-xs text-ink-muted -mt-1">
