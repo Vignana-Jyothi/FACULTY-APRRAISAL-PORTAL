@@ -276,9 +276,13 @@ model ReviewWindow {
   // Mass-mail gate (2026-09-19). The window only emails faculty if the dean has
   // armed it after seeing a preview. A window that comes due unarmed still takes
   // its snapshot but holds the mail (heldAt) until the dean releases it.
-  // Changing the dates disarms it again.
+  // armedCount records the recipient headcount the dean confirmed when arming;
+  // the fire job recounts and, if the roster no longer matches, holds the mail
+  // instead of sending (2026-09-25). Editing the dates no longer disarms — the
+  // recount at fire time is the guard, so a date tweak keeps the arm.
   armedAt        DateTime?
   armedById      String?
+  armedCount     Int?
   heldAt         DateTime?
   releasedAt     DateTime?
   createdAt      DateTime @default(now())
