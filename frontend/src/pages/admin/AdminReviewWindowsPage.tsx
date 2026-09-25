@@ -23,10 +23,11 @@ const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyl
 function mailState(w: ReviewWindow | null): { label: string; detail?: string; cls: string } {
   if (!w) return { label: 'Not saved', cls: 'bg-surface-muted text-ink-muted' };
   if (w.releasedAt) return { label: 'Released', detail: when(w.releasedAt), cls: 'bg-green-100 text-green-800' };
-  if (w.heldAt) return { label: 'Held — mail not sent', detail: `Ran ${when(w.heldAt)} unarmed`, cls: 'bg-amber-100 text-amber-800' };
+  if (w.heldAt) return { label: 'Held — mail not sent', detail: `Ran ${when(w.heldAt)} — held for re-check`, cls: 'bg-amber-100 text-amber-800' };
   if (w.lastRunAt) return { label: 'Sent', detail: when(w.lastRunAt), cls: 'bg-green-100 text-green-800' };
   if (w.armedAt) {
-    return { label: 'Armed', detail: `by ${w.armedByName ?? 'unknown'}, ${when(w.armedAt)}`, cls: 'bg-primary-100 text-primary-800' };
+    const forCount = w.armedCount != null ? ` for ${w.armedCount} faculty` : '';
+    return { label: 'Armed', detail: `${forCount ? forCount.trim() + ' · ' : ''}by ${w.armedByName ?? 'unknown'}, ${when(w.armedAt)}`, cls: 'bg-primary-100 text-primary-800' };
   }
   return { label: 'Not armed', detail: 'Will snapshot but hold the mail', cls: 'bg-surface-muted text-ink-secondary' };
 }
@@ -74,7 +75,9 @@ export default function AdminReviewWindowsPage() {
     setBusy(q);
     try {
       await reviewWindowApi.upsert({ academicYearId: yearId, quarter: q, startDate: row.startDate, endDate: row.endDate, enabled: row.enabled });
-      toast.success(datesChanged && row.saved?.armedAt ? `${q} window saved — dates changed, so it is disarmed` : `${q} window saved`);
+      // Editing dates no longer disarms — the fire job rechecks the headcount, so
+      // the arm survives a date change.
+      toast.success(datesChanged && row.saved?.armedAt ? `${q} window saved — arm kept; the roster is re-checked before sending` : `${q} window saved`);
       load(yearId);
     } catch (e: any) {
       toast.error(e.response?.data?.error ?? 'Save failed');
@@ -103,6 +106,7 @@ export default function AdminReviewWindowsPage() {
     <div>
       <PageHeader
         title="Review Windows"
+        help="The quarterly review periods. Preview a window’s feedback, then arm it so the 09:00 job on the end date may mail faculty. Arming records the headcount you confirm — if the roster changes before the send, the mail is held for you to re-check. Editing the dates keeps the arm."
         breadcrumbs={[{ label: 'Dean', to: '/dean/appraisals' }, { label: 'Review Windows' }]}
       />
 
@@ -110,7 +114,8 @@ export default function AdminReviewWindowsPage() {
         Set the quarterly review window per academic year. On each window's <span className="font-medium">end date</span>{' '}
         the criteria snapshot is taken. The quarterly feedback email goes to faculty{' '}
         <span className="font-medium">only if you have armed the window</span> after checking the preview. An unarmed
-        window still takes its snapshot but holds the mail until you release it. Changing a window's dates disarms it.
+        window still takes its snapshot but holds the mail until you release it. Arming records the headcount you confirm;
+        if the roster changes before the send date the mail is held for you to re-check. Editing the dates keeps the arm.
       </p>
 
       <div className="mb-4 max-w-xs">

@@ -63,8 +63,11 @@ export async function upsertReviewWindow(req: Request, res: Response) {
     create: { academicYearId, quarter, startDate, endDate, enabled },
     update: {
       startDate, endDate, enabled, lastRunAt: null,
-      // New dates are a new run: the dean must see the preview and arm again.
-      ...(datesChanged ? { armedAt: null, armedById: null, heldAt: null, releasedAt: null } : {}),
+      // New dates are a new run, so clear any held/released state — but keep the
+      // arm. Moving a date does not change who gets mailed (recipients key on
+      // year + quarter), and the fire job recounts against armedCount before
+      // sending, so a stale arm can never mail a changed roster (2026-09-25).
+      ...(datesChanged ? { heldAt: null, releasedAt: null } : {}),
     },
   });
   return res.json(row);
@@ -109,7 +112,7 @@ export async function armReviewWindow(req: Request, res: Response) {
 
   const row = await prisma.reviewWindow.update({
     where: { id: w.id },
-    data: { armedAt: new Date(), armedById: req.user!.id },
+    data: { armedAt: new Date(), armedById: req.user!.id, armedCount: recipients },
   });
   await prisma.auditLog.create({
     data: {
@@ -124,7 +127,7 @@ export async function armReviewWindow(req: Request, res: Response) {
 export async function disarmReviewWindow(req: Request, res: Response) {
   const w = await prisma.reviewWindow.findUnique({ where: { id: req.params.id } });
   if (!w) return res.status(404).json({ error: 'Review window not found' });
-  const row = await prisma.reviewWindow.update({ where: { id: w.id }, data: { armedAt: null, armedById: null } });
+  const row = await prisma.reviewWindow.update({ where: { id: w.id }, data: { armedAt: null, armedById: null, armedCount: null } });
   if (w.armedAt) {
     await prisma.auditLog.create({
       data: {

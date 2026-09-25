@@ -14,6 +14,7 @@ export interface ReviewWindow {
   armedAt: string | null;
   armedById: string | null;
   armedByName: string | null;
+  armedCount: number | null;
   heldAt: string | null;
   releasedAt: string | null;
 }

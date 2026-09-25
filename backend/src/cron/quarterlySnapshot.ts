@@ -316,14 +316,27 @@ export async function runDueReviewWindows(
     // Mass-mail gate: the window only emails if the dean armed it after seeing
     // the preview. Unarmed, the snapshot is still taken but the mail is held
     // until the dean releases it.
-    const armed = !!w.armedAt;
+    let armed = !!w.armedAt;
+    let holdReason = 'is NOT ARMED';
+    // Recount against the headcount the dean confirmed when arming. If the
+    // roster changed since (people joined or left), do not mail the new list
+    // behind the dean's back — hold it, exactly as an unarmed window, so the
+    // dean re-checks and releases. armedCount is null for windows armed before
+    // this guard existed; those keep the old "armed = send" behaviour.
+    if (armed && w.armedCount != null) {
+      const live = await countWindowRecipients(w.academicYearId, w.quarter);
+      if (live !== w.armedCount) {
+        armed = false;
+        holdReason = `roster changed since arming (armed for ${w.armedCount}, now ${live})`;
+      }
+    }
     faculty += await snapshotYear(w.academicYearId, w.quarter, { sendEmail: armed });
     if (armed) {
       await prisma.reviewWindow.update({ where: { id: w.id }, data: { lastRunAt: at } });
     } else {
       held++;
       console.warn(
-        `[cron] Review window ${w.quarter} (AY ${w.academicYearId}, id ${w.id}) is NOT ARMED — ` +
+        `[cron] Review window ${w.quarter} (AY ${w.academicYearId}, id ${w.id}) ${holdReason} — ` +
           'snapshot taken, quarterly feedback email HELD. The dean must release it from Review Windows.'
       );
       await prisma.reviewWindow.update({ where: { id: w.id }, data: { lastRunAt: at, heldAt: at } });
