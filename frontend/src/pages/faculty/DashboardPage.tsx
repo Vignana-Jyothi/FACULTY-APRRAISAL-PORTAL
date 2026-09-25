@@ -66,6 +66,8 @@ export default function DashboardPage() {
       <PageHeader
         title={`Welcome, ${user?.name?.split(' ')[0] ?? 'Faculty'}`}
         subtitle="Faculty Appraisal Dashboard"
+        help="Your home. Start or continue this year’s appraisal draft, see your latest reviewed score out of 500, and track proof status. One draft carries through the year; submit after Q4."
+        help="Your home. Start or continue this year’s appraisal draft, see your latest reviewed score out of 500, and track proof status. One draft carries through the year; submit after Q4."
         breadcrumbs={[{ label: 'Home' }, { label: 'Dashboard' }]}
         actions={
           <div className="flex items-center gap-2">

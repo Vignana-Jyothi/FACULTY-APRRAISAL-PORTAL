@@ -92,6 +92,8 @@ export default function AdminReportsPage() {
     <div>
       <PageHeader
         title="Institute Reports"
+        help="Aggregate statistics across all departments. Pick a criterion to rank faculty and export the table as CSV."
+        help="Aggregate statistics across all departments. Pick a criterion to rank faculty and export the table as CSV."
         subtitle="Aggregate statistics across all departments"
         breadcrumbs={[{ label: 'Institute' }, { label: 'Reports' }]}
         actions={

@@ -135,6 +135,8 @@ export default function AdminCadreTargetsPage() {
     <div>
       <PageHeader
         title="Cadre Targets"
+        help="The per-cadre minimum figures faculty are measured against (papers, projects and so on). Add or edit a target row; the Tracking page compares each faculty’s actuals to these."
+        help="The per-cadre minimum figures faculty are measured against (papers, projects and so on). Add or edit a target row; the Tracking page compares each faculty’s actuals to these."
         breadcrumbs={[{ label: 'Dean', to: '/dean/appraisals' }, { label: 'Cadre Targets' }]}
         actions={
           <div className="flex items-center gap-2">

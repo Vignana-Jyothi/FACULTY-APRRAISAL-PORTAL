@@ -62,6 +62,8 @@ export default function AdminDashboardPage() {
     <div>
       <PageHeader
         title="Admin Dashboard"
+        help="Maintenance home: accounts, role assignment, the email queue and the audit log. The admin holds no appraisal content."
+        help="Maintenance home: accounts, role assignment, the email queue and the audit log. The admin holds no appraisal content."
         subtitle="Accounts, roles and mail plumbing"
         breadcrumbs={[{ label: 'Home' }, { label: 'Admin Dashboard' }]}
       />

@@ -52,6 +52,8 @@ export default function FinalReviewPage() {
       <PageHeader
         title="Final Review"
         subtitle="Annual appraisals assigned to you for final sign-off. One approval finalises."
+        help="Cross-branch sign-off assigned by the dean. Any number of reviewers may sit above the HoD; one approval finalises the appraisal."
+        help="Cross-branch sign-off assigned by the dean. Any number of reviewers may sit above the HoD; one approval finalises the appraisal."
         breadcrumbs={[{ label: 'Final Review' }]}
       />
 

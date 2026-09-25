@@ -70,6 +70,8 @@ export default function AdminEmailsPage() {
     <div>
       <PageHeader
         title="Email Notifications"
+        help="Every transactional and reminder email the system has queued or sent, with delivery status. You cannot compose mail from this page."
+        help="Every transactional and reminder email the system has queued or sent, with delivery status. You cannot compose mail from this page."
         subtitle="Transactional + reminder emails queued from the system"
         breadcrumbs={[{ label: 'Admin', to: '/admin/dashboard' }, { label: 'Emails' }]}
         actions={
