@@ -42,6 +42,8 @@ export default function AdminAcademicYearsPage() {
     <div>
       <PageHeader
         title="Academic Years"
+        help="Every appraisal belongs to one academic year. Add a year, then mark one active — new appraisals attach to the active year. Past years stay for reporting."
+        help="Every appraisal belongs to one academic year. Add a year, then mark one active — new appraisals attach to the active year. Past years stay for reporting."
         breadcrumbs={[{ label: 'Dean', to: '/dean/appraisals' }, { label: 'Academic Years' }]}
         actions={
           <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-primary-700">

@@ -121,6 +121,8 @@ export default function AdminInchargesPage() {
     <div>
       <PageHeader
         title="Incharges"
+        help="Assign a stand-in who acts for a department’s HoD. An incharge is scoped to that one department."
+        help="Assign a stand-in who acts for a department’s HoD. An incharge is scoped to that one department."
         breadcrumbs={[{ label: 'Admin', to: '/admin/dashboard' }, { label: 'Incharges' }]}
         actions={
           <button

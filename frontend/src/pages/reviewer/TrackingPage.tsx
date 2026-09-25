@@ -240,6 +240,7 @@ export default function TrackingPage() {
     <div>
       <PageHeader
         title="Criteria Tracking"
+        help="Each faculty's actuals against their cadre targets. Set each faculty's tier and eligibility by hand, download the cadre and tier report as Excel, or snapshot the quarter and email each faculty their feedback."
         subtitle="Each faculty's actuals against their cadre targets. Tier and eligibility are set by the dean."
         breadcrumbs={[{ label: 'Criteria Tracking' }]}
         actions={

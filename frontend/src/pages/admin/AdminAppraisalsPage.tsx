@@ -104,6 +104,8 @@ export default function AdminAppraisalsPage() {
 
       <PageHeader
         title="All Appraisals"
+        help="Every faculty submission institute-wide. Filter by department or status, assign scrutinizers for the final review, send one back to the HoD, or unlock a locked form for faculty edits."
+        help="Every faculty submission institute-wide. Filter by department or status, assign scrutinizers for the final review, send one back to the HoD, or unlock a locked form for faculty edits."
         subtitle={`${filtered.length} submission(s)`}
         breadcrumbs={[{ label: 'All Appraisals' }]}
       />

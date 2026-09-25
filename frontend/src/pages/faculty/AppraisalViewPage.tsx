@@ -88,6 +88,8 @@ export default function AppraisalViewPage() {
 
       <PageHeader
         title={`Submission #${submission.submissionNumber} — ${submission.academicYear?.label}`}
+        help="Your submitted appraisal: the reviewer’s per-category marks and total out of 500 with comments. Category 6 and the grand total out of 550 are not shown to faculty."
+        help="Your submitted appraisal: the reviewer’s per-category marks and total out of 500 with comments. Category 6 and the grand total out of 550 are not shown to faculty."
         breadcrumbs={[
           { label: 'Dashboard', to: '/dashboard' },
           { label: 'Appraisals', to: '/dashboard' },

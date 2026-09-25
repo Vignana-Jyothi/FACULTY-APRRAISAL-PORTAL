@@ -87,6 +87,8 @@ export default function AdminAuditPage() {
     <div>
       <PageHeader
         title="Audit Log"
+        help="A read-only trail of who did what — logins, role changes, submissions, mail. Filter by user or action to trace an event."
+        help="A read-only trail of who did what — logins, role changes, submissions, mail. Filter by user or action to trace an event."
         subtitle={`${total.toLocaleString()} event(s) recorded`}
         breadcrumbs={[{ label: 'Admin', to: '/admin/dashboard' }, { label: 'Audit Log' }]}
       />
