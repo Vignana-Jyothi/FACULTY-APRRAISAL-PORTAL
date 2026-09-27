@@ -106,7 +106,7 @@ export default function DashboardPage() {
         }
       />
 
-      {/* Top target bar — progress toward the T1 targets */}
+      {/* Top target bar — progress against the FAPA targets */}
       {targets && targets.total > 0 && <TargetBar t={targets} />}
 
       {/* Stats row */}
@@ -175,10 +175,10 @@ export default function DashboardPage() {
   );
 }
 
-// The faculty's progress toward the T1 targets — a single horizontal bar with a
-// per-target breakdown. Faculty-safe: it shows only the target labels, the
-// counts and how many are met (from /target-status), never cadre or tier
-// machinery. Meeting every target is what qualifies a faculty for T1.
+// The faculty's progress against their FAPA targets — a single horizontal bar
+// with a per-target breakdown. Faculty-safe: it shows only the target labels,
+// the counts and how many are met (from /target-status), never cadre or tier
+// machinery.
 function TargetBar({ t }: { t: TargetStatus }) {
   const pct = t.total > 0 ? Math.round((t.achieved / t.total) * 100) : 0;
   const done = t.achieved >= t.total;
@@ -187,7 +187,7 @@ function TargetBar({ t }: { t: TargetStatus }) {
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <Target size={16} className="text-primary-600" />
-          <h2 className="text-sm font-semibold text-ink-primary">Your T1 Targets — {t.year}</h2>
+          <h2 className="text-sm font-semibold text-ink-primary">Your Targets — {t.year}</h2>
         </div>
         <span className={`text-xs font-semibold ${done ? 'text-emerald-700' : 'text-ink-secondary'}`}>
           {t.achieved} / {t.total} met
@@ -202,7 +202,7 @@ function TargetBar({ t }: { t: TargetStatus }) {
         />
       </div>
       <p className="text-xs text-ink-muted mt-1.5">
-        {done ? 'All targets met — you qualify for T1.' : `Meet every target to reach T1. ${t.leftText}`}
+        {done ? 'All targets met.' : t.leftText}
       </p>
 
       {/* Per-target breakdown */}
