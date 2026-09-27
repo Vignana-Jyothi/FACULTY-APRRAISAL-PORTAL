@@ -116,6 +116,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     add('/reviews', 'Review Queue', FileText);
     add('/drafts', 'Drafts in progress', FilePen);
     add('/uploads', 'Uploads', UploadCloud);
+    if (hasRole('HOD')) add('/department/reviewers', 'Reviewers', ShieldCheck);
     if (hasRole('HOD')) add('/reports/department', 'Reports', BarChart2);
   }
 

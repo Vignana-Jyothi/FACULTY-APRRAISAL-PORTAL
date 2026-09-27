@@ -34,6 +34,7 @@ import * as draftReview from '../controllers/draftReviewController';
 import * as tracking from '../controllers/trackingController';
 import * as feedback from '../controllers/feedbackController';
 import * as oversight from '../controllers/oversightController';
+import * as deptReviewer from '../controllers/deptReviewerController';
 import type { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 
@@ -83,6 +84,12 @@ router.delete('/admin/users/:id', authenticate, roleGuard(MAINTENANCE), user.dea
 router.post('/admin/users/:id/reactivate', authenticate, roleGuard(MAINTENANCE), user.reactivateUser);
 router.post('/admin/users/:id/roles', authenticate, roleGuard(MAINTENANCE), user.assignRole);
 router.delete('/admin/users/:id/roles/:roleId', authenticate, roleGuard(MAINTENANCE), user.revokeRole);
+
+// HoD appoints / stands down department reviewers (incharges). Locked to the
+// REVIEWER role and the HoD's own department inside the controller.
+router.get('/department/reviewers', authenticate, roleGuard([RoleType.HOD]), deptReviewer.listDeptReviewers);
+router.post('/department/reviewers', authenticate, roleGuard([RoleType.HOD]), deptReviewer.addDeptReviewer);
+router.delete('/department/reviewers/:userId', authenticate, roleGuard([RoleType.HOD]), deptReviewer.removeDeptReviewer);
 router.get('/admin/users/bulk-import/template', authenticate, roleGuard(MAINTENANCE), user.bulkImportTemplate);
 router.post('/admin/users/bulk-import', authenticate, roleGuard(MAINTENANCE), user.bulkImportUsers);
 

@@ -23,6 +23,7 @@ import AdminAppraisalsPage from './pages/admin/AdminAppraisalsPage';
 import AdminDepartmentsPage from './pages/admin/AdminDepartmentsPage';
 import AdminReportsPage from './pages/admin/AdminReportsPage';
 import DeptReportsPage from './pages/reviewer/DeptReportsPage';
+import DeptReviewersPage from './pages/reviewer/DeptReviewersPage';
 import RedListPage from './pages/reviewer/RedListPage';
 import TrackingPage from './pages/reviewer/TrackingPage';
 import AdminEmailsPage from './pages/admin/AdminEmailsPage';
@@ -80,6 +81,10 @@ export default function App() {
         {/* Reviewer / HoD */}
         <Route path="/reviews" element={
           <ProtectedRoute roles={DEPT_REVIEW}><ReviewQueuePage /></ProtectedRoute>
+        } />
+        {/* HoD-only: appoint department reviewers (incharges) in their own dept. */}
+        <Route path="/department/reviewers" element={
+          <ProtectedRoute roles={['HOD']}><DeptReviewersPage /></ProtectedRoute>
         } />
         {/* Drafts in progress: the department checks proofs on a draft during
             the year and the HoD notes a provisional draft review. Its own path, so
