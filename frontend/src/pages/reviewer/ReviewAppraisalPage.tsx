@@ -193,7 +193,6 @@ export default function ReviewAppraisalPage({ mode = 'review' }: { mode?: 'revie
       <PageHeader
         title={`${isDraftMode ? 'Draft in progress' : 'Review'}: ${submission.user?.name}`}
         help="Score categories 1–5, record category 6, verify each proof, and add comments. In draft mode you review the in-progress draft; a submitted form stays locked to the faculty."
-        help="Score categories 1–5, record category 6, verify each proof, and add comments. In draft mode you review the in-progress draft; a submitted form stays locked to the faculty."
         subtitle={`${submission.user?.employeeCode} — Submission #${submission.submissionNumber} — ${submission.academicYear?.label}`}
         breadcrumbs={isDraftMode
           ? [{ label: 'Drafts in progress', to: '/drafts' }, { label: submission.user?.name }]

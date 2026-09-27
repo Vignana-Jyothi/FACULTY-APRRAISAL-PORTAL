@@ -43,7 +43,6 @@ export default function RedListPage() {
         title="Red List"
         subtitle="Submissions held after a rejected proof — clear once the faculty re-uploads."
         help="Submissions held because a proof was rejected. They clear once the faculty re-uploads. An uncorrected proof voids that section after 14 days so review can proceed."
-        help="Submissions held because a proof was rejected. They clear once the faculty re-uploads. An uncorrected proof voids that section after 14 days so review can proceed."
         breadcrumbs={[{ label: 'Red List' }]}
       />
 

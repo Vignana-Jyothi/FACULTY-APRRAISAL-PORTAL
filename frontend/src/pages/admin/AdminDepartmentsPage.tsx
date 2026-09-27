@@ -89,7 +89,6 @@ export default function AdminDepartmentsPage() {
       <PageHeader
         title="Departments"
         help="Create and manage departments. Deleting deactivates rather than erases and can be reactivated. Only CSE is active right now."
-        help="Create and manage departments. Deleting deactivates rather than erases and can be reactivated. Only CSE is active right now."
         subtitle={`${depts.filter((d) => d.isActive !== false).length} active department(s)`}
         breadcrumbs={[{ label: 'Dean' }, { label: 'Departments' }]}
         actions={

@@ -66,7 +66,6 @@ export default function UploadsPage() {
         title="Uploads"
         subtitle="Proof uploads by faculty. Open a faculty to verify their documents."
         help="Proof uploads by faculty. Open a faculty to verify their documents; rejecting a proof red-lists that submission until it is re-uploaded."
-        help="Proof uploads by faculty. Open a faculty to verify their documents; rejecting a proof red-lists that submission until it is re-uploaded."
         breadcrumbs={[{ label: 'Uploads' }]}
       />
 

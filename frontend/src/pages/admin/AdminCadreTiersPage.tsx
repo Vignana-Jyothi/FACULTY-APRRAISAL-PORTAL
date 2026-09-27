@@ -123,7 +123,6 @@ export default function AdminCadreTiersPage() {
       <PageHeader
         title="Tier Thresholds"
         help="Reference tier bands per cadre. Note: the dean now sets each faculty’s tier and eligibility by hand on the Tracking page."
-        help="Reference tier bands per cadre. Note: the dean now sets each faculty’s tier and eligibility by hand on the Tracking page."
         breadcrumbs={[{ label: 'Dean', to: '/dean/appraisals' }, { label: 'Tier Thresholds' }]}
         actions={
           <button

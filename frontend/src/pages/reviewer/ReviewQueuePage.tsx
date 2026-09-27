@@ -25,7 +25,6 @@ export default function ReviewQueuePage() {
       <PageHeader
         title="Review Queue"
         help="Appraisals waiting for your review. Open one to score categories 1–5, verify proofs and record category 6."
-        help="Appraisals waiting for your review. Open one to score categories 1–5, verify proofs and record category 6."
         subtitle={`${pending.length} submission(s) awaiting review`}
         breadcrumbs={[{ label: 'Home' }, { label: 'Review Queue' }]}
         actions={

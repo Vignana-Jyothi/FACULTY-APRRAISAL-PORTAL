@@ -28,7 +28,6 @@ export default function FacultyUploadsPage() {
       <PageHeader
         title={faculty ? `${faculty.name}'s Uploads` : 'Uploads'}
         help="Every proof this faculty uploaded, grouped by subsection. Verify or reject each document; a rejected proof red-lists the submission until it is re-uploaded."
-        help="Every proof this faculty uploaded, grouped by subsection. Verify or reject each document; a rejected proof red-lists the submission until it is re-uploaded."
         subtitle={faculty ? `${faculty.employeeCode}${faculty.dept ? ` · ${faculty.dept}` : ''}${faculty.year ? ` · ${faculty.year}` : ''}` : undefined}
         breadcrumbs={[{ label: 'Uploads', to: '/uploads' }, { label: faculty?.name ?? 'Faculty' }]}
       />

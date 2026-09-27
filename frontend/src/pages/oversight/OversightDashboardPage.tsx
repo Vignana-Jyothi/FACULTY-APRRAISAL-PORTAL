@@ -60,7 +60,6 @@ export default function OversightDashboardPage() {
       <PageHeader
         title="Dashboard"
         help="Institute-wide oversight for the principal and dean. Pick a department to drill in; the dean also configures tiers and allocates scrutinizers."
-        help="Institute-wide oversight for the principal and dean. Pick a department to drill in; the dean also configures tiers and allocates scrutinizers."
         subtitle={data ? `Institute-wide status for ${data.year.label}${data.year.submissionOpen ? ' (open)' : ''}` : 'Institute-wide appraisal status'}
         breadcrumbs={[{ label: 'Home' }, { label: 'Dashboard' }]}
         actions={

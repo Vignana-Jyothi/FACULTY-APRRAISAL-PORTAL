@@ -31,7 +31,6 @@ export default function DraftsPage() {
       <PageHeader
         title="Drafts in progress"
         help="Faculty drafts not yet submitted. Open one to verify proofs and leave a draft review during the year."
-        help="Faculty drafts not yet submitted. Open one to verify proofs and leave a draft review during the year."
         subtitle={`${rows.length} draft(s) in your department — check proofs during the year${isHod ? ' and note a draft review' : ''}`}
         breadcrumbs={[{ label: 'Review Queue', to: '/reviews' }, { label: 'Drafts in progress' }]}
       />
