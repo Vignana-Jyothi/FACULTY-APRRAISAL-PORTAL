@@ -15,6 +15,10 @@ export const TRACKING_INCLUDE = {
   cat3Training: true, cat3IntlTravel: true, cat4AdminResp: true, cat4StudentAct: true,
   cat5Memberships: true, cat5Awards: true, cat5Differentiators: true, cat5Internships: true,
   review: true,
+  // The HoD's provisional draft review carries the during-year overall remark
+  // the quarterly mail surfaces (buildQuarterlyPayload). Null until the HoD notes
+  // one; loading it is additive and harmless for the other TRACKING_INCLUDE uses.
+  draftReview: true,
   user: { select: { id: true, name: true, employeeCode: true, designation: true, dateOfJoining: true, departmentId: true, department: { select: { name: true, code: true } } } },
 } as const;
 

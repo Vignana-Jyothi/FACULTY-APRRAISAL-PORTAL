@@ -163,7 +163,7 @@ function legacyNarrative(p: any): string {
   </div>`;
 }
 
-function commentsBlock(p: any): string {
+function commentsBlock(p: any, heading = 'Reviewer Feedback'): string {
   const items: Array<[string, string]> = [
     ['Teaching', p.teachingComment],
     ['Research', p.researchComment],
@@ -174,7 +174,7 @@ function commentsBlock(p: any): string {
   ];
   const filled = items.filter(([, v]) => v && String(v).trim());
   if (!filled.length) return '';
-  return `<div style="margin-top:12px"><strong>Reviewer Feedback</strong></div>
+  return `<div style="margin-top:12px"><strong>${esc(heading)}</strong></div>
   <table cellpadding="4" cellspacing="0" style="width:100%;font-size:13px;margin-top:4px">
     ${filled.map(([k, v]) => `<tr><td style="padding:4px 0;color:#64748b;width:120px;vertical-align:top">${esc(k)}:</td><td style="padding:4px 0;color:#0f172a">${esc(v)}</td></tr>`).join('')}
   </table>`;
@@ -292,6 +292,7 @@ const TEMPLATES: Record<EmailTemplateKey, (p: any) => string> = {
     <p>Here is a short summary of your progress this quarter, with a few pointers for the months ahead.</p>
     ${categoryRemarksBlock(p.categories)}
     ${p.targets ? targetStatusBlock(p.targets, p.year, p.evidence) : legacyNarrative(p)}
+    ${commentsBlock(p, 'HoD Remarks')}
     <p style="color:#64748b;font-size:13px">This is a provisional quarterly update to help you plan ahead.</p>
     <p style="margin-top:24px;color:#94a3b8;font-size:11px">Sent per your email preferences. <a href="${FRONTEND_URL}/profile" style="color:#94a3b8">Manage preferences</a>.</p>
   `),

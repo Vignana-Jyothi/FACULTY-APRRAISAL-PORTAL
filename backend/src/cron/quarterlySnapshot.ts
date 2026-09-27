@@ -49,6 +49,15 @@ export function buildQuarterlyPayload(sub: any, row: TrackingRow, yearLabel: str
     targets: targetStatus(row.eligibility.requirements, score.selfTotal),
     // The papers / patents / projects behind those counts, one line each.
     evidence: targetEvidence(countedItems(sub)),
+    // HoD remarks, if any: the per-category comments once a full review exists,
+    // otherwise the overall note from the HoD's provisional draft review during
+    // the year. commentsBlock renders nothing when all are blank.
+    teachingComment: sub.review?.teachingComment ?? null,
+    researchComment: sub.review?.researchComment ?? null,
+    developmentComment: sub.review?.developmentComment ?? null,
+    governanceComment: sub.review?.governanceComment ?? null,
+    supplementaryComment: sub.review?.supplementaryComment ?? null,
+    overallComment: sub.review?.overallComment ?? sub.draftReview?.overallComment ?? null,
   };
 }
 
