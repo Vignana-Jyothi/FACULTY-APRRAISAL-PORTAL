@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import {
-  BarChart2, FileText, FilePen, BookOpen, User, Users, Settings, LayoutDashboard, Mail, Activity, Menu, X, Target, ShieldCheck, AlertTriangle, Gauge, CalendarClock, Gavel, UploadCloud, Layers,
+  BarChart2, FileText, FilePen, BookOpen, User, Users, Settings, LayoutDashboard, Mail, Activity, Menu, X, Target, ShieldCheck, AlertTriangle, Gauge, CalendarClock, Gavel, UploadCloud,
 } from 'lucide-react';
 import BrandHeader from './BrandHeader';
 import Footer from './Footer';
@@ -92,7 +92,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     add('/reports/department', 'Department Reports', BarChart2);
     add('/dean/academic-years', 'Academic Years', BookOpen);
     add('/dean/cadre-targets', 'Cadre Targets', Target);
-    add('/dean/cadre-tiers', 'Cadre Tiers', Layers);
     add('/dean/review-windows', 'Review Windows', CalendarClock);
     add('/dean/departments', 'Departments', Settings);
   }

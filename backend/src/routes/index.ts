@@ -27,7 +27,6 @@ import * as email from '../controllers/emailController';
 import * as audit from '../controllers/auditController';
 import * as upload from '../controllers/uploadController';
 import * as cadreTarget from '../controllers/cadreTargetController';
-import * as cadreTier from '../controllers/cadreTierController';
 import * as reviewWindow from '../controllers/reviewWindowController';
 import * as verification from '../controllers/verificationController';
 import * as draftReview from '../controllers/draftReviewController';
@@ -119,11 +118,9 @@ router.post('/admin/cadre-targets/seed-defaults', authenticate, roleGuard(CONFIG
 router.put('/admin/cadre-targets/:id', authenticate, roleGuard(CONFIG), cadreTarget.updateCadreTarget);
 router.delete('/admin/cadre-targets/:id', authenticate, roleGuard(CONFIG), cadreTarget.deleteCadreTarget);
 
-// Dean: per-cadre tier thresholds (W7) — the "quartile date sets".
-router.get('/admin/cadre-tiers', authenticate, roleGuard(CONFIG), cadreTier.listCadreTiers);
-router.put('/admin/cadre-tiers', authenticate, roleGuard(CONFIG), cadreTier.upsertCadreTier);
-router.post('/admin/cadre-tiers/seed-defaults', authenticate, roleGuard(CONFIG), cadreTier.seedDefaultCadreTiers);
-router.delete('/admin/cadre-tiers/:id', authenticate, roleGuard(CONFIG), cadreTier.deleteCadreTier);
+// (Per-cadre tier thresholds removed 2026-09-28 — the dean/principal allocate a
+// faculty's tier by hand on the tracking page, so the auto-threshold sets are
+// gone. The FAPA cadre TARGETS above remain the only requirement definition.)
 
 // Appraisals
 router.get('/appraisals', authenticate, appraisal.listAppraisals);

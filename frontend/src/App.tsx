@@ -16,7 +16,6 @@ import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import AdminUsersPage from './pages/admin/AdminUsersPage';
 import AdminAcademicYearsPage from './pages/admin/AdminAcademicYearsPage';
 import AdminCadreTargetsPage from './pages/admin/AdminCadreTargetsPage';
-import AdminCadreTiersPage from './pages/admin/AdminCadreTiersPage';
 import AdminInchargesPage from './pages/admin/AdminInchargesPage';
 import AdminReviewWindowsPage from './pages/admin/AdminReviewWindowsPage';
 import AdminAppraisalsPage from './pages/admin/AdminAppraisalsPage';
@@ -132,9 +131,6 @@ export default function App() {
         <Route path="/dean/cadre-targets" element={
           <ProtectedRoute roles={CONFIG}><AdminCadreTargetsPage /></ProtectedRoute>
         } />
-        <Route path="/dean/cadre-tiers" element={
-          <ProtectedRoute roles={CONFIG}><AdminCadreTiersPage /></ProtectedRoute>
-        } />
         <Route path="/dean/review-windows" element={
           <ProtectedRoute roles={CONFIG}><AdminReviewWindowsPage /></ProtectedRoute>
         } />
@@ -165,7 +161,6 @@ export default function App() {
         {/* Pages that moved off /admin/*: keep old links working. */}
         <Route path="/admin/academic-years" element={<Navigate to="/dean/academic-years" replace />} />
         <Route path="/admin/cadre-targets" element={<Navigate to="/dean/cadre-targets" replace />} />
-        <Route path="/admin/cadre-tiers" element={<Navigate to="/dean/cadre-tiers" replace />} />
         <Route path="/admin/review-windows" element={<Navigate to="/dean/review-windows" replace />} />
         <Route path="/admin/appraisals" element={<Navigate to="/dean/appraisals" replace />} />
         <Route path="/admin/departments" element={<Navigate to="/dean/departments" replace />} />

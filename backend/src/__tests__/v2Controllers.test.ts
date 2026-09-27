@@ -122,7 +122,6 @@ describe('V2 auth & role gating', () => {
   // in the 2026-09-18 role rework.
   const adminForbidden: Array<[string, string]> = [
     ['get', '/api/admin/cadre-targets'],
-    ['get', '/api/admin/cadre-tiers'],
     ['get', '/api/admin/review-windows'],
     ['get', '/api/tracking'],
     ['get', '/api/tracking/export'],
@@ -228,8 +227,6 @@ describe('W1 cadre targets', () => {
     expect(del.status).toBe(404);
   });
 });
-
-// W7 per-cadre tier thresholds are covered in cadreTierController.test.ts.
 
 // ─── W3/W5: tracking ────────────────────────────────────────────────────────
 describe('W3/W5 tracking', () => {
