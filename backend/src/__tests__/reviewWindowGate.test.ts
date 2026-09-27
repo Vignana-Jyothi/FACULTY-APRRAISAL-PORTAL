@@ -207,7 +207,7 @@ describe('unarmed window: snapshot, mail held, then released', () => {
   });
 });
 
-describe('armed window: preview, arm, edit disarms, fire', () => {
+describe('armed window: preview, arm, edit keeps arm, fire', () => {
   it('arm with a stale expectedRecipients → 409, stays unarmed', async () => {
     if (!ready) return;
     const res = await request(app).post(`/api/admin/review-windows/${armedWindowId}/arm`)
@@ -218,7 +218,7 @@ describe('armed window: preview, arm, edit disarms, fire', () => {
     expect(w.armedAt).toBeNull();
   });
 
-  it('arm with the previewed count sets armedAt/armedById and audits', async () => {
+  it('arm with the previewed count sets armedAt/armedById/armedCount and audits', async () => {
     if (!ready) return;
     const res = await request(app).post(`/api/admin/review-windows/${armedWindowId}/arm`)
       .set(bearer(dean.token)).send({ expectedRecipients: 2 });
@@ -226,13 +226,14 @@ describe('armed window: preview, arm, edit disarms, fire', () => {
     const w = await prisma.reviewWindow.findUniqueOrThrow({ where: { id: armedWindowId } });
     expect(w.armedAt).toBeTruthy();
     expect(w.armedById).toBe(dean.id);
+    expect(w.armedCount).toBe(2);
     expect(await prisma.auditLog.count({ where: { entityId: armedWindowId, action: 'REVIEW_WINDOW_ARMED' } })).toBe(1);
 
     const list = await request(app).get(`/api/admin/review-windows?academicYearId=${armedYearId}`).set(bearer(dean.token));
     expect(list.body[0].armedByName).toBe(dean.name);
   });
 
-  it('editing the dates disarms the window', async () => {
+  it('editing the dates keeps the arm (the fire-time recount is the guard)', async () => {
     if (!ready) return;
     const w = await prisma.reviewWindow.findUniqueOrThrow({ where: { id: armedWindowId } });
     const put = await request(app).put('/api/admin/review-windows').set(bearer(dean.token)).send({
@@ -240,23 +241,26 @@ describe('armed window: preview, arm, edit disarms, fire', () => {
       endDate: new Date(today.getTime() + 864e5).toISOString(), enabled: true,
     });
     expect(put.status).toBe(200);
-    expect(put.body.armedAt).toBeNull();
-    expect(put.body.armedById).toBeNull();
+    // Moving a date does not change who gets mailed, so the arm survives.
+    expect(put.body.armedAt).toBeTruthy();
+    expect(put.body.armedById).toBe(dean.id);
+    expect(put.body.armedCount).toBe(2);
 
-    // Back to today; still unarmed until the dean arms again.
+    // Back to today so later tests fire on the right day; still armed.
     const back = await request(app).put('/api/admin/review-windows').set(bearer(dean.token)).send({
       academicYearId: armedYearId, quarter: 'Q2', startDate: w.startDate.toISOString(),
       endDate: today.toISOString(), enabled: true,
     });
-    expect(back.body.armedAt).toBeNull();
+    expect(back.body.armedAt).toBeTruthy();
+    expect(back.body.armedCount).toBe(2);
   });
 
-  it('disarm clears the arm', async () => {
+  it('disarm clears the arm and its confirmed count', async () => {
     if (!ready) return;
-    await request(app).post(`/api/admin/review-windows/${armedWindowId}/arm`).set(bearer(dean.token)).send({ expectedRecipients: 2 });
     const res = await request(app).post(`/api/admin/review-windows/${armedWindowId}/disarm`).set(bearer(dean.token));
     expect(res.status).toBe(200);
     expect(res.body.armedAt).toBeNull();
+    expect(res.body.armedCount).toBeNull();
   });
 
   it('armed and due: emails queued only to the suite\'s opted-in fixture faculty, once', async () => {
