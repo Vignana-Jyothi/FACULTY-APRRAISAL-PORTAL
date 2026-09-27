@@ -133,6 +133,7 @@ router.put('/appraisals/:id', authenticate, appraisal.updateAppraisal);
 router.post('/appraisals/:id/submit', authenticate, appraisal.submitAppraisal);
 router.post('/appraisals/:id/withdraw', authenticate, appraisal.withdrawAppraisal);
 router.get('/appraisals/:id/score', authenticate, appraisal.getScore);
+router.get('/appraisals/:id/target-status', authenticate, feedback.getTargetStatus);
 
 // Reviews — the department layer. The admin holds no appraisal content.
 router.get('/reviews/pending', authenticate, roleGuard(DEPT_REVIEW), review.listPendingReviews);

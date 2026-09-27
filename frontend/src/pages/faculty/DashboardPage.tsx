@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { appraisalApi } from '../../api/appraisals';
+import { appraisalApi, type TargetStatus } from '../../api/appraisals';
 import { userApi } from '../../api/users';
 import toast from 'react-hot-toast';
-import { FileText, Plus, Clock, Send, CheckCircle2 } from 'lucide-react';
+import { FileText, Plus, Clock, Send, CheckCircle2, Target, Check } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import PageHeader from '../../components/PageHeader';
 import Card from '../../components/Card';
@@ -16,6 +16,7 @@ export default function DashboardPage() {
   const [years, setYears] = useState<any[]>([]);
   const [selectedYear, setSelectedYear] = useState('');
   const [loading, setLoading] = useState(true);
+  const [targets, setTargets] = useState<TargetStatus | null>(null);
   const { user } = useAuthStore();
 
   useEffect(() => {
@@ -42,9 +43,20 @@ export default function DashboardPage() {
   const currentYear = years.find((y) => y.id === selectedYear);
   // One appraisal per faculty per year — hide "New Appraisal" once an active
   // (non-REJECTED) one exists for the selected year (backend enforces this too).
-  const hasActiveThisYear = submissions.some(
+  const activeSub = submissions.find(
     (s: any) => ((s.academicYearId ?? s.academicYear?.id) === selectedYear) && s.status !== 'REJECTED'
   );
+  const hasActiveThisYear = !!activeSub;
+
+  // Target progress for the selected year's appraisal — drives the top bar.
+  useEffect(() => {
+    if (!activeSub?.id) { setTargets(null); return; }
+    let live = true;
+    appraisalApi.getTargetStatus(activeSub.id)
+      .then((t) => { if (live) setTargets(t); })
+      .catch(() => { if (live) setTargets(null); });
+    return () => { live = false; };
+  }, [activeSub?.id]);
 
   if (loading) {
     return (
@@ -93,6 +105,9 @@ export default function DashboardPage() {
           </div>
         }
       />
+
+      {/* Top target bar — progress toward the T1 targets */}
+      {targets && targets.total > 0 && <TargetBar t={targets} />}
 
       {/* Stats row */}
       <div className="grid grid-cols-3 gap-4 mb-5">
@@ -157,5 +172,58 @@ export default function DashboardPage() {
         )}
       </Card>
     </div>
+  );
+}
+
+// The faculty's progress toward the T1 targets — a single horizontal bar with a
+// per-target breakdown. Faculty-safe: it shows only the target labels, the
+// counts and how many are met (from /target-status), never cadre or tier
+// machinery. Meeting every target is what qualifies a faculty for T1.
+function TargetBar({ t }: { t: TargetStatus }) {
+  const pct = t.total > 0 ? Math.round((t.achieved / t.total) * 100) : 0;
+  const done = t.achieved >= t.total;
+  return (
+    <Card className="mb-5">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <Target size={16} className="text-primary-600" />
+          <h2 className="text-sm font-semibold text-ink-primary">Your T1 Targets — {t.year}</h2>
+        </div>
+        <span className={`text-xs font-semibold ${done ? 'text-emerald-700' : 'text-ink-secondary'}`}>
+          {t.achieved} / {t.total} met
+        </span>
+      </div>
+
+      {/* The bar */}
+      <div className="h-2.5 rounded-full bg-surface-muted overflow-hidden" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+        <div
+          className={`h-full rounded-full transition-all ${done ? 'bg-emerald-500' : 'bg-primary-600'}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <p className="text-xs text-ink-muted mt-1.5">
+        {done ? 'All targets met — you qualify for T1.' : `Meet every target to reach T1. ${t.leftText}`}
+      </p>
+
+      {/* Per-target breakdown */}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {t.rows.map((r) => (
+          <span
+            key={r.label}
+            className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${
+              r.achieved
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-surface-base border-surface-border text-ink-secondary'
+            }`}
+          >
+            {r.achieved
+              ? <Check size={12} className="text-emerald-600" />
+              : <span className="text-ink-subtle">•</span>}
+            {r.label}: <strong>{r.current}</strong>/{r.required}
+            {!r.achieved && <span className="text-ink-subtle">({r.left} to go)</span>}
+          </span>
+        ))}
+      </div>
+    </Card>
   );
 }

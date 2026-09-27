@@ -11,6 +11,7 @@ import { computeScore } from '../services/scoringEngine';
 import { computeActuals } from '../services/trackingEngine';
 import { deriveCadre, computeExperienceYears, pickCadreTarget, checkEligibility, CADRE_LABEL } from '../services/cadreEngine';
 import { generateNarrative } from '../services/feedbackNarrative';
+import { targetStatus } from '../services/targetStatus';
 
 // Author of feedback: the HoD of the faculty's own department, or the principal
 // institute-wide — never the owner. The admin lost this with the rest of the
@@ -218,4 +219,28 @@ export async function downloadFeedbackPdf(req: Request, res: Response) {
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `inline; filename=feedback-${code}-${sub.academicYear?.label ?? ''}.pdf`);
   return res.send(pdf);
+}
+
+// GET /appraisals/:id/target-status — the faculty-facing target progress for the
+// dashboard bar: each measurable FAPA target with required vs current and how
+// many are met. Deliberately faculty-safe (targetStatus): labels, numbers and a
+// status only — no cadre, no tier, no eligibility verdict. Score targets are
+// measured against the faculty's own /500, never the reviewer's /550.
+export async function getTargetStatus(req: Request, res: Response) {
+  const sub = await prisma.appraisalSubmission.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, userId: true, user: { select: { departmentId: true } } },
+  });
+  if (!sub) return res.status(404).json({ error: 'Submission not found' });
+  if (!canViewUserResource(req.user!, sub.userId, sub.user?.departmentId ?? null)) {
+    return res.status(403).json({ error: 'Not allowed' });
+  }
+
+  const snap = await buildSnapshot(sub.id);
+  if (!snap) return res.status(404).json({ error: 'Submission not found' });
+
+  // Only the faculty-safe target rows leave this endpoint — never the cadre,
+  // the eligibility verdict or the reviewed totals buildSnapshot also holds.
+  const status = targetStatus(snap.requirements, snap.scores.total);
+  return res.json({ year: snap.year, ...status });
 }
