@@ -50,11 +50,24 @@ export interface AuthUser {
   roles: UserRole[];
 }
 
+// A person who is both faculty and a department reviewer (HoD or incharge) works
+// in two distinct modes: filing their own appraisal, and reviewing others'. The
+// workspace switch lets them keep those apart in one login — it filters the menu
+// and where they land, nothing more (the token's roles still govern every API
+// call, so this is a view, not a privilege).
+export type Workspace = 'faculty' | 'staff';
+
 interface AuthState {
   accessToken: string | null;
   user: AuthUser | null;
+  /** Which workspace a dual faculty+reviewer is currently viewing. */
+  activeWorkspace: Workspace;
   login: (accessToken: string, user: AuthUser) => void;
   logout: () => void;
+  setWorkspace: (w: Workspace) => void;
+  /** True only for FACULTY + (HOD or REVIEWER) with no higher institute role —
+   *  the people who actually have two workspaces to switch between. */
+  canSwitchWorkspace: () => boolean;
   hasRole: (role: Role) => boolean;
   hasAnyRole: (roles: readonly Role[]) => boolean;
   /** Maintenance admin ONLY — accounts, roles, email queue, audit log.
@@ -79,10 +92,19 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       accessToken: null,
       user: null,
+      // A dual faculty+reviewer starts each login in the staff (review) workspace
+      // — that is the widest-remit landing the login already used — and can flip
+      // to their own filing at any time.
+      activeWorkspace: 'staff',
       // The refresh token is no longer held in JS — it lives in an httpOnly
       // cookie. Only the short-lived access token is kept here.
-      login: (accessToken, user) => set({ accessToken, user }),
-      logout: () => set({ accessToken: null, user: null }),
+      login: (accessToken, user) => set({ accessToken, user, activeWorkspace: 'staff' }),
+      logout: () => set({ accessToken: null, user: null, activeWorkspace: 'staff' }),
+      setWorkspace: (w) => set({ activeWorkspace: w }),
+      canSwitchWorkspace: () =>
+        get().hasRole('FACULTY') &&
+        get().hasAnyRole(['HOD', 'REVIEWER']) &&
+        !get().hasAnyRole(['DEAN', 'PRINCIPAL', 'ADMIN', 'SCRUTINIZER', 'SPECIAL_SCRUTINIZER']),
       hasRole: (role) => get().user?.roles.some((r) => r.role === role) ?? false,
       hasAnyRole: (roles) => get().user?.roles.some((r) => roles.includes(r.role)) ?? false,
       isAdmin: () => get().hasRole('ADMIN'),
