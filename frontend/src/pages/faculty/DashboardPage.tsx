@@ -130,7 +130,9 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Submissions list */}
+      {/* Submissions list. The active one for the selected year is pinned to the
+          top and highlighted, so a queue cluttered by past/demo submissions
+          still surfaces the one that matters now. */}
       <Card padding="none">
         <div className="px-5 py-3 border-b border-surface-border">
           <h2 className="text-sm font-semibold text-ink-primary">My Submissions</h2>
@@ -142,32 +144,49 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="divide-y divide-surface-border">
-            {submissions.map((sub) => (
-              <div key={sub.id} className="px-5 py-3 flex items-center justify-between hover:bg-surface-muted/50 transition-colors">
-                <div className="flex items-center gap-3">
-                  <FileText size={16} className="text-ink-subtle" />
-                  <div>
-                    <div className="text-sm font-medium text-ink-primary">
-                      Submission #{sub.submissionNumber} — {sub.academicYear?.label}
+            {[...submissions]
+              .sort((a, b) => (a.id === activeSub?.id ? -1 : b.id === activeSub?.id ? 1 : 0))
+              .map((sub) => {
+                const isActive = sub.id === activeSub?.id;
+                return (
+                  <div
+                    key={sub.id}
+                    className={`px-5 py-3 flex items-center justify-between transition-colors ${
+                      isActive
+                        ? 'bg-primary-50/70 border-l-4 border-primary-600'
+                        : 'hover:bg-surface-muted/50 opacity-80'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <FileText size={16} className={isActive ? 'text-primary-600' : 'text-ink-subtle'} />
+                      <div>
+                        <div className="text-sm font-medium text-ink-primary flex items-center gap-2">
+                          Submission #{sub.submissionNumber} — {sub.academicYear?.label}
+                          {isActive && (
+                            <span className="text-[10px] font-semibold uppercase tracking-wide bg-primary-600 text-white px-1.5 py-0.5 rounded">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-ink-muted">
+                          {sub.submittedAt
+                            ? `Submitted ${new Date(sub.submittedAt).toLocaleDateString()}`
+                            : sub.status === 'DRAFT' ? 'Draft — open all year, submit after the Q4 review window' : 'Not submitted'}
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-xs text-ink-muted">
-                      {sub.submittedAt
-                        ? `Submitted ${new Date(sub.submittedAt).toLocaleDateString()}`
-                        : sub.status === 'DRAFT' ? 'Draft — open all year, submit after the Q4 review window' : 'Not submitted'}
+                    <div className="flex items-center gap-3">
+                      <StatusBadge status={sub.status} />
+                      <Link
+                        to={sub.status === 'DRAFT' ? `/appraisal/${sub.id}/edit` : `/appraisal/${sub.id}`}
+                        className="text-primary-600 text-sm font-medium hover:underline"
+                      >
+                        {sub.status === 'DRAFT' ? 'Edit' : 'View'}
+                      </Link>
                     </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <StatusBadge status={sub.status} />
-                  <Link
-                    to={sub.status === 'DRAFT' ? `/appraisal/${sub.id}/edit` : `/appraisal/${sub.id}`}
-                    className="text-primary-600 text-sm font-medium hover:underline"
-                  >
-                    {sub.status === 'DRAFT' ? 'Edit' : 'View'}
-                  </Link>
-                </div>
-              </div>
-            ))}
+                );
+              })}
           </div>
         )}
       </Card>
