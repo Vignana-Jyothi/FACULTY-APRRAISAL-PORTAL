@@ -72,6 +72,9 @@ export function cleanRow(row: any) {
     } else if (k === 'scope' && v === '') {
       // 2.3: "no publisher level chosen" is null — '' is not a Scope value.
       out[k] = null;
+    } else if (k === 'status' && v === '') {
+      // 2.1: "no lifecycle status chosen" is null — '' is not a PublicationStatus.
+      out[k] = null;
     } else {
       out[k] = v;
     }

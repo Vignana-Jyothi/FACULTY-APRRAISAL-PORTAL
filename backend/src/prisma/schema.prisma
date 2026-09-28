@@ -73,6 +73,20 @@ enum PublicationIndex {
   NONE
 }
 
+// 2.1 publication lifecycle (2026-09-28). The faculty picks where the paper
+// stands; the form reveals fields accordingly and scoring keys on it.
+//   SUBMITTED / ACCEPTED  — recorded only, no bibliographic detail, no proof, 0
+//   PRESENTED             — conferences only (2.1-B), recorded only, 0
+//   PUBLISHED             — full detail + 1st-page proof; scores
+//   INDEXED               — published AND indexed; adds the index + index proof
+enum PublicationStatus {
+  SUBMITTED
+  ACCEPTED
+  PRESENTED
+  PUBLISHED
+  INDEXED
+}
+
 enum PatentStatus {
   FILED
   PUBLISHED
@@ -595,6 +609,9 @@ model Cat2Journal {
   doi                String?
   impactFactor       Float?
   impactFactorSource String? // e.g. Clarivate/SCImago/Google Scholar/Other
+  // 2.1 lifecycle (2026-09-28). null = a legacy row filled before the status
+  // rework; those still score on `indexed` alone (see publicationRowScore).
+  status             PublicationStatus?
   indexed            PublicationIndex @default(NONE)
   quartile           String?
   proofFile          String?
@@ -623,9 +640,13 @@ model Cat2Conference {
   pageNos            String?
   impactFactor       Float?
   quartile           String?
+  // 2.1 lifecycle (2026-09-28) — same status model as Cat2Journal, plus
+  // PRESENTED for conferences. null = a legacy row (scores on `indexed`).
+  status             PublicationStatus?
   indexed            PublicationIndex @default(NONE)
-  presentationStatus String? // Accepted / Presented / Other
+  presentationStatus String? // legacy (pre-status); superseded by `status`
   proofFile          String?
+  indexProofFile     String? // the index page, shown only for an Indexed paper
 
   submission AppraisalSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 }
