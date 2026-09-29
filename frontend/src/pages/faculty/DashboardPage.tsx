@@ -110,7 +110,7 @@ export default function DashboardPage() {
       {targets && targets.total > 0 && <TargetBar t={targets} />}
 
       {/* Stats row */}
-      <div className="grid grid-cols-3 gap-4 mb-5">
+      <div className="grid grid-cols-3 gap-4 mb-5 animate-rise" style={{ animationDelay: '60ms' }}>
         <StatTile icon={<FileText size={18} />} label="Drafts" value={drafts} color="warning" />
         <StatTile icon={<Send size={18} />} label="In Review" value={submitted} color="primary" />
         <StatTile icon={<CheckCircle2 size={18} />} label="Approved" value={approved} color="success" />
@@ -133,7 +133,7 @@ export default function DashboardPage() {
       {/* Submissions list. The active one for the selected year is pinned to the
           top and highlighted, so a queue cluttered by past/demo submissions
           still surfaces the one that matters now. */}
-      <Card padding="none">
+      <Card padding="none" className="animate-rise" style={{ animationDelay: '120ms' }}>
         <div className="px-5 py-3 border-b border-surface-border">
           <h2 className="text-sm font-semibold text-ink-primary">My Submissions</h2>
         </div>
@@ -202,7 +202,7 @@ function TargetBar({ t }: { t: TargetStatus }) {
   const pct = t.total > 0 ? Math.round((t.achieved / t.total) * 100) : 0;
   const done = t.achieved >= t.total;
   return (
-    <Card className="mb-5">
+    <Card className="mb-5 animate-rise">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <Target size={16} className="text-primary-600" />

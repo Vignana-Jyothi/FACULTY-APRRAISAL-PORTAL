@@ -16,13 +16,13 @@ const colorMap = {
 
 export default function StatTile({ icon, label, value, hint, color = 'primary' }: StatTileProps) {
   return (
-    <div className="bg-surface-card border border-surface-border rounded-md p-4 flex items-start gap-3">
+    <div className="lift bg-surface-card border border-surface-border rounded-md shadow-sm p-4 flex items-start gap-3">
       <div className={`w-9 h-9 rounded-md flex items-center justify-center shrink-0 ${colorMap[color]}`}>
         {icon}
       </div>
       <div className="min-w-0">
         <div className="text-xs text-ink-muted">{label}</div>
-        <div className="text-xl font-bold text-ink-primary leading-tight">{value}</div>
+        <div className="text-xl font-bold text-ink-primary leading-tight tabular-nums">{value}</div>
         {hint && <div className="text-[10px] text-ink-subtle mt-0.5">{hint}</div>}
       </div>
     </div>
