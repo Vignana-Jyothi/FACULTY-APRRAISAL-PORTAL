@@ -77,6 +77,7 @@ export default function DashboardPage() {
     <div className="max-w-5xl">
       <PageHeader
         title={`Welcome, ${user?.name?.split(' ')[0] ?? 'Faculty'}`}
+        titleStyle={{ fontFamily: 'var(--font-sans)', fontSize: '1.125rem', fontWeight: 600, letterSpacing: 0 }}
         subtitle="Faculty Appraisal Dashboard"
         help="Your home. Start or continue this year’s appraisal draft, see your latest reviewed score out of 500, and track proof status. One draft carries through the year; submit after Q4."
         breadcrumbs={[{ label: 'Home' }, { label: 'Dashboard' }]}
