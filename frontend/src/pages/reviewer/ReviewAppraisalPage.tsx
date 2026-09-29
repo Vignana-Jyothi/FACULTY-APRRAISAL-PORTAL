@@ -90,6 +90,7 @@ export default function ReviewAppraisalPage({ mode = 'review' }: { mode?: 'revie
       cat6Cordiality: 0, cat6Classroom: 0,
       teachingComment: '', researchComment: '', developmentComment: '',
       governanceComment: '', supplementaryComment: '', overallComment: '',
+      shareNote: false,
       status: 'APPROVED',
     },
   });
@@ -121,6 +122,7 @@ export default function ReviewAppraisalPage({ mode = 'review' }: { mode?: 'revie
         cat6Cordiality: dr?.cat6Cordiality ?? 0,
         cat6Classroom: dr?.cat6Classroom ?? 0,
         overallComment: dr?.overallComment ?? '',
+        shareNote: dr?.shareNote ?? false,
       }));
     }).catch(() => toast.error('Failed to load')).finally(() => setLoading(false));
   }, [id]);
@@ -138,13 +140,14 @@ export default function ReviewAppraisalPage({ mode = 'review' }: { mode?: 'revie
     // A category left at the engine's figure is not an override: store null,
     // so the final review re-seeds from the evidence as it stands then.
     const engine = [score.cat1.total, score.cat2.total, score.cat3.total, score.cat4.total, score.cat5.total];
-    const body: Record<string, number | string | null> = {};
+    const body: Record<string, number | string | boolean | null> = {};
     CAT_FIELDS.forEach((f, i) => {
       const v = numOrNull(data[f]);
       body[f] = v == null || Math.abs(v - engine[i]) < 0.001 ? null : v;
     });
     if (showCoreValues) CAT6_FIELDS.forEach((f) => { body[f] = numOrNull(data[f]); });
     body.overallComment = data.overallComment?.trim() ? data.overallComment.trim() : null;
+    body.shareNote = !!data.shareNote;
     try {
       const saved = await appraisalApi.saveDraftReview(id!, body);
       setDraftReview(saved);
@@ -595,8 +598,12 @@ export default function ReviewAppraisalPage({ mode = 'review' }: { mode?: 'revie
           {isDraftMode ? (
             <Card>
               <h2 className="text-sm font-semibold text-ink-primary mb-3 pb-2 border-b border-accent-500/30 font-serif">Draft review note</h2>
-              <p className="text-[10px] text-ink-muted mb-3">Provisional and never shown to the faculty. Pre-fills the overall comment of the review.</p>
+              <p className="text-[10px] text-ink-muted mb-3">Provisional. It pre-fills the overall comment of the review, and stays private unless you share it below. The provisional marks are never shown to the faculty either way.</p>
               <textarea rows={4} {...register('overallComment')} className={inputCls} />
+              <label className="flex items-center gap-2 mt-3 text-xs text-ink-secondary">
+                <input type="checkbox" {...register('shareNote')} />
+                Share this note with the faculty
+              </label>
               {draftReview && (
                 <p className="text-[10px] text-ink-muted mt-2">Last saved {new Date(draftReview.updatedAt).toLocaleString()}</p>
               )}

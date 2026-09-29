@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm, useFieldArray, useWatch, Controller } from 'react-hook-form';
-import { appraisalApi } from '../../api/appraisals';
+import { appraisalApi, type SharedDraftNote } from '../../api/appraisals';
 import toast from 'react-hot-toast';
 import { ArrowLeft, ArrowRight, Plus, Send, CheckCircle, XCircle, Clock, Lock } from 'lucide-react';
 import FileUpload from '../../components/FileUpload';
@@ -139,6 +139,7 @@ export default function AppraisalEditPage() {
   const currentUser = useAuthStore((s) => s.user);
   const [step, setStep] = useState(0);
   const [submission, setSubmission] = useState<any>(null);
+  const [hodNote, setHodNote] = useState<SharedDraftNote | null>(null);
   const [saving, setSaving] = useState(false);
   const [score, setScore] = useState<any>(null);
   const [scoreLoading, setScoreLoading] = useState(false);
@@ -337,6 +338,12 @@ export default function AppraisalEditPage() {
   };
 
   // goToStep: autosave then switch. Awaits previous save via saveLock.
+  // The HoD's shared note, if they chose to share one. null otherwise.
+  useEffect(() => {
+    if (!id) return;
+    appraisalApi.getSharedNote(id).then(setHodNote).catch(() => setHodNote(null));
+  }, [id]);
+
   // Skip autosave when submission is read-only (backend will reject anyway).
   const goToStep = async (next: number) => {
     if (next === step) return;
@@ -635,6 +642,14 @@ export default function AppraisalEditPage() {
           {submission.status === 'REJECTED' && ' Reviewer rejected — create a new draft to resubmit corrections.'}
           {submission.status === 'SUBMITTED' && ' Awaiting reviewer pickup. You may withdraw from the dashboard.'}
           {submission.status === 'UNDER_REVIEW' && ' Reviewer is evaluating. Comments will unlock once approved/rejected.'}
+        </div>
+      )}
+
+      {isOwner && hodNote && (
+        <div className="mb-4 bg-primary-50 border border-primary-200 rounded p-3">
+          <div className="text-xs font-semibold text-primary-800 mb-1">Note from your HoD</div>
+          <p className="text-sm text-ink-primary whitespace-pre-wrap">{hodNote.note}</p>
+          <p className="text-[10px] text-ink-muted mt-1.5">Shared {new Date(hodNote.sharedAt).toLocaleDateString()}</p>
         </div>
       )}
 

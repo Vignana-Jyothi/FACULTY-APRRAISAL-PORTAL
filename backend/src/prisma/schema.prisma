@@ -1054,6 +1054,10 @@ model DraftReview {
   cat6Classroom       Float?
 
   overallComment String?
+  // When the HoD ticks this, the faculty may read the overall note (only the
+  // note — never the provisional marks or Cat 6). Off by default, so the draft
+  // review stays private unless the HoD chooses to share it (2026-09-29).
+  shareNote      Boolean  @default(false)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

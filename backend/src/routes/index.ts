@@ -143,6 +143,8 @@ router.get('/appraisals/:id/review', authenticate, review.getReview);
 router.get('/reviews/drafts', authenticate, roleGuard([...DEPT_REVIEW, ...SEES_ALL]), draftReview.listDrafts);
 router.get('/appraisals/:id/draft-review', authenticate, draftReview.getDraftReview);
 router.put('/appraisals/:id/draft-review', authenticate, draftReview.putDraftReview);
+// The faculty-safe slice of a draft review: the HoD's note, once shared.
+router.get('/appraisals/:id/shared-note', authenticate, draftReview.getSharedDraftNote);
 
 // Final review — the scrutinizer layer above the HoD, assigned by the dean.
 router.get('/final-reviewers/pool', authenticate, roleGuard(CONFIG), finalReview.listScrutinizerPool);

@@ -30,6 +30,9 @@ export const appraisalApi = {
     api.get(`/appraisals/${id}/draft-review`).then((r) => r.data),
   saveDraftReview: (id: string, data: DraftReviewInput): Promise<DraftReview> =>
     api.put(`/appraisals/${id}/draft-review`, data).then((r) => r.data),
+  // The HoD's shared note, faculty-readable. `null` when nothing is shared.
+  getSharedNote: (id: string): Promise<SharedDraftNote | null> =>
+    api.get(`/appraisals/${id}/shared-note`).then((r) => r.data),
 };
 
 export interface TargetRow {
@@ -61,6 +64,13 @@ export interface DraftReviewInput {
   cat6Cordiality?: number | null;
   cat6Classroom?: number | null;
   overallComment?: string | null;
+  // When true, the faculty may read overallComment (the note only).
+  shareNote?: boolean;
+}
+
+export interface SharedDraftNote {
+  note: string;
+  sharedAt: string;
 }
 
 export interface DraftReview extends DraftReviewInput {
