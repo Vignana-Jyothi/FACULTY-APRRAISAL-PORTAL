@@ -160,6 +160,17 @@ enum FeedbackStatus {
   ISSUED
 }
 
+// The HoD may issue feedback per quarter and then a final annual one, so a
+// submission carries up to five feedbacks (2026-09-29). ANNUAL is the default
+// so feedback written before this rework keeps its meaning.
+enum FeedbackPeriod {
+  Q1
+  Q2
+  Q3
+  Q4
+  ANNUAL
+}
+
 model User {
   id                    String    @id @default(uuid())
   employeeCode          String    @unique
@@ -333,7 +344,8 @@ model TrackingSnapshot {
 // faculty on issue.
 model Feedback {
   id             String         @id @default(uuid())
-  submissionId   String         @unique
+  submissionId   String
+  period         FeedbackPeriod @default(ANNUAL)
   userId         String
   academicYearId String
   snapshot       Json
@@ -350,6 +362,8 @@ model Feedback {
   user         User                @relation("FeedbackFaculty", fields: [userId], references: [id])
   academicYear AcademicYear        @relation(fields: [academicYearId], references: [id])
   issuedBy     User?               @relation("FeedbackIssuer", fields: [issuedById], references: [id])
+
+  @@unique([submissionId, period])
 }
 
 // W7 — per-cadre tier thresholds. Replaces the global TierRule model: each
@@ -496,7 +510,7 @@ model AppraisalSubmission {
 
   review             AppraisalReview?
   proofVerifications ProofVerification[]
-  feedback           Feedback?
+  feedbacks          Feedback[]
   finalReviews       FinalReview[]
 
   @@unique([userId, academicYearId, submissionNumber])

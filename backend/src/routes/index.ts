@@ -186,7 +186,8 @@ router.post('/admin/review-windows/:id/arm', authenticate, roleGuard(CONFIG), re
 router.post('/admin/review-windows/:id/disarm', authenticate, roleGuard(CONFIG), reviewWindow.disarmReviewWindow);
 router.post('/admin/review-windows/:id/release', authenticate, roleGuard(CONFIG), reviewWindow.releaseReviewWindow);
 
-// W6 — annual HoD feedback
+// W6 — HoD feedback, per period (four quarters + the final annual).
+router.get('/appraisals/:id/feedbacks', authenticate, feedback.listFeedbacks);
 router.get('/appraisals/:id/feedback', authenticate, feedback.getFeedback);
 router.put('/appraisals/:id/feedback', authenticate, roleGuard([RoleType.HOD, ...SEES_ALL]), feedback.saveFeedback);
 router.post('/appraisals/:id/feedback/issue', authenticate, roleGuard([RoleType.HOD, ...SEES_ALL]), feedback.issueFeedback);
