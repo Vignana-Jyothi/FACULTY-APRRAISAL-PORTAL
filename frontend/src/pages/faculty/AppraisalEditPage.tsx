@@ -485,9 +485,15 @@ export default function AppraisalEditPage() {
 
   // 2.1 controls shared by journals (A), conference proceedings (B) and
   // conference book chapters (C).
-  const indexSelect = (name: string) => (
+  const indexSelect = (name: string, allowNone = true) => (
     <select {...register(name as any)} className={inputCls}>
-      {INDEX_OPTIONS.map((v) => <option key={v} value={v}>{INDEX_LABEL[v]}</option>)}
+      {/* 2.1-A/B reveal this only under "Indexed" status, so "Not indexed" is
+          not a valid choice there — a disabled prompt stands in for it and the
+          faculty must pick a real index. 2.1-C (allowNone) keeps NONE. */}
+      {!allowNone && <option value="NONE" disabled>Select index…</option>}
+      {INDEX_OPTIONS.filter((v) => allowNone || v !== 'NONE').map((v) => (
+        <option key={v} value={v}>{INDEX_LABEL[v]}</option>
+      ))}
     </select>
   );
   const quartileSelect = (name: string) => (
@@ -976,7 +982,7 @@ export default function AppraisalEditPage() {
                     </>}
                     {/* Indexed adds the index and its proof — it is already published. */}
                     {jIndexed && <>
-                      <div><label className={labelCls}>Indexed in</label>{indexSelect(`cat2Journals.${i}.indexed`)}</div>
+                      <div><label className={labelCls}>Indexed in</label>{indexSelect(`cat2Journals.${i}.indexed`, false)}</div>
                       {proofField(`cat2Journals.${i}.indexProofFile`, 'Index Proof')}
                     </>}
                   </div>
@@ -1032,7 +1038,7 @@ export default function AppraisalEditPage() {
                     </>}
                     {/* Indexed adds the index and its proof — it is already published. */}
                     {cIndexed && <>
-                      <div><label className={labelCls}>Indexed in</label>{indexSelect(`cat2Conferences.${i}.indexed`)}</div>
+                      <div><label className={labelCls}>Indexed in</label>{indexSelect(`cat2Conferences.${i}.indexed`, false)}</div>
                       {proofField(`cat2Conferences.${i}.indexProofFile`, 'Index Proof')}
                     </>}
                   </div>
