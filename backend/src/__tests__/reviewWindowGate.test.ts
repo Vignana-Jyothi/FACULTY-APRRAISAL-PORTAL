@@ -138,7 +138,7 @@ describe('unarmed window: snapshot, mail held, then released', () => {
     expect(res.status).toBe(200);
     expect(res.body.recipients).toBe(2);
     expect(res.body.sample.to).toMatch(/@fixture\.invalid$/);
-    expect(res.body.sample.subject).toContain('Q1 feedback');
+    expect(res.body.sample.subject).toContain('Quarter 1 (Jul-Sep) feedback');
     expect(res.body.sample.html).toContain('RWG FA');
     expect(await fixtureEmails()).toHaveLength(0);
   });
