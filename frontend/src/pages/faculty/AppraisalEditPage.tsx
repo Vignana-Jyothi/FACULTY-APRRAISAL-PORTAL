@@ -701,11 +701,11 @@ export default function AppraisalEditPage() {
               <h2 className="text-sm font-semibold text-ink-secondary">Category 1 — Teaching</h2>
               <ScoreBadge value={live.cat1.total} max={150} />
             </div>
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">1.1 Courses Taught — Lectures</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">1.1 Courses Taught — Lectures</h2>
                 <ScoreBadge value={live.cat1.lectures} max={40} />
-              </div>
+              </summary>
               <p className="text-xs text-ink-muted mb-3">Per course: engagement (periods conducted ÷ planned) 96–100% → 10, 90–95% → 8, 80–89% → 6, below 80% → 4, plus 5 if a novel pedagogical method was used for at least 25% of the periods. Section max 40.</p>
               <p className="text-xs text-ink-muted mb-3">Lecture delivery score from periods conducted vs planned (+ novel pedagogy).</p>
               {courses.fields.map((field, i) => (
@@ -768,13 +768,13 @@ export default function AppraisalEditPage() {
                 </div>
               ))}
               {addRowBtn('Add Course', () => courses.append({ courseName: '', level: 'BTECH', yearSem: '', periodPlanned: 0, periodsConducted: 0, novelPedagogyUsed: false, novelPedagogyMethod: '' }))}
-            </div>
+            </details>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">1.2 Courses Taught — Attendance, Feedback &amp; Results</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">1.2 Courses Taught — Attendance, Feedback &amp; Results</h2>
                 <ScoreBadge value={live.cat1.attendanceFeedback} max={80} />
-              </div>
+              </summary>
               <p className="text-xs text-ink-muted mb-3">Per course max 20 — Attendance = (avg attendance % ÷ 100) × 5, Feedback out of 5, Results = (pass % ÷ 100) × 10. Section max 80.</p>
               {courseResults.fields.map((field, i) => (
                 <div key={field.id} className="border border-surface-border rounded p-3 mb-2">
@@ -804,13 +804,13 @@ export default function AppraisalEditPage() {
                 </div>
               ))}
               {addRowBtn('Add Course Result', () => courseResults.append({ courseName: '', classSize: 0, avgAttendancePct: 0, feedbackReceived: 0, passPercentage: 0 }))}
-            </div>
+            </details>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">1.3 Academic Projects Guided</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">1.3 Academic Projects Guided</h2>
                 <ScoreBadge value={live.cat1.projects} max={20} />
-              </div>
+              </summary>
               <p className="text-xs text-ink-muted mb-3">B.Tech: mini project 2, major project 5 for each batch. M.Tech: mini project 3, major project 5 for each student. Section max 20.</p>
               {projects.fields.map((field, i) => (
                 <div key={field.id} className="grid grid-cols-3 gap-3 mb-2">
@@ -848,13 +848,13 @@ export default function AppraisalEditPage() {
                 </div>
               ))}
               {addRowBtn('Add Project Row', () => projects.append({ course: 'BTECH', projectType: 'MINI', count: 0 }))}
-            </div>
+            </details>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">1.4 e-Content Development / Other Instructional Material</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">1.4 e-Content Development / Other Instructional Material</h2>
                 <ScoreBadge value={live.cat1.eContent} max={5} />
-              </div>
+              </summary>
               <p className="text-xs text-ink-muted mb-3">2 marks for each e-content or other instructional material developed, with evidence — paste the link to it. Content is internally audited. Section max 5.</p>
               {eContent.fields.map((field, i) => (
                 <div key={field.id} className="border border-surface-border rounded p-3 mb-2">
@@ -881,13 +881,13 @@ export default function AppraisalEditPage() {
                 </div>
               ))}
               {addRowBtn('Add e-Content', () => eContent.append({ courseName: '', contentName: '', nature: 'Video', evidenceFile: '' }))}
-            </div>
+            </details>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">1.5 Use of ICT &amp; Digital Platforms</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">1.5 Use of ICT &amp; Digital Platforms</h2>
                 <ScoreBadge value={live.cat1.ict} max={5} />
-              </div>
+              </summary>
               <p className="text-xs text-ink-muted mb-3">LMS usage (Google Classroom, Moodle, MS Teams, etc.), online quizzes, digital assignments, flipped classrooms — 2 marks for each course with documentary evidence (paste the link). Section max 5.</p>
               {ict.fields.map((field, i) => (
                 <div key={field.id} className="border border-surface-border rounded p-3 mb-2">
@@ -917,7 +917,7 @@ export default function AppraisalEditPage() {
                 </div>
               ))}
               {addRowBtn('Add ICT Usage', () => ict.append({ courseName: '', platform: 'Google Classroom', natureOfUse: 'Assignments', evidenceFile: '' }))}
-            </div>
+            </details>
           </div>
         )}
 
@@ -928,14 +928,14 @@ export default function AppraisalEditPage() {
               <h2 className="text-sm font-semibold text-ink-secondary">Category 2 — Research</h2>
               <ScoreBadge value={live.cat2.total} max={150} />
             </div>
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">2.1-A Journal Publications</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">2.1-A Journal Publications</h2>
                 <span className="flex items-center gap-1.5">
                   <span className="text-xs text-ink-muted">(2.1 combined: A + B + C)</span>
                   <ScoreBadge value={live.cat2.publications} max={60} />
                 </span>
-              </div>
+              </summary>
               <p className="text-xs text-ink-muted mb-3">2.1 Research Papers Published in Journals / Conferences / Book Chapters — max 60 across A, B and C. 15 for each paper in an SCI / SCIE / WoS or Scopus journal (ESCI, ICI and unindexed journals score 0). 10 for each indexed conference paper or indexed book chapter from a conference.</p>
               {journals.fields.map((field, i) => {
                 const jStatus = (watchedValues as any)?.cat2Journals?.[i]?.status ?? '';
@@ -987,16 +987,16 @@ export default function AppraisalEditPage() {
                 );
               })}
               {addRowBtn('Add Journal', () => journals.append({ title: '', journalName: '', authors: '', authorList: [''], allAuthorsFromCampus: null, claimedBySelf: null, authorPosition: '1st', status: '', indexed: 'NONE', impactFactor: 0, impactFactorSource: '', volume: '', issueNo: '', pageNos: '', dateOfPub: '', quartile: '', proofFile: '', indexProofFile: '' }))}
-            </div>
+            </details>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">2.1-B Conference Proceedings</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">2.1-B Conference Proceedings</h2>
                 <span className="flex items-center gap-1.5">
                   <span className="text-xs text-ink-muted">(2.1 combined: A + B + C)</span>
                   <ScoreBadge value={live.cat2.publications} max={60} />
                 </span>
-              </div>
+              </summary>
               {conferences.fields.map((field, i) => {
                 const cStatus = (watchedValues as any)?.cat2Conferences?.[i]?.status ?? '';
                 const cPublished = cStatus === 'PUBLISHED' || cStatus === 'INDEXED';
@@ -1043,16 +1043,16 @@ export default function AppraisalEditPage() {
                 );
               })}
               {addRowBtn('Add Conference', () => conferences.append({ title: '', conferenceName: '', authors: '', authorList: [''], allAuthorsFromCampus: null, claimedBySelf: null, authorPosition: '1st', status: '', volume: '', issueNo: '', pageNos: '', dateOfPub: '', issn: '', doi: '', impactFactor: 0, indexed: 'NONE', quartile: '', presentationStatus: '', proofFile: '', indexProofFile: '' }))}
-            </div>
+            </details>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">2.1-C Book Chapters (from Conferences)</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">2.1-C Book Chapters (from Conferences)</h2>
                 <span className="flex items-center gap-1.5">
                   <span className="text-xs text-ink-muted">(2.1 combined: A + B + C)</span>
                   <ScoreBadge value={live.cat2.publications} max={60} />
                 </span>
-              </div>
+              </summary>
               <p className="text-xs text-ink-muted mb-3">Book chapters derived from a conference proceeding — 10 each when indexed, part of 2.1. Other book chapters belong in 2.3.</p>
               {confBookChapters.fields.map((field, i) => (
                 <div key={field.id} className="border border-surface-border rounded p-3 mb-2">
@@ -1080,14 +1080,14 @@ export default function AppraisalEditPage() {
                 </div>
               ))}
               {addRowBtn('Add Conference Book Chapter', () => confBookChapters.append({ title: '', conferenceName: '', authors: '', authorList: [''], allAuthorsFromCampus: null, claimedBySelf: null, authorPosition: '1st', volume: '', issueNo: '', pageNos: '', dateOfPub: '', issn: '', doi: '', impactFactor: 0, indexed: 'NONE', quartile: '', proofFile: '' }))}
-            </div>
+            </details>
 
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">2.2 Citations of Research Publications / Books</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">2.2 Citations of Research Publications / Books</h2>
                 <ScoreBadge value={live.cat2.citations} max={5} />
-              </div>
+              </summary>
               <p className="text-xs text-ink-muted mb-3">Only Scopus / WoS citations are considered. Score from cumulative citations: 3–10 → 1, 11–50 → 2, 51–100 → 3, more than 100 → 5. Max 5.</p>
               <div className="grid grid-cols-3 gap-3">
                 <div><label className={labelCls}>No. of Publications / Books till date</label><input type="number" min={0} step={1} {...register('cat2Citations.totalPubsTillDate', { valueAsNumber: true })} className={inputCls} /></div>
@@ -1107,13 +1107,13 @@ export default function AppraisalEditPage() {
                   </>
                 );
               })()}
-            </div>
+            </details>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">2.3 Books and Academic Book Chapters Published / Edited</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">2.3 Books and Academic Book Chapters Published / Edited</h2>
                 <ScoreBadge value={live.cat2.books} max={10} />
-              </div>
+              </summary>
               <p className="text-xs text-ink-muted mb-3">International publisher: author 10, editor 5. National publisher: author 5, editor 3. Books and chapters share one maximum of 10. Choose National or International for every entry — a row without it scores 0.</p>
 
               <h3 className="text-sm font-semibold text-ink-secondary mb-2">Books</h3>
@@ -1156,13 +1156,13 @@ export default function AppraisalEditPage() {
                 </div>
               ))}
               {addRowBtn('Add Book Chapter', () => bookChapters.append({ title: '', authors: '', authorPosition: '1st', publisher: '', isbn: '', chapterNo: '', isEdited: false, scope: null, proofFile: '' }))}
-            </div>
+            </details>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">2.4 Patents / Transfer of Technology / Trade Marks / Copyrights / Any Other IPR</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">2.4 Patents / Transfer of Technology / Trade Marks / Copyrights / Any Other IPR</h2>
                 <ScoreBadge value={live.cat2.patents} max={20} />
-              </div>
+              </summary>
               <p className="text-xs text-ink-muted mb-3">Published 5, Granted 10 — for any kind of IPR. A filing alone scores 0. Transfer of Technology: choose Type of IPR → Other and describe it. Max 20.</p>
               {patents.fields.map((field, i) => (
                 <div key={field.id} className="border border-surface-border rounded p-3 mb-2">
@@ -1252,13 +1252,13 @@ export default function AppraisalEditPage() {
                 </div>
               ))}
               {addRowBtn('Add Patent', () => patents.append({ title: '', country: 'India', inventors: '', status: 'FILED', iprType: '', iprTypeOther: '', patentType: '', applicantIsInstitute: false, appNumber: '', dateOfFiling: '', dateOfPub: '', dateOfGrant: '', validDuration: '' }))}
-            </div>
+            </details>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">2.5 Sponsored Research Projects</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">2.5 Sponsored Research Projects</h2>
                 <ScoreBadge value={live.cat2.sponsoredProjects} max={20} />
-              </div>
+              </summary>
               <p className="text-xs text-ink-muted mb-3">Ongoing 20 and Applied 5 for each project, up to a maximum of 20. Completed projects are listed for the record but do not score.</p>
               {cat2Proj.fields.map((field, i) => {
                 const row = (watchedValues as any)?.cat2Projects?.[i] ?? {};
@@ -1316,13 +1316,13 @@ export default function AppraisalEditPage() {
                 );
               })}
               {addRowBtn('Add Project', () => cat2Proj.append({ title: '', fundingAgency: '', amountLakhs: 0, role: 'PI', status: 'APPLIED', durationPeriod: '', dateOfApplication: '', dateOfGrant: '' }))}
-            </div>
+            </details>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">2.6 Consultancy Projects</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">2.6 Consultancy Projects</h2>
                 <ScoreBadge value={live.cat2.consultancy} max={10} />
-              </div>
+              </summary>
               <p className="text-xs text-ink-muted mb-3">Per project, by amount: up to Rs. 1 lakh 2, up to 2 lakh 4, up to 5 lakh 6, up to 10 lakh 8, above 10 lakh 10. Max 10.</p>
               {consultancy.fields.map((field, i) => (
                 <div key={field.id} className="grid grid-cols-3 gap-3 mb-2">
@@ -1335,13 +1335,13 @@ export default function AppraisalEditPage() {
                 </div>
               ))}
               {addRowBtn('Add Consultancy', () => consultancy.append({ name: '', agency: '', amountLakhs: 0, proofFile: '' }))}
-            </div>
+            </details>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">2.7 Research Guidance (PhD)</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">2.7 Research Guidance (PhD)</h2>
                 <ScoreBadge value={live.cat2.guidance} max={5} />
-              </div>
+              </summary>
               <p className="text-xs text-ink-muted mb-3">Ph.D. guide 5 per candidate, co-guide 3. Max 5.</p>
               {guidance.fields.map((field, i) => (
                 <div key={field.id} className="grid grid-cols-2 gap-3 mb-2">
@@ -1359,13 +1359,13 @@ export default function AppraisalEditPage() {
                 </div>
               ))}
               {addRowBtn('Add Guidance', () => guidance.append({ studentName: '', university: '', thesisTitle: '', isGuide: true, proofFile: '' }))}
-            </div>
+            </details>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">2.8 Research Interest Groups</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">2.8 Research Interest Groups</h2>
                 <ScoreBadge value={live.cat2.researchGroups} max={5} />
-              </div>
+              </summary>
               <p className="text-xs text-ink-muted mb-3">5 for participation with a tangible outcome — an entry with no outcome scores 0. Max 5.</p>
               {researchGroups.fields.map((field, i) => {
                 const row = (watchedValues as any)?.cat2ResearchGroups?.[i] ?? {};
@@ -1381,13 +1381,13 @@ export default function AppraisalEditPage() {
                 );
               })}
               {addRowBtn('Add Research Group', () => researchGroups.append({ groupName: '', size: 1, outcome: '', proofFile: '' }))}
-            </div>
+            </details>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">2.9 Academic / Research Institution Collaborations</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">2.9 Academic / Research Institution Collaborations</h2>
                 <ScoreBadge value={live.cat2.linkages} max={10} />
-              </div>
+              </summary>
               <p className="text-xs text-ink-muted mb-3">Record any collaboration with an outside university, research lab or institute here. 5 per collaboration with an outcome (joint paper / project / shared facilities / student projects) — no outcome scores 0. Max 10 together with industry linkages below.</p>
               {linkages.fields.map((field, i) => {
                 const row = (watchedValues as any)?.cat2Linkages?.[i] ?? {};
@@ -1403,13 +1403,13 @@ export default function AppraisalEditPage() {
                 );
               })}
               {addRowBtn('Add Institution Collaboration', () => linkages.append({ instituteName: '', contactPerson: '', outcome: '', proofFile: '' }))}
-            </div>
+            </details>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">2.9 Industry Linkages (contd.)</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">2.9 Industry Linkages (contd.)</h2>
                 <ScoreBadge value={live.cat2.linkages} max={10} />
-              </div>
+              </summary>
               <p className="text-xs text-ink-muted mb-3">Collaborations with a company or industry body. Scored together with the institution collaborations above — 5 per linkage with an outcome, 10 max across both.</p>
               {industryLinkages.fields.map((field, i) => {
                 const row = (watchedValues as any)?.cat2IndustryLinkages?.[i] ?? {};
@@ -1425,13 +1425,13 @@ export default function AppraisalEditPage() {
                 );
               })}
               {addRowBtn('Add Industry Linkage', () => industryLinkages.append({ industryName: '', contactPerson: '', outcome: '', proofFile: '' }))}
-            </div>
+            </details>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">2.10 Innovation / Start-ups</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">2.10 Innovation / Start-ups</h2>
                 <ScoreBadge value={live.cat2.startups} max={5} />
-              </div>
+              </summary>
               <p className="text-xs text-ink-muted mb-3">5 per activity with an outcome — no outcome scores 0. Max 5.</p>
               {startups.fields.map((field, i) => {
                 const row = (watchedValues as any)?.cat2Startups?.[i] ?? {};
@@ -1447,7 +1447,7 @@ export default function AppraisalEditPage() {
                 );
               })}
               {addRowBtn('Add Startup', () => startups.append({ groupName: '', activity: '', outcome: '', proofFile: '' }))}
-            </div>
+            </details>
           </div>
         )}
 
@@ -1458,11 +1458,11 @@ export default function AppraisalEditPage() {
               <h2 className="text-sm font-semibold text-ink-secondary">Category 3 — Faculty Development</h2>
               <ScoreBadge value={live.cat3.total} max={100} />
             </div>
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">3.1 Status of Ph.D.</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">3.1 Status of Ph.D.</h2>
                 <ScoreBadge value={live.cat3.advQual} max={10} />
-              </div>
+              </summary>
               <p className="text-xs text-ink-muted mb-3">Highest applicable: Post-Doctoral / Awarded / Thesis Submitted / PG Degree / PG Diploma → 10, Cleared Pre-PhD → 8, Registered for Ph.D. → 5.</p>
               <div>
                 <label className={labelCls}>Status of Ph.D.</label>
@@ -1478,7 +1478,7 @@ export default function AppraisalEditPage() {
                 </select>
               </div>
               <div className="mt-3">{proofField('cat3AdvQual.proofFile', 'Degree / Proof')}</div>
-            </div>
+            </details>
 
             <div>
               <div className="flex items-center justify-between mb-3">
@@ -1499,11 +1499,11 @@ export default function AppraisalEditPage() {
               {addRowBtn('Add Conference Attended', () => conferencesAttended.append({ paperTitle: '', authors: '', conferenceName: '', period: '', proofFile: '' }))}
             </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">3.2 Programs Organised</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">3.2 Programs Organised</h2>
                 <ScoreBadge value={live.cat3.organisedPrograms} max={20} />
-              </div>
+              </summary>
               {organised.fields.map((field, i) => (
                 <div key={field.id} className="grid grid-cols-2 gap-3 mb-2">
                   <div><label className={labelCls}>Title</label><input {...register(`cat3Organised.${i}.title`)} className={inputCls} /></div>
@@ -1524,13 +1524,13 @@ export default function AppraisalEditPage() {
                 </div>
               ))}
               {addRowBtn('Add Program', () => organised.append({ title: '', period: '', sponsor: '', scope: 'NATIONAL', status: 'Completed', proofFile: '' }))}
-            </div>
+            </details>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">3.3 Resource Person</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">3.3 Resource Person</h2>
                 <ScoreBadge value={live.cat3.resourcePerson} max={20} />
-              </div>
+              </summary>
               {resourcePerson.fields.map((field, i) => (
                 <div key={field.id} className="border border-surface-border rounded p-3 mb-2">
                   <div className="grid grid-cols-2 gap-3">
@@ -1549,13 +1549,13 @@ export default function AppraisalEditPage() {
                 </div>
               ))}
               {addRowBtn('Add Resource Person Role', () => resourcePerson.append({ programType: 'FDP', programName: '', topic: '', duration: '', venue: '', organisedBy: '', proofFile: '' }))}
-            </div>
+            </details>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">3.4 Editorial / Review Roles</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">3.4 Editorial / Review Roles</h2>
                 <ScoreBadge value={live.cat3.editorial} max={20} />
-              </div>
+              </summary>
               {editorial.fields.map((field, i) => (
                 <div key={field.id} className="border border-surface-border rounded p-3 mb-2">
                   <div className="grid grid-cols-2 gap-3">
@@ -1577,13 +1577,13 @@ export default function AppraisalEditPage() {
                 </div>
               ))}
               {addRowBtn('Add Editorial Role', () => editorial.append({ natureOfContrib: 'Editorial Board', orgOrJournal: '', scope: 'NATIONAL', dateDuration: '', proofFile: '' }))}
-            </div>
+            </details>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">3.5 Training Attended</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">3.5 Training Attended</h2>
                 <ScoreBadge value={live.cat3.training} max={25} />
-              </div>
+              </summary>
               {/* Was "5 for 5 days or fewer" — wrong since 2026-08-28: under 5 days scores 0. */}
               <p className="text-xs text-ink-muted mb-3">10 for more than 5 days, 5 for exactly 5 days; shorter programmes don&apos;t score. Max 25.</p>
               {training.fields.map((field, i) => (
@@ -1597,13 +1597,13 @@ export default function AppraisalEditPage() {
                 </div>
               ))}
               {addRowBtn('Add Training', () => training.append({ name: '', period: '', durationDays: 5 }))}
-            </div>
+            </details>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">3.6 International Travel</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">3.6 International Travel</h2>
                 <ScoreBadge value={live.cat3.intlTravel} max={5} />
-              </div>
+              </summary>
               {intlTravel.fields.map((field, i) => (
                 <div key={field.id} className="grid grid-cols-3 gap-3 mb-2">
                   <div><label className={labelCls}>Purpose</label><input {...register(`cat3IntlTravel.${i}.purpose`)} className={inputCls} /></div>
@@ -1623,7 +1623,7 @@ export default function AppraisalEditPage() {
                 </div>
               ))}
               {addRowBtn('Add Travel', () => intlTravel.append({ purpose: '', placeOrUniv: '', outcome: '', fundingSource: '', proofFile: '' }))}
-            </div>
+            </details>
           </div>
         )}
 
@@ -1634,11 +1634,11 @@ export default function AppraisalEditPage() {
               <h2 className="text-sm font-semibold text-ink-secondary">Category 4 — Governance</h2>
               <ScoreBadge value={live.cat4.total} max={50} />
             </div>
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">4.1 Admin Responsibilities</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">4.1 Admin Responsibilities</h2>
                 <ScoreBadge value={live.cat4.adminResp} max={40} />
-              </div>
+              </summary>
               {adminResp.fields.map((field, i) => (
                 <div key={field.id} className="grid grid-cols-2 gap-3 mb-2">
                   <div><label className={labelCls}>Responsibility</label><input {...register(`cat4AdminResp.${i}.responsibility`)} className={inputCls} /></div>
@@ -1654,13 +1654,13 @@ export default function AppraisalEditPage() {
                 </div>
               ))}
               {addRowBtn('Add Responsibility', () => adminResp.append({ responsibility: '', level: 'Department', workInvolved: '', period: '1 Semester', proofFile: '' }))}
-            </div>
+            </details>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">4.2 Student Activities</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">4.2 Student Activities</h2>
                 <ScoreBadge value={live.cat4.studentActivities} max={10} />
-              </div>
+              </summary>
               {studentAct.fields.map((field, i) => (
                 <div key={field.id} className="grid grid-cols-2 gap-3 mb-2">
                   <div><label className={labelCls}>Activity</label><input {...register(`cat4StudentAct.${i}.activityName`)} className={inputCls} /></div>
@@ -1670,7 +1670,7 @@ export default function AppraisalEditPage() {
                 </div>
               ))}
               {addRowBtn('Add Activity', () => studentAct.append({ activityName: '', period: '', proofFile: '' }))}
-            </div>
+            </details>
           </div>
         )}
 
@@ -1681,11 +1681,11 @@ export default function AppraisalEditPage() {
               <h2 className="text-sm font-semibold text-ink-secondary">Category 5 — Supplementary</h2>
               <ScoreBadge value={live.cat5.total} max={50} />
             </div>
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">5.1 Professional Association</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">5.1 Professional Association</h2>
                 <ScoreBadge value={live.cat5.memberships} max={15} />
-              </div>
+              </summary>
               {memberships.fields.map((field, i) => (
                 <div key={field.id} className="grid grid-cols-2 gap-3 mb-2">
                   <div><label className={labelCls}>Association</label><input {...register(`cat5Memberships.${i}.association`)} className={inputCls} /></div>
@@ -1702,13 +1702,13 @@ export default function AppraisalEditPage() {
                 </div>
               ))}
               {addRowBtn('Add Membership', () => memberships.append({ association: '', status: 'national_member', proofFile: '' }))}
-            </div>
+            </details>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">5.2 Awards</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">5.2 Awards</h2>
                 <ScoreBadge value={live.cat5.awards} max={10} />
-              </div>
+              </summary>
               {awards.fields.map((field, i) => (
                 <div key={field.id} className="grid grid-cols-3 gap-3 mb-2">
                   <div><label className={labelCls}>Award Title</label><input {...register(`cat5Awards.${i}.awardType`)} className={inputCls} /></div>
@@ -1725,13 +1725,13 @@ export default function AppraisalEditPage() {
                 </div>
               ))}
               {addRowBtn('Add Award', () => awards.append({ awardType: '', organization: '', level: 'national' }))}
-            </div>
+            </details>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">5.3 Differentiators</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">5.3 Differentiators</h2>
                 <ScoreBadge value={live.cat5.differentiators} max={20} />
-              </div>
+              </summary>
               {differentiators.fields.map((field, i) => (
                 <div key={field.id} className="grid grid-cols-3 gap-3 mb-2">
                   <div><label className={labelCls}>Name</label><input {...register(`cat5Differentiators.${i}.name`)} className={inputCls} /></div>
@@ -1748,13 +1748,13 @@ export default function AppraisalEditPage() {
                 </div>
               ))}
               {addRowBtn('Add Differentiator', () => differentiators.append({ name: '', role: 'participating', proofFile: '' }))}
-            </div>
+            </details>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink-primary">5.4 Student Internships Arranged</h2>
+            <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
+              <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">5.4 Student Internships Arranged</h2>
                 <ScoreBadge value={live.cat5.internships} max={5} />
-              </div>
+              </summary>
               {internships.fields.map((field, i) => (
                 <div key={field.id} className="border border-surface-border rounded p-3 mb-2">
                   <div className="grid grid-cols-2 gap-3">
@@ -1768,7 +1768,7 @@ export default function AppraisalEditPage() {
                 </div>
               ))}
               {addRowBtn('Add Internship', () => internships.append({ industryOrInst: '', studentBatch: '', internshipDetails: '', period: '', proofFile: '' }))}
-            </div>
+            </details>
           </div>
         )}
 
