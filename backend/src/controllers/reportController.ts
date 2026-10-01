@@ -231,3 +231,182 @@ export async function exportReport(req: Request, res: Response) {
 
   return res.json(rows);
 }
+
+// ─── Department appraisal Excel (official CSE output format) ─────────────
+//
+// One row per faculty, for a single department and academic year, in the
+// institute's consolidated output layout (24 base columns). The dean/principal
+// pick a department and additionally get the Tier and Eligibility columns they
+// own; a HoD exports only their own department with Tier/Eligibility hidden.
+//
+// The derivable columns are filled from the appraisal (publications, indexing,
+// citations, patents, projects, consultancy, guidance, teaching feedback). The
+// HoD's narrative verification columns (authorship sharing, shared ownership,
+// final remarks, signature) are left blank for the HoD to complete by hand.
+
+const APPRAISAL_HEADERS = [
+  'Name of the Employee', 'Employee ID', 'Designation', 'Highest Qualification',
+  'No of Theory Subjects handled (B.Tech. / M.Tech.)', 'Highest & Lowest Feed Back points',
+  'Highest & Lowest Pass Percentage', 'No.of Publication (Journals)', 'position of author',
+  'No.of Publication (Conferences)', 'position of author ', 'Scopus', 'WoS', 'SCI/SCIE',
+  'Citations (Scopus/ WoS )', 'Books/Book chapters', 'Patents & Any Other IP (Applied / Granted)',
+  'No. of Research Projects (Applied / Granted) & Amount Rs.',
+  'Consultancy Projects (Applied / Granted) & Amount Rs.', 'Research guidance (Ph.D.)',
+  'Authorship sharing information', 'Shared Authorship OwnerShip',
+  'Final Remarks after verification', 'Signature of the faculty',
+];
+
+// Distinct author positions across a set of publication rows, in first-seen order.
+const positions = (rows: Array<{ authorPosition?: string | null }>): string => {
+  const seen: string[] = [];
+  for (const r of rows) {
+    const p = (r.authorPosition ?? '').trim();
+    if (p && !seen.includes(p)) seen.push(p);
+  }
+  return seen.join(', ');
+};
+
+const countIndexed = (rows: Array<{ indexed?: string | null }>, ...want: string[]): number =>
+  rows.filter((r) => r.indexed && want.includes(r.indexed)).length;
+
+// "a Filed, b Published, c Granted" — only the non-zero parts.
+const patentSummary = (rows: Array<{ status: string }>): string => {
+  const by: Record<string, number> = {};
+  for (const r of rows) by[r.status] = (by[r.status] ?? 0) + 1;
+  const label: Record<string, string> = { FILED: 'Filed', PUBLISHED: 'Published', GRANTED: 'Granted' };
+  return ['FILED', 'PUBLISHED', 'GRANTED']
+    .filter((s) => by[s]).map((s) => `${by[s]} ${label[s]}`).join(', ');
+};
+
+// "a Applied, b Ongoing, c Completed & Rs. X L" — non-zero parts + total amount.
+const projectSummary = (rows: Array<{ status: string; amountLakhs: number }>): string => {
+  if (rows.length === 0) return '';
+  const by: Record<string, number> = {};
+  let amt = 0;
+  for (const r of rows) { by[r.status] = (by[r.status] ?? 0) + 1; amt += r.amountLakhs ?? 0; }
+  const label: Record<string, string> = { APPLIED: 'Applied', ONGOING: 'Ongoing', COMPLETED: 'Completed' };
+  const counts = ['APPLIED', 'ONGOING', 'COMPLETED'].filter((s) => by[s]).map((s) => `${by[s]} ${label[s]}`).join(', ');
+  return amt ? `${counts} & Rs. ${amt} L` : counts;
+};
+
+const range = (vals: number[]): string => {
+  const xs = vals.filter((v) => typeof v === 'number' && !Number.isNaN(v) && v > 0);
+  if (xs.length === 0) return '';
+  const hi = Math.max(...xs), lo = Math.min(...xs);
+  return hi === lo ? `${hi}` : `${hi} & ${lo}`;
+};
+
+export async function exportAppraisalExcel(req: Request, res: Response) {
+  const user = req.user!;
+  const seesAllDepts = hasAnyRole(user, CONFIG); // dean / principal
+  const deptFilter = typeof req.query.dept === 'string' ? req.query.dept : undefined;
+
+  // The sheet is per-department. The dean/principal must name which one; a HoD
+  // is pinned to their own department and any ?dept is ignored.
+  let departmentId: string | undefined;
+  if (seesAllDepts) {
+    if (!deptFilter) return res.status(400).json({ error: 'Select a department to export' });
+    departmentId = deptFilter;
+  } else {
+    const own = deptIdsFor(user, [RoleType.HOD]);
+    if (own.length === 0) return res.status(403).json({ error: 'No department to export' });
+    departmentId = own[0];
+  }
+
+  const year = typeof req.query.academicYearId === 'string'
+    ? await prisma.academicYear.findUnique({ where: { id: req.query.academicYearId } })
+    : await prisma.academicYear.findFirst({ where: { submissionOpen: true }, orderBy: { startDate: 'desc' } });
+  if (!year) return res.status(404).json({ error: 'Academic year not found' });
+
+  const submissions = await prisma.appraisalSubmission.findMany({
+    where: { academicYearId: year.id, user: { departmentId } },
+    include: TRACKING_INCLUDE,
+    orderBy: { submissionNumber: 'desc' },
+  });
+
+  // Reviewed-preferred, else latest, per faculty (submissions are desc).
+  const picked = new Map<string, (typeof submissions)[number]>();
+  for (const s of submissions) {
+    const cur = picked.get(s.userId);
+    if (!cur) picked.set(s.userId, s);
+    else if (cur.status !== SubmissionStatus.APPROVED && s.status === SubmissionStatus.APPROVED) picked.set(s.userId, s);
+  }
+  const chosen = [...picked.values()].sort((a, b) => (a as any).user.name.localeCompare((b as any).user.name));
+
+  // Highest qualification lives on the user, not in TRACKING_INCLUDE's select.
+  const quals = new Map<string, string>();
+  if (chosen.length) {
+    const us = await prisma.user.findMany({
+      where: { id: { in: chosen.map((s) => s.userId) } },
+      select: { id: true, educationalQuals: true },
+    });
+    for (const u of us) quals.set(u.id, u.educationalQuals ?? '');
+  }
+
+  // Tier + eligibility are the dean's/principal's columns only.
+  const includeTier = seesAllDepts;
+  const tiers = new Map<string, { tier: string | null; eligible: boolean | null }>();
+  if (includeTier && chosen.length) {
+    const fts = await prisma.facultyTier.findMany({
+      where: { academicYearId: year.id, userId: { in: chosen.map((s) => s.userId) } },
+      select: { userId: true, tier: true, eligible: true },
+    });
+    for (const ft of fts) tiers.set(ft.userId, { tier: ft.tier ?? null, eligible: ft.eligible });
+  }
+
+  const headers = includeTier ? [...APPRAISAL_HEADERS, 'Tier', 'Eligibility'] : [...APPRAISAL_HEADERS];
+
+  const rows = chosen.map((s) => {
+    const a = s as any;
+    const u = a.user;
+    const j = a.cat2Journals ?? [], c = a.cat2Conferences ?? [], cbc = a.cat2ConfBookChapters ?? [];
+    const pub = [...j, ...c, ...cbc];
+    const results = a.cat1CourseResults ?? [];
+    const booksChapters = (a.cat2Books ?? []).length + (a.cat2BookChapters ?? []).length + cbc.length;
+    const row: Array<string | number> = [
+      u.name ?? '',
+      u.employeeCode ?? '',
+      u.designation ?? '',
+      quals.get(u.id) ?? '',
+      (a.cat1Courses ?? []).length || '',
+      range(results.map((r: any) => r.feedbackReceived)),
+      range(results.map((r: any) => r.passPercentage)),
+      j.length || '',
+      positions(j),
+      c.length || '',
+      positions(c),
+      countIndexed(pub, 'SCOPUS') || '',
+      countIndexed(pub, 'WOS') || '',
+      countIndexed(pub, 'ESCI') || '', // no SCI index in the enum; ESCI is the closest
+      a.cat2Citations?.totalCitations || '',
+      booksChapters || '',
+      patentSummary(a.cat2Patents ?? []),
+      projectSummary(a.cat2Projects ?? []),
+      (a.cat2Consultancy ?? []).length
+        ? `${a.cat2Consultancy.length} & Rs. ${(a.cat2Consultancy as any[]).reduce((t, x) => t + (x.amountLakhs ?? 0), 0)} L`
+        : '',
+      (a.cat2Guidance ?? []).filter((g: any) => g.isGuide).length || '',
+      '', // Authorship sharing information — HoD narrative, filled by hand
+      '', // Shared Authorship Ownership — HoD narrative
+      '', // Final Remarks after verification — HoD narrative
+      '', // Signature of the faculty
+    ];
+    if (includeTier) {
+      const t = tiers.get(u.id);
+      row.push(t?.tier ?? '');
+      row.push(t?.eligible == null ? '' : t.eligible ? 'Eligible' : 'Not eligible');
+    }
+    return row;
+  });
+
+  const dept = await prisma.department.findUnique({ where: { id: departmentId }, select: { code: true, name: true } });
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, (dept?.code ?? 'Appraisal').slice(0, 28));
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  const fname = `appraisal-${dept?.code ?? 'dept'}-${year.label}.xlsx`.replace(/\s+/g, '_');
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename=${fname}`);
+  return res.send(buf);
+}
+

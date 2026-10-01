@@ -9,6 +9,11 @@ export const reportApi = {
     api.get('/reports/export', { params, responseType: params.format === 'excel' ? 'blob' : 'json' }).then((r) => r.data),
   getCriteria: (params?: { academicYearId?: string; dept?: string }): Promise<CriteriaReport> =>
     api.get('/reports/criteria', { params }).then((r) => r.data),
+  // Per-department appraisal Excel in the institute's output format. HoD omits
+  // dept (own department, Tier/Eligibility hidden); dean/principal pass a dept
+  // and get those columns.
+  appraisalExcel: (params?: { dept?: string; academicYearId?: string }): Promise<Blob> =>
+    api.get('/reports/appraisal-excel', { params, responseType: 'blob' }).then((r) => r.data),
 };
 
 export interface CategoryBreakdown { total: number; [k: string]: number }

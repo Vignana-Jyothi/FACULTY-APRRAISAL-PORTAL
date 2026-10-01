@@ -218,6 +218,10 @@ router.get('/reports/department', authenticate, roleGuard(DEPT_CONTENT_READ), re
 router.get('/reports/criteria', authenticate, roleGuard(DEPT_CONTENT_READ), report.getCriteriaReport);
 router.get('/reports/institute', authenticate, roleGuard(CONFIG), report.getInstituteReport);
 router.get('/reports/export', authenticate, roleGuard(DEPT_CONTENT_READ), report.exportReport);
+// Per-department appraisal Excel in the institute's output format. HoD exports
+// their own dept (Tier/Eligibility hidden); dean/principal pick any dept and
+// get those two columns. Controller enforces the dept scope.
+router.get('/reports/appraisal-excel', authenticate, roleGuard(DEPT_CONTENT_READ), report.exportAppraisalExcel);
 
 // Admin: email notifications. A DEPT_ADMIN may READ the queue (scoped to their
 // department's recipients in the controller); retrying and manually triggering
