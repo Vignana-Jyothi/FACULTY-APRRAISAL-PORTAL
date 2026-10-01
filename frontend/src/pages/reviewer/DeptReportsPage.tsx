@@ -77,6 +77,7 @@ export default function DeptReportsPage() {
     <div>
       <PageHeader
         title="Department Reports"
+        help="Your department’s statistics. Pick a criterion to rank your faculty and export the table as CSV."
         subtitle={seesAllDepts ? 'Reviewed appraisals — all departments, or pick one' : 'Reviewed appraisals in your department'}
         breadcrumbs={[{ label: 'Home' }, { label: 'Department Reports' }]}
         actions={

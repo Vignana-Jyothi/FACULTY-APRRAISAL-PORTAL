@@ -35,7 +35,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
   const [showPassword, setShowPassword] = useState(false);
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
+  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
 
@@ -112,8 +112,13 @@ export default function LoginPage() {
                 <div>
                   <label className="block text-xs font-medium text-ink-secondary mb-1">Employee Code</label>
                   <input
-                    {...register('employeeCode')}
-                    className="w-full border border-surface-border rounded px-3 py-2 text-sm bg-surface-base focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    {...register('employeeCode', {
+                      // Employee codes are always upper-case (FAC001) — fold the
+                      // typed value so a lower-case entry still matches the account.
+                      onChange: (e) => setValue('employeeCode', e.target.value.toUpperCase()),
+                    })}
+                    autoCapitalize="characters"
+                    className="w-full border border-surface-border rounded px-3 py-2 text-sm bg-surface-base uppercase placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     placeholder="e.g. FAC001"
                   />
                   {errors.employeeCode && <p className="text-danger-500 text-xs mt-1">{errors.employeeCode.message}</p>}

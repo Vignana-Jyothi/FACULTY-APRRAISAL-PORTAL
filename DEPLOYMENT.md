@@ -409,6 +409,22 @@ update contains a destructive schema change: roll back to the previous commit
 and plan that change with the developer. Do **not** add `--accept-data-loss` to
 get past it.
 
+**Non-destructive index/constraint changes** sometimes trip the same warning
+even though no rows are lost (e.g. swapping a unique index — commit `d344d68`,
+per-quarter feedback, dropped `Feedback_submissionId_key` for a composite one).
+When the developer has confirmed a specific commit is safe, apply that one
+change with a **one-off** container from the new image, then start normally:
+
+```bash
+docker compose -f docker-compose.prod.yml build backend
+docker compose -f docker-compose.prod.yml run --rm --entrypoint sh backend \
+  -c "npx prisma db push --schema=src/prisma/schema.prisma --accept-data-loss --skip-generate"
+docker compose -f docker-compose.prod.yml up -d backend   # boot push is now a no-op
+```
+
+Do this only for a change the developer has cleared as non-destructive; never as
+a blanket way past the guard, and never by editing the entrypoint.
+
 Never run `prisma migrate` against this database — the schema is managed by
 `db push` and has drifted from the migration history, so `migrate` offers to
 reset the database. `npm run prisma:migrate` is wired to refuse.

@@ -1,5 +1,7 @@
 import api from './client';
 
+export type FeedbackPeriod = 'Q1' | 'Q2' | 'Q3' | 'Q4' | 'ANNUAL';
+
 export interface FeedbackSnapshot {
   year: string;
   cadreLabel: string | null;
@@ -29,20 +31,40 @@ export interface FeedbackResponse {
 }
 
 export interface FeedbackInput {
+  period?: FeedbackPeriod;
   strengths?: string;
   improvements?: string;
   growthTargets?: string;
 }
 
+// One row of the per-period list. status NONE = not written yet.
+export interface FeedbackPeriodRow {
+  period: FeedbackPeriod;
+  label: string;
+  status: 'NONE' | 'DRAFT' | 'ISSUED';
+  strengths?: string | null;
+  improvements?: string | null;
+  growthTargets?: string | null;
+  issuedAt?: string | null;
+  issuedByName?: string | null;
+}
+export interface FeedbackListResponse {
+  periods: FeedbackPeriodRow[];
+  editable: boolean;
+}
+
 export const feedbackApi = {
-  get: (submissionId: string): Promise<FeedbackResponse> =>
-    api.get(`/appraisals/${submissionId}/feedback`).then((r) => r.data),
+  // All periods for the submission (five for an author, only issued for the owner).
+  list: (submissionId: string): Promise<FeedbackListResponse> =>
+    api.get(`/appraisals/${submissionId}/feedbacks`).then((r) => r.data),
+  get: (submissionId: string, period: FeedbackPeriod): Promise<FeedbackResponse> =>
+    api.get(`/appraisals/${submissionId}/feedback`, { params: { period } }).then((r) => r.data),
   save: (submissionId: string, body: FeedbackInput): Promise<FeedbackData> =>
     api.put(`/appraisals/${submissionId}/feedback`, body).then((r) => r.data),
   issue: (submissionId: string, body: FeedbackInput): Promise<FeedbackData> =>
     api.post(`/appraisals/${submissionId}/feedback/issue`, body).then((r) => r.data),
   // Server decides what goes in it: the owner's copy carries the narrative
   // only, a HoD's also carries the cadre/eligibility standing.
-  downloadPdf: (submissionId: string) =>
-    api.get(`/appraisals/${submissionId}/feedback/pdf`, { responseType: 'blob' }).then((r) => r.data),
+  downloadPdf: (submissionId: string, period: FeedbackPeriod) =>
+    api.get(`/appraisals/${submissionId}/feedback/pdf`, { params: { period }, responseType: 'blob' }).then((r) => r.data),
 };

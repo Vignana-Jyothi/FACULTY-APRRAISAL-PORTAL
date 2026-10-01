@@ -56,8 +56,9 @@ export interface Cat1ProjectInput {
   count?: number;
 }
 
-// 2.1 rows: the index, and the authorship claim (see publicationClaim).
+// 2.1 rows: the lifecycle status, the index, and the authorship claim.
 interface PublicationClaimFields {
+  status?: PublicationStatus | string | null;
   indexed?: PublicationIndex;
   authorList?: string[] | null;
   authors?: string | null;
@@ -240,7 +241,15 @@ function n(v: unknown): number {
  * book chapter earns 10 for any index.
  */
 export type PublicationKind = 'journal' | 'conference' | 'chapter';
-export function publicationRowScore(kind: PublicationKind, indexed?: PublicationIndex | string | null): number {
+export type PublicationStatus = 'SUBMITTED' | 'ACCEPTED' | 'PRESENTED' | 'PUBLISHED' | 'INDEXED';
+export function publicationRowScore(kind: PublicationKind, indexed?: PublicationIndex | string | null, status?: string | null): number {
+  // 2.1 status model (2026-09-28): a Published or Indexed paper scores its full
+  // mark — 15 for a journal, 10 for a conference; Submitted/Accepted/Presented
+  // score 0. A row with no status is a legacy entry and falls back to the index
+  // rule. Mirror of the backend's publicationRowScore.
+  const scored = status === 'PUBLISHED' || status === 'INDEXED';
+  if (status && kind === 'journal') return scored ? 15 : 0;
+  if (status && kind === 'conference') return scored ? 10 : 0;
   const ix = indexed ?? 'NONE';
   if (kind === 'journal') return ix === 'WOS' || ix === 'SCOPUS' ? 15 : 0;
   return ix === 'WOS' || ix === 'SCOPUS' || ix === 'ESCI' || ix === 'ICI' ? 10 : 0;
@@ -283,11 +292,11 @@ export function publicationClaim(r: PublicationClaimRow | null | undefined): { o
 /** 2.1 per-row score with the authorship claim applied. Mirror of the backend's publicationScore. */
 export function publicationScore(
   kind: PublicationKind,
-  r: (PublicationClaimRow & { indexed?: PublicationIndex | string | null }) | null | undefined,
+  r: (PublicationClaimRow & { indexed?: PublicationIndex | string | null; status?: string | null }) | null | undefined,
 ): { score: number; reason: string } {
   const claim = publicationClaim(r);
   if (!claim.ok) return { score: 0, reason: claim.reason };
-  return { score: publicationRowScore(kind, r?.indexed), reason: claim.reason };
+  return { score: publicationRowScore(kind, r?.indexed, r?.status), reason: claim.reason };
 }
 
 /**

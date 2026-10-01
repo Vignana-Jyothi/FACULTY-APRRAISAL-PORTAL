@@ -4,6 +4,16 @@ import type { EmailTemplateKey } from './emailService';
 // ports); email links need a single base, so use the first origin.
 const FRONTEND_URL = (process.env.FRONTEND_URL ?? 'http://localhost:5173').split(',')[0].trim();
 
+// Friendly quarter label for the quarterly mail — "Q2" alone reads as jargon,
+// so name it with its months. Falls back to the raw code for anything unknown.
+const QUARTER_LABEL: Record<string, string> = {
+  Q1: 'Quarter 1 (Jul-Sep)',
+  Q2: 'Quarter 2 (Oct-Dec)',
+  Q3: 'Quarter 3 (Jan-Mar)',
+  Q4: 'Quarter 4 (Apr-Jun)',
+};
+const quarterLabel = (q: string) => QUARTER_LABEL[q] ?? q;
+
 // Subject lines (function for dynamic substitution)
 export const TEMPLATE_SUBJECTS: Record<EmailTemplateKey, (p: any) => string> = {
   submission_received: (p) => `Faculty Appraisal ${p.year} — Submission received`,
@@ -19,8 +29,8 @@ export const TEMPLATE_SUBJECTS: Record<EmailTemplateKey, (p: any) => string> = {
     : `Action needed — Proof rejected, appraisal ${p.year} on hold`,
   proof_rejected_hod: (p) => `Red List — ${p.facultyName}'s ${p.year} appraisal held`,
   hold_cleared: (p) => `Hold cleared — Appraisal ${p.year} back under review`,
-  quarterly_feedback: (p) => `${p.quarter} feedback — Appraisal ${p.year} (provisional)`,
-  feedback_issued: (p) => `Your ${p.year} appraisal feedback is ready`,
+  quarterly_feedback: (p) => `${quarterLabel(p.quarter)} feedback — Appraisal ${p.year} (provisional)`,
+  feedback_issued: (p) => `${p.periodLabel ? `${p.periodLabel} — ` : ''}Your ${p.year} appraisal feedback is ready`,
 };
 
 function layout(title: string, body: string): string {
@@ -163,7 +173,7 @@ function legacyNarrative(p: any): string {
   </div>`;
 }
 
-function commentsBlock(p: any): string {
+function commentsBlock(p: any, heading = 'Reviewer Feedback'): string {
   const items: Array<[string, string]> = [
     ['Teaching', p.teachingComment],
     ['Research', p.researchComment],
@@ -174,7 +184,7 @@ function commentsBlock(p: any): string {
   ];
   const filled = items.filter(([, v]) => v && String(v).trim());
   if (!filled.length) return '';
-  return `<div style="margin-top:12px"><strong>Reviewer Feedback</strong></div>
+  return `<div style="margin-top:12px"><strong>${esc(heading)}</strong></div>
   <table cellpadding="4" cellspacing="0" style="width:100%;font-size:13px;margin-top:4px">
     ${filled.map(([k, v]) => `<tr><td style="padding:4px 0;color:#64748b;width:120px;vertical-align:top">${esc(k)}:</td><td style="padding:4px 0;color:#0f172a">${esc(v)}</td></tr>`).join('')}
   </table>`;
@@ -287,11 +297,12 @@ const TEMPLATES: Record<EmailTemplateKey, (p: any) => string> = {
   `),
 
   quarterly_feedback: (p) => layout('Quarterly Feedback', `
-    <h2 style="margin:0 0 8px;color:#1e3a5f">${p.quarter} Progress — ${p.year}</h2>
+    <h2 style="margin:0 0 8px;color:#1e3a5f">${quarterLabel(p.quarter)} Progress — ${p.year}</h2>
     <p>Dear <strong>${esc(p.name)}</strong>,</p>
-    <p>Here is a short summary of your progress this quarter, with a few pointers for the months ahead.</p>
+    <p>Here is a short summary of your progress in <strong>${quarterLabel(p.quarter)}</strong>, with a few pointers for the months ahead.</p>
     ${categoryRemarksBlock(p.categories)}
     ${p.targets ? targetStatusBlock(p.targets, p.year, p.evidence) : legacyNarrative(p)}
+    ${commentsBlock(p, 'HoD Remarks')}
     <p style="color:#64748b;font-size:13px">This is a provisional quarterly update to help you plan ahead.</p>
     <p style="margin-top:24px;color:#94a3b8;font-size:11px">Sent per your email preferences. <a href="${FRONTEND_URL}/profile" style="color:#94a3b8">Manage preferences</a>.</p>
   `),
@@ -299,7 +310,7 @@ const TEMPLATES: Record<EmailTemplateKey, (p: any) => string> = {
   feedback_issued: (p) => layout('Appraisal Feedback', `
     <h2 style="margin:0 0 8px;color:#1e3a5f">Your Feedback is Ready</h2>
     <p>Dear <strong>${esc(p.name)}</strong>,</p>
-    <p>The annual feedback for your <strong>${p.year}</strong> appraisal has been issued — including personalised growth guidance.</p>
+    <p>Your <strong>${p.periodLabel ?? 'annual'}</strong> feedback for the <strong>${p.year}</strong> appraisal has been issued — including personalised growth guidance.</p>
     <p style="margin-top:16px"><a href="${FRONTEND_URL}/appraisal/${p.submissionId}" style="background:#1e3a5f;color:#fff;padding:10px 18px;border-radius:4px;text-decoration:none;font-size:14px;font-weight:600">View Feedback</a></p>
   `),
 };

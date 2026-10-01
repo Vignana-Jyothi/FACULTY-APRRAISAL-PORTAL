@@ -19,8 +19,38 @@ export async function listDepartments(req: Request, res: Response) {
   const depts = await prisma.department.findMany({
     where: includeInactive ? {} : { isActive: true },
     orderBy: { name: 'asc' },
+    // The dean/principal own this page but cannot read /admin/users (ADMIN-only
+    // since the role rework), so the per-department faculty count and HoD are
+    // resolved here — the one endpoint this page's owners can read. Without this
+    // the page fetched the whole user list and 403'd for exactly its own roles.
+    include: {
+      userRoles: {
+        where: { role: 'HOD', isActive: true },
+        select: { user: { select: { name: true, employeeCode: true } } },
+        take: 1,
+      },
+    },
   });
-  return res.json(depts);
+
+  const counts = await prisma.user.groupBy({
+    by: ['departmentId'],
+    where: { isActive: true, departmentId: { in: depts.map((d) => d.id) } },
+    _count: { _all: true },
+  });
+  const countBy = new Map(counts.map((c) => [c.departmentId, c._count._all]));
+
+  return res.json(depts.map((d) => {
+    const h = d.userRoles[0]?.user;
+    return {
+      id: d.id,
+      name: d.name,
+      code: d.code,
+      isActive: d.isActive,
+      createdAt: d.createdAt,
+      facultyCount: countBy.get(d.id) ?? 0,
+      hod: h ? `${h.name} (${h.employeeCode})` : null,
+    };
+  }));
 }
 
 export async function createDepartment(req: Request, res: Response) {

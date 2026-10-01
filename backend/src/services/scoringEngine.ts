@@ -57,6 +57,7 @@ import {
   CourseLevel,
   ProjectType,
   PublicationIndex,
+  PublicationStatus,
   PatentStatus,
   ProjectStatus,
   Scope,
@@ -277,7 +278,17 @@ function scoreCategory1(s: FullSubmission) {
  * form labels that choice "SCI / SCIE / WoS".
  */
 export type PublicationKind = 'journal' | 'conference' | 'chapter';
-export function publicationRowScore(kind: PublicationKind, indexed?: string | null): number {
+export function publicationRowScore(kind: PublicationKind, indexed?: string | null, status?: string | null): number {
+  // 2.1 status model (2026-09-28): a Published or Indexed paper scores its full
+  // mark — 15 for a journal (2.1-A), 10 for a conference (2.1-B); Submitted /
+  // Accepted / Presented score 0. The index no longer gates the mark — the
+  // "Indexed" choice only records which index and its proof. A row with no
+  // status is a legacy entry and falls back to the old index rule below, so
+  // past submissions and the parity fixture are unchanged. 2.1-C book chapters
+  // are not part of this model and always use the index rule.
+  const scored = status === PublicationStatus.PUBLISHED || status === PublicationStatus.INDEXED;
+  if (status && kind === 'journal') return scored ? 15 : 0;
+  if (status && kind === 'conference') return scored ? 10 : 0;
   const ix = indexed ?? PublicationIndex.NONE;
   if (kind === 'journal') return ix === PublicationIndex.WOS || ix === PublicationIndex.SCOPUS ? 15 : 0;
   return ix === PublicationIndex.WOS || ix === PublicationIndex.SCOPUS ||
@@ -327,11 +338,11 @@ export function publicationClaim(r: PublicationClaimRow | null | undefined): { o
 /** 2.1 per-row score with the authorship claim applied. Views call this for a row. */
 export function publicationScore(
   kind: PublicationKind,
-  r: (PublicationClaimRow & { indexed?: string | null }) | null | undefined,
+  r: (PublicationClaimRow & { indexed?: string | null; status?: string | null }) | null | undefined,
 ): { score: number; reason: string } {
   const claim = publicationClaim(r);
   if (!claim.ok) return { score: 0, reason: claim.reason };
-  return { score: publicationRowScore(kind, r?.indexed), reason: claim.reason };
+  return { score: publicationRowScore(kind, r?.indexed, r?.status), reason: claim.reason };
 }
 
 /**

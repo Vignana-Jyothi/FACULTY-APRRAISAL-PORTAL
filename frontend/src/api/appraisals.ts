@@ -14,6 +14,10 @@ export const appraisalApi = {
     api.post(`/appraisals/${id}/withdraw`).then((r) => r.data),
   getScore: (id: string) =>
     api.get(`/appraisals/${id}/score`).then((r) => r.data),
+  // Faculty-safe target progress for the dashboard bar: target rows plus how
+  // many are met. No cadre, tier or eligibility verdict.
+  getTargetStatus: (id: string): Promise<TargetStatus> =>
+    api.get(`/appraisals/${id}/target-status`).then((r) => r.data),
   getReview: (id: string) =>
     api.get(`/appraisals/${id}/review`).then((r) => r.data),
   submitReview: (id: string, data: any) =>
@@ -26,7 +30,27 @@ export const appraisalApi = {
     api.get(`/appraisals/${id}/draft-review`).then((r) => r.data),
   saveDraftReview: (id: string, data: DraftReviewInput): Promise<DraftReview> =>
     api.put(`/appraisals/${id}/draft-review`, data).then((r) => r.data),
+  // The HoD's shared note, faculty-readable. `null` when nothing is shared.
+  getSharedNote: (id: string): Promise<SharedDraftNote | null> =>
+    api.get(`/appraisals/${id}/shared-note`).then((r) => r.data),
 };
+
+export interface TargetRow {
+  label: string;
+  required: number;
+  current: number;
+  achieved: boolean;
+  left: number;
+  status: string;
+}
+export interface TargetStatus {
+  year: string;
+  rows: TargetRow[];
+  achieved: number;
+  total: number;
+  achievedText: string;
+  leftText: string;
+}
 
 export interface DraftReviewInput {
   cat1Score?: number | null;
@@ -40,6 +64,13 @@ export interface DraftReviewInput {
   cat6Cordiality?: number | null;
   cat6Classroom?: number | null;
   overallComment?: string | null;
+  // When true, the faculty may read overallComment (the note only).
+  shareNote?: boolean;
+}
+
+export interface SharedDraftNote {
+  note: string;
+  sharedAt: string;
 }
 
 export interface DraftReview extends DraftReviewInput {

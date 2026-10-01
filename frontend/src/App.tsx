@@ -16,13 +16,13 @@ import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import AdminUsersPage from './pages/admin/AdminUsersPage';
 import AdminAcademicYearsPage from './pages/admin/AdminAcademicYearsPage';
 import AdminCadreTargetsPage from './pages/admin/AdminCadreTargetsPage';
-import AdminCadreTiersPage from './pages/admin/AdminCadreTiersPage';
 import AdminInchargesPage from './pages/admin/AdminInchargesPage';
 import AdminReviewWindowsPage from './pages/admin/AdminReviewWindowsPage';
 import AdminAppraisalsPage from './pages/admin/AdminAppraisalsPage';
 import AdminDepartmentsPage from './pages/admin/AdminDepartmentsPage';
 import AdminReportsPage from './pages/admin/AdminReportsPage';
 import DeptReportsPage from './pages/reviewer/DeptReportsPage';
+import DeptReviewersPage from './pages/reviewer/DeptReviewersPage';
 import RedListPage from './pages/reviewer/RedListPage';
 import TrackingPage from './pages/reviewer/TrackingPage';
 import AdminEmailsPage from './pages/admin/AdminEmailsPage';
@@ -81,6 +81,10 @@ export default function App() {
         <Route path="/reviews" element={
           <ProtectedRoute roles={DEPT_REVIEW}><ReviewQueuePage /></ProtectedRoute>
         } />
+        {/* HoD-only: appoint department reviewers (incharges) in their own dept. */}
+        <Route path="/department/reviewers" element={
+          <ProtectedRoute roles={['HOD']}><DeptReviewersPage /></ProtectedRoute>
+        } />
         {/* Drafts in progress: the department checks proofs on a draft during
             the year and the HoD notes a provisional draft review. Its own path, so
             the Review Queue link is not highlighted as well. */}
@@ -127,9 +131,6 @@ export default function App() {
         <Route path="/dean/cadre-targets" element={
           <ProtectedRoute roles={CONFIG}><AdminCadreTargetsPage /></ProtectedRoute>
         } />
-        <Route path="/dean/cadre-tiers" element={
-          <ProtectedRoute roles={CONFIG}><AdminCadreTiersPage /></ProtectedRoute>
-        } />
         <Route path="/dean/review-windows" element={
           <ProtectedRoute roles={CONFIG}><AdminReviewWindowsPage /></ProtectedRoute>
         } />
@@ -160,7 +161,6 @@ export default function App() {
         {/* Pages that moved off /admin/*: keep old links working. */}
         <Route path="/admin/academic-years" element={<Navigate to="/dean/academic-years" replace />} />
         <Route path="/admin/cadre-targets" element={<Navigate to="/dean/cadre-targets" replace />} />
-        <Route path="/admin/cadre-tiers" element={<Navigate to="/dean/cadre-tiers" replace />} />
         <Route path="/admin/review-windows" element={<Navigate to="/dean/review-windows" replace />} />
         <Route path="/admin/appraisals" element={<Navigate to="/dean/appraisals" replace />} />
         <Route path="/admin/departments" element={<Navigate to="/dean/departments" replace />} />

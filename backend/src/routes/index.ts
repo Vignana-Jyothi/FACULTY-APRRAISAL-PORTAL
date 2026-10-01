@@ -27,13 +27,13 @@ import * as email from '../controllers/emailController';
 import * as audit from '../controllers/auditController';
 import * as upload from '../controllers/uploadController';
 import * as cadreTarget from '../controllers/cadreTargetController';
-import * as cadreTier from '../controllers/cadreTierController';
 import * as reviewWindow from '../controllers/reviewWindowController';
 import * as verification from '../controllers/verificationController';
 import * as draftReview from '../controllers/draftReviewController';
 import * as tracking from '../controllers/trackingController';
 import * as feedback from '../controllers/feedbackController';
 import * as oversight from '../controllers/oversightController';
+import * as deptReviewer from '../controllers/deptReviewerController';
 import type { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 
@@ -83,6 +83,12 @@ router.delete('/admin/users/:id', authenticate, roleGuard(MAINTENANCE), user.dea
 router.post('/admin/users/:id/reactivate', authenticate, roleGuard(MAINTENANCE), user.reactivateUser);
 router.post('/admin/users/:id/roles', authenticate, roleGuard(MAINTENANCE), user.assignRole);
 router.delete('/admin/users/:id/roles/:roleId', authenticate, roleGuard(MAINTENANCE), user.revokeRole);
+
+// HoD appoints / stands down department reviewers (incharges). Locked to the
+// REVIEWER role and the HoD's own department inside the controller.
+router.get('/department/reviewers', authenticate, roleGuard([RoleType.HOD]), deptReviewer.listDeptReviewers);
+router.post('/department/reviewers', authenticate, roleGuard([RoleType.HOD]), deptReviewer.addDeptReviewer);
+router.delete('/department/reviewers/:userId', authenticate, roleGuard([RoleType.HOD]), deptReviewer.removeDeptReviewer);
 router.get('/admin/users/bulk-import/template', authenticate, roleGuard(MAINTENANCE), user.bulkImportTemplate);
 router.post('/admin/users/bulk-import', authenticate, roleGuard(MAINTENANCE), user.bulkImportUsers);
 
@@ -112,11 +118,9 @@ router.post('/admin/cadre-targets/seed-defaults', authenticate, roleGuard(CONFIG
 router.put('/admin/cadre-targets/:id', authenticate, roleGuard(CONFIG), cadreTarget.updateCadreTarget);
 router.delete('/admin/cadre-targets/:id', authenticate, roleGuard(CONFIG), cadreTarget.deleteCadreTarget);
 
-// Dean: per-cadre tier thresholds (W7) — the "quartile date sets".
-router.get('/admin/cadre-tiers', authenticate, roleGuard(CONFIG), cadreTier.listCadreTiers);
-router.put('/admin/cadre-tiers', authenticate, roleGuard(CONFIG), cadreTier.upsertCadreTier);
-router.post('/admin/cadre-tiers/seed-defaults', authenticate, roleGuard(CONFIG), cadreTier.seedDefaultCadreTiers);
-router.delete('/admin/cadre-tiers/:id', authenticate, roleGuard(CONFIG), cadreTier.deleteCadreTier);
+// (Per-cadre tier thresholds removed 2026-09-28 — the dean/principal allocate a
+// faculty's tier by hand on the tracking page, so the auto-threshold sets are
+// gone. The FAPA cadre TARGETS above remain the only requirement definition.)
 
 // Appraisals
 router.get('/appraisals', authenticate, appraisal.listAppraisals);
@@ -126,6 +130,7 @@ router.put('/appraisals/:id', authenticate, appraisal.updateAppraisal);
 router.post('/appraisals/:id/submit', authenticate, appraisal.submitAppraisal);
 router.post('/appraisals/:id/withdraw', authenticate, appraisal.withdrawAppraisal);
 router.get('/appraisals/:id/score', authenticate, appraisal.getScore);
+router.get('/appraisals/:id/target-status', authenticate, feedback.getTargetStatus);
 
 // Reviews — the department layer. The admin holds no appraisal content.
 router.get('/reviews/pending', authenticate, roleGuard(DEPT_REVIEW), review.listPendingReviews);
@@ -138,6 +143,8 @@ router.get('/appraisals/:id/review', authenticate, review.getReview);
 router.get('/reviews/drafts', authenticate, roleGuard([...DEPT_REVIEW, ...SEES_ALL]), draftReview.listDrafts);
 router.get('/appraisals/:id/draft-review', authenticate, draftReview.getDraftReview);
 router.put('/appraisals/:id/draft-review', authenticate, draftReview.putDraftReview);
+// The faculty-safe slice of a draft review: the HoD's note, once shared.
+router.get('/appraisals/:id/shared-note', authenticate, draftReview.getSharedDraftNote);
 
 // Final review — the scrutinizer layer above the HoD, assigned by the dean.
 router.get('/final-reviewers/pool', authenticate, roleGuard(CONFIG), finalReview.listScrutinizerPool);
@@ -179,7 +186,8 @@ router.post('/admin/review-windows/:id/arm', authenticate, roleGuard(CONFIG), re
 router.post('/admin/review-windows/:id/disarm', authenticate, roleGuard(CONFIG), reviewWindow.disarmReviewWindow);
 router.post('/admin/review-windows/:id/release', authenticate, roleGuard(CONFIG), reviewWindow.releaseReviewWindow);
 
-// W6 — annual HoD feedback
+// W6 — HoD feedback, per period (four quarters + the final annual).
+router.get('/appraisals/:id/feedbacks', authenticate, feedback.listFeedbacks);
 router.get('/appraisals/:id/feedback', authenticate, feedback.getFeedback);
 router.put('/appraisals/:id/feedback', authenticate, roleGuard([RoleType.HOD, ...SEES_ALL]), feedback.saveFeedback);
 router.post('/appraisals/:id/feedback/issue', authenticate, roleGuard([RoleType.HOD, ...SEES_ALL]), feedback.issueFeedback);

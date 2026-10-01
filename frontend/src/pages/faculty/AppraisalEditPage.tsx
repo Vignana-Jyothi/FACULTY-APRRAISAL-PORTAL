@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm, useFieldArray, useWatch, Controller } from 'react-hook-form';
-import { appraisalApi } from '../../api/appraisals';
+import { appraisalApi, type SharedDraftNote } from '../../api/appraisals';
 import toast from 'react-hot-toast';
 import { ArrowLeft, ArrowRight, Plus, Send, CheckCircle, XCircle, Clock, Lock } from 'lucide-react';
 import FileUpload from '../../components/FileUpload';
@@ -36,11 +37,27 @@ const AUTHOR_POSITIONS = ['1st', 'Second', 'Corresponding', 'Supervisor'];
 // 2.1 index values in dropdown order; labels come from INDEX_LABEL.
 const INDEX_OPTIONS = ['WOS', 'SCOPUS', 'ESCI', 'ICI', 'NONE'];
 const IMPACT_FACTOR_SOURCES = ['Clarivate Analytics (JCR)', 'Scopus / SCImago (SJR / CiteScore)', 'Google Scholar'];
-const PRESENTATION_STATUSES = ['Accepted', 'Presented'];
 const RESOURCE_PROGRAM_TYPES = ['FDP', 'Conference', 'Workshop', 'Guest Lecture', 'Webinar'];
 const EDITORIAL_NATURES = ['Editorial Board', 'Review Committee', 'Org Committee', 'Reviewer'];
 const ICT_PLATFORMS = ['Google Classroom', 'Moodle', 'MS Teams'];
 const ICT_USES = ['Assignments', 'Quizzes', 'Recorded Lectures', 'Discussion Forums'];
+// 2.1-A journal lifecycle. Submitted/Accepted record the status only; Published
+// reveals the bibliographic detail; Indexed adds the index + its proof.
+const JOURNAL_STATUS_OPTIONS: { v: string; l: string }[] = [
+  { v: 'SUBMITTED', l: 'Submitted' },
+  { v: 'ACCEPTED', l: 'Accepted' },
+  { v: 'PUBLISHED', l: 'Published' },
+  { v: 'INDEXED', l: 'Indexed' },
+];
+// 2.1-B conferences add Presented; the scoring / reveal rules are the same as
+// journals (Published or Indexed reveals detail and scores; the rest stop).
+const CONFERENCE_STATUS_OPTIONS: { v: string; l: string }[] = [
+  { v: 'SUBMITTED', l: 'Submitted' },
+  { v: 'ACCEPTED', l: 'Accepted' },
+  { v: 'PRESENTED', l: 'Presented' },
+  { v: 'PUBLISHED', l: 'Published' },
+  { v: 'INDEXED', l: 'Indexed' },
+];
 
 // Per-entry working under a row, from the same helper the engines score with.
 function RowNote({ r }: { r: { score: number; reason: string } }) {
@@ -122,6 +139,7 @@ export default function AppraisalEditPage() {
   const currentUser = useAuthStore((s) => s.user);
   const [step, setStep] = useState(0);
   const [submission, setSubmission] = useState<any>(null);
+  const [hodNote, setHodNote] = useState<SharedDraftNote | null>(null);
   const [saving, setSaving] = useState(false);
   const [score, setScore] = useState<any>(null);
   const [scoreLoading, setScoreLoading] = useState(false);
@@ -320,6 +338,12 @@ export default function AppraisalEditPage() {
   };
 
   // goToStep: autosave then switch. Awaits previous save via saveLock.
+  // The HoD's shared note, if they chose to share one. null otherwise.
+  useEffect(() => {
+    if (!id) return;
+    appraisalApi.getSharedNote(id).then(setHodNote).catch(() => setHodNote(null));
+  }, [id]);
+
   // Skip autosave when submission is read-only (backend will reject anyway).
   const goToStep = async (next: number) => {
     if (next === step) return;
@@ -387,6 +411,39 @@ export default function AppraisalEditPage() {
 
   const inputCls = "w-full border border-surface-border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500";
   const labelCls = "block text-xs font-medium text-ink-secondary mb-1";
+
+  // Numeric field that refuses a value outside its range. HTML min/max only
+  // guard the spinner arrows, so a faculty could still type 150 into a 0–100
+  // box or 9 into a "feedback out of 5" box and have it scored (attendance and
+  // pass % are capped in the engine, but feedback and raw counts are not). This
+  // clamps every keystroke: an over-max value snaps to max, a below-min to min,
+  // and an integer field drops any fraction — so an out-of-range figure can
+  // never be entered, let alone stored. Returns props to spread on the input.
+  const numField = (
+    name: string,
+    opts: { min?: number; max?: number; integer?: boolean; step?: number | string } = {},
+  ) => {
+    const { min, max, integer, step } = opts;
+    const reg = register(name as any, { valueAsNumber: true });
+    return {
+      ...reg,
+      type: 'number' as const,
+      ...(min != null ? { min } : {}),
+      ...(max != null ? { max } : {}),
+      ...(step != null ? { step } : integer ? { step: 1 } : {}),
+      onChange: (e: ChangeEvent<HTMLInputElement>) => {
+        const raw = e.target.value;
+        if (raw !== '' && Number.isFinite(Number(raw))) {
+          let n = Number(raw);
+          if (integer) n = Math.trunc(n);
+          if (min != null && n < min) n = min;
+          if (max != null && n > max) n = max;
+          if (String(n) !== raw) e.target.value = String(n);
+        }
+        return reg.onChange(e);
+      },
+    };
+  };
 
   // Proof-file upload cell bound to a react-hook-form field path
   const proofField = (name: string, label = 'Proof') => (
@@ -588,6 +645,14 @@ export default function AppraisalEditPage() {
         </div>
       )}
 
+      {isOwner && hodNote && (
+        <div className="mb-4 bg-primary-50 border border-primary-200 rounded p-3">
+          <div className="text-xs font-semibold text-primary-800 mb-1">Note from your HoD</div>
+          <p className="text-sm text-ink-primary whitespace-pre-wrap">{hodNote.note}</p>
+          <p className="text-[10px] text-ink-muted mt-1.5">Shared {new Date(hodNote.sharedAt).toLocaleDateString()}</p>
+        </div>
+      )}
+
       {/* Step indicators */}
       <div className="flex gap-1 mb-6 overflow-x-auto pb-1">
         {STEPS.map((s, i) => (
@@ -663,11 +728,11 @@ export default function AppraisalEditPage() {
                     </div>
                     <div>
                       <label className={labelCls}>Periods Planned</label>
-                      <input type="number" {...register(`cat1Courses.${i}.periodPlanned`, { valueAsNumber: true })} className={inputCls} />
+                      <input {...numField(`cat1Courses.${i}.periodPlanned`, { min: 0, integer: true })} className={inputCls} />
                     </div>
                     <div>
                       <label className={labelCls}>Periods Conducted</label>
-                      <input type="number" {...register(`cat1Courses.${i}.periodsConducted`, { valueAsNumber: true })} className={inputCls} />
+                      <input {...numField(`cat1Courses.${i}.periodsConducted`, { min: 0, integer: true })} className={inputCls} />
                     </div>
                     <div>
                       <label className={labelCls}>Novel Pedagogy Method</label>
@@ -720,19 +785,19 @@ export default function AppraisalEditPage() {
                     </div>
                     <div>
                       <label className={labelCls}>Class Size (Y)</label>
-                      <input type="number" {...register(`cat1CourseResults.${i}.classSize`, { valueAsNumber: true })} className={inputCls} />
+                      <input {...numField(`cat1CourseResults.${i}.classSize`, { min: 0, integer: true })} className={inputCls} />
                     </div>
                     <div>
                       <label className={labelCls}>Feedback Received (0-5)</label>
-                      <input type="number" step="0.01" {...register(`cat1CourseResults.${i}.feedbackReceived`, { valueAsNumber: true })} className={inputCls} />
+                      <input {...numField(`cat1CourseResults.${i}.feedbackReceived`, { min: 0, max: 5, step: '0.01' })} className={inputCls} />
                     </div>
                     <div>
                       <label className={labelCls}>Avg. Attendance %</label>
-                      <input type="number" step="0.01" min="0" max="100" {...register(`cat1CourseResults.${i}.avgAttendancePct`, { valueAsNumber: true })} className={inputCls} />
+                      <input {...numField(`cat1CourseResults.${i}.avgAttendancePct`, { min: 0, max: 100, step: '0.01' })} className={inputCls} />
                     </div>
                     <div>
                       <label className={labelCls}>Pass %</label>
-                      <input type="number" step="0.01" min="0" max="100" {...register(`cat1CourseResults.${i}.passPercentage`, { valueAsNumber: true })} className={inputCls} />
+                      <input {...numField(`cat1CourseResults.${i}.passPercentage`, { min: 0, max: 100, step: '0.01' })} className={inputCls} />
                     </div>
                   </div>
                   <button type="button" onClick={() => courseResults.remove(i)} className="text-red-400 text-xs mt-2">Remove</button>
@@ -771,7 +836,7 @@ export default function AppraisalEditPage() {
                       <>
                         <div>
                           <label className={labelCls}>Number of Projects Guided ({row.course === 'MTECH' ? 'students' : 'batches'})</label>
-                          <input type="number" min={0} step={1} {...register(`cat1Projects.${i}.count`, { valueAsNumber: true })} className={inputCls} />
+                          <input {...numField(`cat1Projects.${i}.count`, { min: 0, integer: true })} className={inputCls} />
                         </div>
                         <button type="button" onClick={() => projects.remove(i)} className="text-red-400 text-xs">Remove</button>
                         <div className="col-span-3 text-xs text-ink-muted -mt-1">
@@ -872,7 +937,11 @@ export default function AppraisalEditPage() {
                 </span>
               </div>
               <p className="text-xs text-ink-muted mb-3">2.1 Research Papers Published in Journals / Conferences / Book Chapters — max 60 across A, B and C. 15 for each paper in an SCI / SCIE / WoS or Scopus journal (ESCI, ICI and unindexed journals score 0). 10 for each indexed conference paper or indexed book chapter from a conference.</p>
-              {journals.fields.map((field, i) => (
+              {journals.fields.map((field, i) => {
+                const jStatus = (watchedValues as any)?.cat2Journals?.[i]?.status ?? '';
+                const jPublished = jStatus === 'PUBLISHED' || jStatus === 'INDEXED';
+                const jIndexed = jStatus === 'INDEXED';
+                return (
                 <div key={field.id} className="border border-surface-border rounded p-3 mb-2">
                   <div className="grid grid-cols-2 gap-3">
                     <div><label className={labelCls}>Title of the Publication</label><input {...register(`cat2Journals.${i}.title`)} className={inputCls} /></div>
@@ -882,27 +951,42 @@ export default function AppraisalEditPage() {
                       <label className={labelCls}>Author Position (First / Second / Corresponding / Supervisor)</label>
                       {selectOther(`cat2Journals.${i}.authorPosition`, AUTHOR_POSITIONS, undefined, 'Specify position')}
                     </div>
-                    <div><label className={labelCls}>Volume</label><input {...register(`cat2Journals.${i}.volume`)} className={inputCls} /></div>
-                    <div><label className={labelCls}>Issue No</label><input {...register(`cat2Journals.${i}.issueNo`)} className={inputCls} /></div>
-                    <div><label className={labelCls}>Page Nos</label><input {...register(`cat2Journals.${i}.pageNos`)} className={inputCls} /></div>
-                    <div><label className={labelCls}>Date of Publication</label><input type="date" {...register(`cat2Journals.${i}.dateOfPub`)} className={inputCls} /></div>
-                    <div><label className={labelCls}>ISSN No.</label><input {...register(`cat2Journals.${i}.issn`)} className={inputCls} /></div>
-                    <div><label className={labelCls}>DOI</label><input {...register(`cat2Journals.${i}.doi`)} className={inputCls} /></div>
-                    <div><label className={labelCls}>Impact Factor</label><input type="number" step="0.01" {...register(`cat2Journals.${i}.impactFactor`, { valueAsNumber: true })} className={inputCls} /></div>
                     <div>
-                      <label className={labelCls}>Impact Factor Source</label>
-                      {selectOther(`cat2Journals.${i}.impactFactorSource`, IMPACT_FACTOR_SOURCES, 'Select...', 'Specify source')}
+                      <label className={labelCls}>Status</label>
+                      <select {...register(`cat2Journals.${i}.status`)} className={inputCls}>
+                        <option value="">Select status…</option>
+                        {JOURNAL_STATUS_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
+                      </select>
                     </div>
-                    <div><label className={labelCls}>Indexed in</label>{indexSelect(`cat2Journals.${i}.indexed`)}</div>
-                    <div><label className={labelCls}>Quartile (if applicable)</label>{quartileSelect(`cat2Journals.${i}.quartile`)}</div>
-                    {proofField(`cat2Journals.${i}.proofFile`, '1st Page Proof')}
-                    {proofField(`cat2Journals.${i}.indexProofFile`, 'Index Proof')}
+                    {/* Submitted / Accepted stop here — no detail, no proof. */}
+                    {jPublished && <>
+                      <div><label className={labelCls}>Volume</label><input {...register(`cat2Journals.${i}.volume`)} className={inputCls} /></div>
+                      <div><label className={labelCls}>Issue No</label><input {...register(`cat2Journals.${i}.issueNo`)} className={inputCls} /></div>
+                      <div><label className={labelCls}>Page Nos</label><input {...register(`cat2Journals.${i}.pageNos`)} className={inputCls} /></div>
+                      <div><label className={labelCls}>Date of Publication</label><input type="date" {...register(`cat2Journals.${i}.dateOfPub`)} className={inputCls} /></div>
+                      <div><label className={labelCls}>ISSN No.</label><input {...register(`cat2Journals.${i}.issn`)} className={inputCls} /></div>
+                      <div><label className={labelCls}>DOI</label><input {...register(`cat2Journals.${i}.doi`)} className={inputCls} /></div>
+                      <div><label className={labelCls}>Impact Factor</label><input type="number" step="0.01" {...register(`cat2Journals.${i}.impactFactor`, { valueAsNumber: true })} className={inputCls} /></div>
+                      <div>
+                        <label className={labelCls}>Impact Factor Source</label>
+                        {selectOther(`cat2Journals.${i}.impactFactorSource`, IMPACT_FACTOR_SOURCES, 'Select...', 'Specify source')}
+                      </div>
+                      <div><label className={labelCls}>Quartile (if applicable)</label>{quartileSelect(`cat2Journals.${i}.quartile`)}</div>
+                      {proofField(`cat2Journals.${i}.proofFile`, '1st Page Proof')}
+                    </>}
+                    {/* Indexed adds the index and its proof — it is already published. */}
+                    {jIndexed && <>
+                      <div><label className={labelCls}>Indexed in</label>{indexSelect(`cat2Journals.${i}.indexed`)}</div>
+                      {proofField(`cat2Journals.${i}.indexProofFile`, 'Index Proof')}
+                    </>}
                   </div>
-                  {publicationLine('journal', (watchedValues as any)?.cat2Journals?.[i])}
+                  {jStatus && publicationLine('journal', (watchedValues as any)?.cat2Journals?.[i])}
+                  {!jStatus && <p className="mt-2 text-xs text-amber-700">Choose a status to continue.</p>}
                   <button type="button" onClick={() => journals.remove(i)} className="text-red-400 text-xs mt-2">Remove</button>
                 </div>
-              ))}
-              {addRowBtn('Add Journal', () => journals.append({ title: '', journalName: '', authors: '', authorList: [''], allAuthorsFromCampus: null, claimedBySelf: null, authorPosition: '1st', indexed: 'NONE', impactFactor: 0, impactFactorSource: '', volume: '', issueNo: '', pageNos: '', dateOfPub: '', quartile: '', proofFile: '', indexProofFile: '' }))}
+                );
+              })}
+              {addRowBtn('Add Journal', () => journals.append({ title: '', journalName: '', authors: '', authorList: [''], allAuthorsFromCampus: null, claimedBySelf: null, authorPosition: '1st', status: '', indexed: 'NONE', impactFactor: 0, impactFactorSource: '', volume: '', issueNo: '', pageNos: '', dateOfPub: '', quartile: '', proofFile: '', indexProofFile: '' }))}
             </div>
 
             <div>
@@ -913,7 +997,11 @@ export default function AppraisalEditPage() {
                   <ScoreBadge value={live.cat2.publications} max={60} />
                 </span>
               </div>
-              {conferences.fields.map((field, i) => (
+              {conferences.fields.map((field, i) => {
+                const cStatus = (watchedValues as any)?.cat2Conferences?.[i]?.status ?? '';
+                const cPublished = cStatus === 'PUBLISHED' || cStatus === 'INDEXED';
+                const cIndexed = cStatus === 'INDEXED';
+                return (
                 <div key={field.id} className="border border-surface-border rounded p-3 mb-2">
                   <div className="grid grid-cols-2 gap-3">
                     <div><label className={labelCls}>Title of the Publication</label><input {...register(`cat2Conferences.${i}.title`)} className={inputCls} /></div>
@@ -923,26 +1011,38 @@ export default function AppraisalEditPage() {
                       <label className={labelCls}>Author Position (First / Second / Corresponding / Supervisor)</label>
                       {selectOther(`cat2Conferences.${i}.authorPosition`, AUTHOR_POSITIONS, undefined, 'Specify position')}
                     </div>
-                    <div><label className={labelCls}>Volume</label><input {...register(`cat2Conferences.${i}.volume`)} className={inputCls} /></div>
-                    <div><label className={labelCls}>Issue No</label><input {...register(`cat2Conferences.${i}.issueNo`)} className={inputCls} /></div>
-                    <div><label className={labelCls}>Page Nos</label><input {...register(`cat2Conferences.${i}.pageNos`)} className={inputCls} /></div>
-                    <div><label className={labelCls}>Date of Publication</label><input type="date" {...register(`cat2Conferences.${i}.dateOfPub`)} className={inputCls} /></div>
-                    <div><label className={labelCls}>ISSN / ISBN</label><input {...register(`cat2Conferences.${i}.issn`)} className={inputCls} /></div>
-                    <div><label className={labelCls}>DOI</label><input {...register(`cat2Conferences.${i}.doi`)} className={inputCls} /></div>
-                    <div><label className={labelCls}>Impact Factor</label><input type="number" step="0.01" {...register(`cat2Conferences.${i}.impactFactor`, { valueAsNumber: true })} className={inputCls} /></div>
                     <div>
-                      <label className={labelCls}>Presentation Status</label>
-                      {selectOther(`cat2Conferences.${i}.presentationStatus`, PRESENTATION_STATUSES, 'Select...', 'Specify status')}
+                      <label className={labelCls}>Status</label>
+                      <select {...register(`cat2Conferences.${i}.status`)} className={inputCls}>
+                        <option value="">Select status…</option>
+                        {CONFERENCE_STATUS_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
+                      </select>
                     </div>
-                    <div><label className={labelCls}>Indexed in</label>{indexSelect(`cat2Conferences.${i}.indexed`)}</div>
-                    <div><label className={labelCls}>Quartile (if applicable)</label>{quartileSelect(`cat2Conferences.${i}.quartile`)}</div>
-                    {proofField(`cat2Conferences.${i}.proofFile`)}
+                    {/* Submitted / Accepted / Presented stop here — no detail, no proof. */}
+                    {cPublished && <>
+                      <div><label className={labelCls}>Volume</label><input {...register(`cat2Conferences.${i}.volume`)} className={inputCls} /></div>
+                      <div><label className={labelCls}>Issue No</label><input {...register(`cat2Conferences.${i}.issueNo`)} className={inputCls} /></div>
+                      <div><label className={labelCls}>Page Nos</label><input {...register(`cat2Conferences.${i}.pageNos`)} className={inputCls} /></div>
+                      <div><label className={labelCls}>Date of Publication</label><input type="date" {...register(`cat2Conferences.${i}.dateOfPub`)} className={inputCls} /></div>
+                      <div><label className={labelCls}>ISSN / ISBN</label><input {...register(`cat2Conferences.${i}.issn`)} className={inputCls} /></div>
+                      <div><label className={labelCls}>DOI</label><input {...register(`cat2Conferences.${i}.doi`)} className={inputCls} /></div>
+                      <div><label className={labelCls}>Impact Factor</label><input type="number" step="0.01" {...register(`cat2Conferences.${i}.impactFactor`, { valueAsNumber: true })} className={inputCls} /></div>
+                      <div><label className={labelCls}>Quartile (if applicable)</label>{quartileSelect(`cat2Conferences.${i}.quartile`)}</div>
+                      {proofField(`cat2Conferences.${i}.proofFile`, '1st Page Proof')}
+                    </>}
+                    {/* Indexed adds the index and its proof — it is already published. */}
+                    {cIndexed && <>
+                      <div><label className={labelCls}>Indexed in</label>{indexSelect(`cat2Conferences.${i}.indexed`)}</div>
+                      {proofField(`cat2Conferences.${i}.indexProofFile`, 'Index Proof')}
+                    </>}
                   </div>
-                  {publicationLine('conference', (watchedValues as any)?.cat2Conferences?.[i])}
+                  {cStatus && publicationLine('conference', (watchedValues as any)?.cat2Conferences?.[i])}
+                  {!cStatus && <p className="mt-2 text-xs text-amber-700">Choose a status to continue.</p>}
                   <button type="button" onClick={() => conferences.remove(i)} className="text-red-400 text-xs mt-2">Remove</button>
                 </div>
-              ))}
-              {addRowBtn('Add Conference', () => conferences.append({ title: '', conferenceName: '', authors: '', authorList: [''], allAuthorsFromCampus: null, claimedBySelf: null, authorPosition: '1st', volume: '', issueNo: '', pageNos: '', dateOfPub: '', issn: '', doi: '', impactFactor: 0, indexed: 'NONE', quartile: '', presentationStatus: '' }))}
+                );
+              })}
+              {addRowBtn('Add Conference', () => conferences.append({ title: '', conferenceName: '', authors: '', authorList: [''], allAuthorsFromCampus: null, claimedBySelf: null, authorPosition: '1st', status: '', volume: '', issueNo: '', pageNos: '', dateOfPub: '', issn: '', doi: '', impactFactor: 0, indexed: 'NONE', quartile: '', presentationStatus: '', proofFile: '', indexProofFile: '' }))}
             </div>
 
             <div>

@@ -73,6 +73,20 @@ enum PublicationIndex {
   NONE
 }
 
+// 2.1 publication lifecycle (2026-09-28). The faculty picks where the paper
+// stands; the form reveals fields accordingly and scoring keys on it.
+//   SUBMITTED / ACCEPTED  — recorded only, no bibliographic detail, no proof, 0
+//   PRESENTED             — conferences only (2.1-B), recorded only, 0
+//   PUBLISHED             — full detail + 1st-page proof; scores
+//   INDEXED               — published AND indexed; adds the index + index proof
+enum PublicationStatus {
+  SUBMITTED
+  ACCEPTED
+  PRESENTED
+  PUBLISHED
+  INDEXED
+}
+
 enum PatentStatus {
   FILED
   PUBLISHED
@@ -144,6 +158,17 @@ enum Quarter {
 enum FeedbackStatus {
   DRAFT
   ISSUED
+}
+
+// The HoD may issue feedback per quarter and then a final annual one, so a
+// submission carries up to five feedbacks (2026-09-29). ANNUAL is the default
+// so feedback written before this rework keeps its meaning.
+enum FeedbackPeriod {
+  Q1
+  Q2
+  Q3
+  Q4
+  ANNUAL
 }
 
 model User {
@@ -276,9 +301,13 @@ model ReviewWindow {
   // Mass-mail gate (2026-09-19). The window only emails faculty if the dean has
   // armed it after seeing a preview. A window that comes due unarmed still takes
   // its snapshot but holds the mail (heldAt) until the dean releases it.
-  // Changing the dates disarms it again.
+  // armedCount records the recipient headcount the dean confirmed when arming;
+  // the fire job recounts and, if the roster no longer matches, holds the mail
+  // instead of sending (2026-09-25). Editing the dates no longer disarms — the
+  // recount at fire time is the guard, so a date tweak keeps the arm.
   armedAt        DateTime?
   armedById      String?
+  armedCount     Int?
   heldAt         DateTime?
   releasedAt     DateTime?
   createdAt      DateTime @default(now())
@@ -315,7 +344,8 @@ model TrackingSnapshot {
 // faculty on issue.
 model Feedback {
   id             String         @id @default(uuid())
-  submissionId   String         @unique
+  submissionId   String
+  period         FeedbackPeriod @default(ANNUAL)
   userId         String
   academicYearId String
   snapshot       Json
@@ -332,6 +362,8 @@ model Feedback {
   user         User                @relation("FeedbackFaculty", fields: [userId], references: [id])
   academicYear AcademicYear        @relation(fields: [academicYearId], references: [id])
   issuedBy     User?               @relation("FeedbackIssuer", fields: [issuedById], references: [id])
+
+  @@unique([submissionId, period])
 }
 
 // W7 — per-cadre tier thresholds. Replaces the global TierRule model: each
@@ -478,7 +510,7 @@ model AppraisalSubmission {
 
   review             AppraisalReview?
   proofVerifications ProofVerification[]
-  feedback           Feedback?
+  feedbacks          Feedback[]
   finalReviews       FinalReview[]
 
   @@unique([userId, academicYearId, submissionNumber])
@@ -591,6 +623,9 @@ model Cat2Journal {
   doi                String?
   impactFactor       Float?
   impactFactorSource String? // e.g. Clarivate/SCImago/Google Scholar/Other
+  // 2.1 lifecycle (2026-09-28). null = a legacy row filled before the status
+  // rework; those still score on `indexed` alone (see publicationRowScore).
+  status             PublicationStatus?
   indexed            PublicationIndex @default(NONE)
   quartile           String?
   proofFile          String?
@@ -619,9 +654,13 @@ model Cat2Conference {
   pageNos            String?
   impactFactor       Float?
   quartile           String?
+  // 2.1 lifecycle (2026-09-28) — same status model as Cat2Journal, plus
+  // PRESENTED for conferences. null = a legacy row (scores on `indexed`).
+  status             PublicationStatus?
   indexed            PublicationIndex @default(NONE)
-  presentationStatus String? // Accepted / Presented / Other
+  presentationStatus String? // legacy (pre-status); superseded by `status`
   proofFile          String?
+  indexProofFile     String? // the index page, shown only for an Indexed paper
 
   submission AppraisalSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 }
@@ -1029,6 +1068,10 @@ model DraftReview {
   cat6Classroom       Float?
 
   overallComment String?
+  // When the HoD ticks this, the faculty may read the overall note (only the
+  // note — never the provisional marks or Cat 6). Off by default, so the draft
+  // review stays private unless the HoD chooses to share it (2026-09-29).
+  shareNote      Boolean  @default(false)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

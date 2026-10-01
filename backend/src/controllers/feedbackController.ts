@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
-import { RoleType } from '@prisma/client';
+import { RoleType, FeedbackPeriod } from '@prisma/client';
 import prisma from '../utils/prismaClient';
 import { canViewUserResource } from '../utils/access';
 import { SEES_ALL, hasAnyRole } from '../utils/roles';
@@ -11,6 +11,7 @@ import { computeScore } from '../services/scoringEngine';
 import { computeActuals } from '../services/trackingEngine';
 import { deriveCadre, computeExperienceYears, pickCadreTarget, checkEligibility, CADRE_LABEL } from '../services/cadreEngine';
 import { generateNarrative } from '../services/feedbackNarrative';
+import { targetStatus } from '../services/targetStatus';
 
 // Author of feedback: the HoD of the faculty's own department, or the principal
 // institute-wide — never the owner. The admin lost this with the rest of the
@@ -59,7 +60,59 @@ async function buildSnapshot(submissionId: string) {
   };
 }
 
-// GET /appraisals/:id/feedback
+// Feedback is issued per period: the four quarters, then the final annual one.
+export const PERIOD_LABEL: Record<FeedbackPeriod, string> = {
+  Q1: 'Quarter 1 (Jul-Sep)',
+  Q2: 'Quarter 2 (Oct-Dec)',
+  Q3: 'Quarter 3 (Jan-Mar)',
+  Q4: 'Quarter 4 (Apr-Jun)',
+  ANNUAL: 'Annual (final)',
+};
+const PERIOD_ORDER: FeedbackPeriod[] = ['Q1', 'Q2', 'Q3', 'Q4', 'ANNUAL'];
+
+// Read the period from a query/body value, defaulting to ANNUAL so a caller
+// that predates the per-period feedback rework still targets the annual row.
+function parsePeriod(v: unknown): FeedbackPeriod {
+  return PERIOD_ORDER.includes(v as FeedbackPeriod) ? (v as FeedbackPeriod) : FeedbackPeriod.ANNUAL;
+}
+
+const whereFeedback = (submissionId: string, period: FeedbackPeriod) =>
+  ({ submissionId_period: { submissionId, period } });
+
+// GET /appraisals/:id/feedbacks — every period's feedback for the submission.
+// The author (HoD/principal) sees all five rows (draft or issued) with their
+// status; the owner sees only the ISSUED ones, narrative only. Drives the
+// per-quarter tabs and the faculty's list of received feedback.
+export async function listFeedbacks(req: Request, res: Response) {
+  const sub = await prisma.appraisalSubmission.findUnique({
+    where: { id: req.params.id },
+    include: { user: { select: { departmentId: true } } },
+  });
+  if (!sub) return res.status(404).json({ error: 'Not found' });
+  if (!canViewUserResource(req.user!, sub.userId, sub.user.departmentId)) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  const isOwner = req.user!.id === sub.userId;
+
+  const rows = await prisma.feedback.findMany({
+    where: { submissionId: sub.id, ...(isOwner ? { status: 'ISSUED' } : {}) },
+    include: { issuedBy: { select: { name: true } } },
+  });
+  const byPeriod = new Map(rows.map((r) => [r.period, r]));
+
+  const out = PERIOD_ORDER.map((period) => {
+    const r = byPeriod.get(period);
+    const base = { period, label: PERIOD_LABEL[period] };
+    if (!r) return { ...base, status: 'NONE' as const };
+    // Never ship the snapshot (cadre/eligibility internals) to the owner.
+    const { snapshot: _snapshot, ...rest } = r as any;
+    return { ...base, status: r.status, ...(isOwner ? rest : r), issuedByName: r.issuedBy?.name ?? null };
+  }).filter((r) => (isOwner ? r.status === 'ISSUED' : true));
+
+  return res.json({ periods: out, editable: canAuthor(req.user!, sub.userId, sub.user.departmentId) });
+}
+
+// GET /appraisals/:id/feedback?period=Q1
 export async function getFeedback(req: Request, res: Response) {
   const sub = await prisma.appraisalSubmission.findUnique({
     where: { id: req.params.id },
@@ -72,8 +125,9 @@ export async function getFeedback(req: Request, res: Response) {
 
   const editable = canAuthor(req.user!, sub.userId, sub.user.departmentId);
   const isOwner = req.user!.id === sub.userId;
+  const period = parsePeriod(req.query.period);
   const feedback = await prisma.feedback.findUnique({
-    where: { submissionId: sub.id },
+    where: whereFeedback(sub.id, period),
     include: { issuedBy: { select: { name: true } } },
   });
 
@@ -95,6 +149,7 @@ export async function getFeedback(req: Request, res: Response) {
 }
 
 const saveSchema = z.object({
+  period: z.nativeEnum(FeedbackPeriod).optional(),
   strengths: z.string().optional(),
   improvements: z.string().optional(),
   growthTargets: z.string().optional(),
@@ -111,12 +166,13 @@ export async function saveFeedback(req: Request, res: Response) {
     return res.status(403).json({ error: 'Only the HoD can author feedback' });
   }
 
-  const data = saveSchema.parse(req.body);
+  const { period: periodIn, ...data } = saveSchema.parse(req.body);
+  const period = parsePeriod(periodIn);
   const snapshot = await buildSnapshot(sub.id);
 
   const feedback = await prisma.feedback.upsert({
-    where: { submissionId: sub.id },
-    create: { submissionId: sub.id, userId: sub.userId, academicYearId: sub.academicYearId, snapshot: snapshot as any, ...data },
+    where: whereFeedback(sub.id, period),
+    create: { submissionId: sub.id, period, userId: sub.userId, academicYearId: sub.academicYearId, snapshot: snapshot as any, ...data },
     update: { ...data },
   });
   return res.json(feedback);
@@ -133,13 +189,14 @@ export async function issueFeedback(req: Request, res: Response) {
     return res.status(403).json({ error: 'Only the HoD can issue feedback' });
   }
 
-  const data = saveSchema.parse(req.body ?? {});
+  const { period: periodIn, ...data } = saveSchema.parse(req.body ?? {});
+  const period = parsePeriod(periodIn);
   const snapshot = await buildSnapshot(sub.id);
 
   const feedback = await prisma.feedback.upsert({
-    where: { submissionId: sub.id },
+    where: whereFeedback(sub.id, period),
     create: {
-      submissionId: sub.id, userId: sub.userId, academicYearId: sub.academicYearId, snapshot: snapshot as any,
+      submissionId: sub.id, period, userId: sub.userId, academicYearId: sub.academicYearId, snapshot: snapshot as any,
       ...data, status: 'ISSUED', issuedById: req.user!.id, issuedAt: new Date(),
     },
     update: { ...data, snapshot: snapshot as any, status: 'ISSUED', issuedById: req.user!.id, issuedAt: new Date() },
@@ -154,7 +211,7 @@ export async function issueFeedback(req: Request, res: Response) {
     await enqueueEmail({
       toUserId: sub.userId,
       template: 'feedback_issued',
-      payload: { name: faculty?.name ?? 'Faculty', year: sub.academicYear.label, submissionId: sub.id },
+      payload: { name: faculty?.name ?? 'Faculty', year: sub.academicYear.label, submissionId: sub.id, period, periodLabel: PERIOD_LABEL[period] },
       dedupeKey: feedbackIssuedKey(feedback.id, [feedback.strengths, feedback.improvements, feedback.growthTargets]),
     });
   } catch (e) {
@@ -194,8 +251,9 @@ export async function downloadFeedbackPdf(req: Request, res: Response) {
   const isOwner = req.user!.id === sub.userId;
   const editable = canAuthor(req.user!, sub.userId, sub.user.departmentId);
 
+  const period = parsePeriod(req.query.period);
   const feedback = await prisma.feedback.findUnique({
-    where: { submissionId: sub.id },
+    where: whereFeedback(sub.id, period),
     include: { issuedBy: { select: { name: true } } },
   });
   if (!feedback) return res.status(404).json({ error: 'No feedback for this appraisal' });
@@ -218,4 +276,28 @@ export async function downloadFeedbackPdf(req: Request, res: Response) {
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `inline; filename=feedback-${code}-${sub.academicYear?.label ?? ''}.pdf`);
   return res.send(pdf);
+}
+
+// GET /appraisals/:id/target-status — the faculty-facing target progress for the
+// dashboard bar: each measurable FAPA target with required vs current and how
+// many are met. Deliberately faculty-safe (targetStatus): labels, numbers and a
+// status only — no cadre, no tier, no eligibility verdict. Score targets are
+// measured against the faculty's own /500, never the reviewer's /550.
+export async function getTargetStatus(req: Request, res: Response) {
+  const sub = await prisma.appraisalSubmission.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, userId: true, user: { select: { departmentId: true } } },
+  });
+  if (!sub) return res.status(404).json({ error: 'Submission not found' });
+  if (!canViewUserResource(req.user!, sub.userId, sub.user?.departmentId ?? null)) {
+    return res.status(403).json({ error: 'Not allowed' });
+  }
+
+  const snap = await buildSnapshot(sub.id);
+  if (!snap) return res.status(404).json({ error: 'Submission not found' });
+
+  // Only the faculty-safe target rows leave this endpoint — never the cadre,
+  // the eligibility verdict or the reviewed totals buildSnapshot also holds.
+  const status = targetStatus(snap.requirements, snap.scores.total);
+  return res.json({ year: snap.year, ...status });
 }

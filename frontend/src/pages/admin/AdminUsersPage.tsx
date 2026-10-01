@@ -125,6 +125,7 @@ export default function AdminUsersPage() {
     <div>
       <PageHeader
         title="Users"
+        help="Create accounts, reset passwords and assign roles. A HoD needs a department first. Deleting deactivates; toggle inactive to reactivate."
         breadcrumbs={[{ label: 'Admin', to: '/admin/dashboard' }, { label: 'Users' }]}
         actions={
           <div className="flex items-center gap-2">

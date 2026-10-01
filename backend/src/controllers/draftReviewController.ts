@@ -32,6 +32,7 @@ const draftReviewSchema = z.object({
   cat6Cordiality: num,
   cat6Classroom: num,
   overallComment: z.string().max(5000).nullable().optional(),
+  shareNote: z.boolean().optional(),
 });
 
 const clamp = (v: number | null | undefined, max: number) =>
@@ -70,6 +71,29 @@ export async function getDraftReview(req: Request, res: Response) {
   return res.status(403).json({ error: 'Forbidden' });
 }
 
+// GET /appraisals/:id/shared-note — the one part of a draft review the faculty
+// may see: the HoD's overall note, and only once the HoD ticked "share". Returns
+// { note, sharedAt } or null. The owner and any authorised departmental reader
+// may read it; the provisional marks and Cat 6 are never included.
+export async function getSharedDraftNote(req: Request, res: Response) {
+  const sub = await loadSubmission(req.params.id);
+  if (!sub) return res.status(404).json({ error: 'Not found' });
+  const user = req.user!;
+  const ownerDept = sub.user.departmentId ?? null;
+
+  const isOwner = user.id === sub.userId;
+  const isDeptReader = user.roles.some(
+    (r) => (r.role === RoleType.HOD || r.role === RoleType.REVIEWER) && r.departmentId != null && r.departmentId === ownerDept,
+  );
+  if (!isOwner && !isDeptReader && !hasAnyRole(user, INSTITUTE_READ)) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  const dr = sub.draftReview;
+  if (!dr || !dr.shareNote || !dr.overallComment) return res.json(null);
+  return res.json({ note: dr.overallComment, sharedAt: dr.updatedAt });
+}
+
 // PUT /appraisals/:id/draft-review — the HoD of the owner's department only,
 // only while the appraisal is a DRAFT, never on their own.
 export async function putDraftReview(req: Request, res: Response) {
@@ -100,6 +124,7 @@ export async function putDraftReview(req: Request, res: Response) {
     cat6Cordiality: clamp(d.cat6Cordiality, 10),
     cat6Classroom: clamp(d.cat6Classroom, 10),
     overallComment: d.overallComment?.trim() ? d.overallComment.trim() : null,
+    shareNote: !!d.shareNote,
     reviewerId: req.user!.id,
   };
 

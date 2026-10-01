@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import {
-  BarChart2, FileText, FilePen, BookOpen, User, Users, Settings, LayoutDashboard, Mail, Activity, Menu, X, Target, ShieldCheck, AlertTriangle, Gauge, CalendarClock, Gavel, UploadCloud, Layers,
+  BarChart2, FileText, FilePen, BookOpen, User, Users, Settings, LayoutDashboard, Mail, Activity, Menu, X, Target, ShieldCheck, AlertTriangle, Gauge, CalendarClock, Gavel, UploadCloud,
 } from 'lucide-react';
 import BrandHeader from './BrandHeader';
 import Footer from './Footer';
 import { finalReviewApi } from '../api/appraisals';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { isAdmin, isPrincipal, isDean, isScrutinizer, isHodOrReviewer, canAllocateTier, hasRole } = useAuthStore();
+  const { isAdmin, isPrincipal, isDean, isScrutinizer, isHodOrReviewer, canAllocateTier, hasRole,
+    canSwitchWorkspace, activeWorkspace, setWorkspace } = useAuthStore();
   const location = useLocation();
+  const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Any user can be a dean-assigned final reviewer, so surface the link only to
   // those who actually have something awaiting their sign-off.
@@ -90,7 +92,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     add('/reports/department', 'Department Reports', BarChart2);
     add('/dean/academic-years', 'Academic Years', BookOpen);
     add('/dean/cadre-targets', 'Cadre Targets', Target);
-    add('/dean/cadre-tiers', 'Cadre Tiers', Layers);
     add('/dean/review-windows', 'Review Windows', CalendarClock);
     add('/dean/departments', 'Departments', Settings);
   }
@@ -114,6 +115,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     add('/reviews', 'Review Queue', FileText);
     add('/drafts', 'Drafts in progress', FilePen);
     add('/uploads', 'Uploads', UploadCloud);
+    if (hasRole('HOD')) add('/department/reviewers', 'Reviewers', ShieldCheck);
     if (hasRole('HOD')) add('/reports/department', 'Reports', BarChart2);
   }
 
@@ -137,12 +139,58 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // the bottom of the menu.
   add('/profile', 'Profile', User);
 
+  // Workspace lens for a dual faculty+reviewer: the Faculty workspace shows only
+  // the personal filing pages, the staff workspace only the review pages, so the
+  // two never sit in one menu. Profile stays in both. A non-dual account is
+  // unaffected and keeps its full additive menu.
+  const FACULTY_PATHS = ['/dashboard', '/appraisal'];
+  const dual = canSwitchWorkspace();
+  const visibleEntries = !dual
+    ? entries
+    : entries.filter(([to]) => {
+        if (to === '/profile') return true;
+        const isFacultyPath = FACULTY_PATHS.includes(to);
+        return activeWorkspace === 'faculty' ? isFacultyPath : !isFacultyPath;
+      });
+
+  const switchTo = (w: 'faculty' | 'staff') => {
+    setWorkspace(w);
+    navigate(w === 'faculty' ? '/dashboard' : '/reviews');
+    setDrawerOpen(false);
+  };
+  const staffLabel = hasRole('HOD') ? 'HoD' : 'Reviewer';
+
+  const workspaceSwitch = dual ? (
+    <div className="mb-2 px-1">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted mb-1">Workspace</div>
+      <div className="flex rounded-md border border-surface-border overflow-hidden">
+        {([['faculty', 'Faculty'], ['staff', staffLabel]] as const).map(([w, label]) => (
+          <button
+            key={w}
+            type="button"
+            onClick={() => switchTo(w)}
+            aria-pressed={activeWorkspace === w}
+            className={`flex-1 text-xs font-medium py-1.5 transition-colors ${
+              activeWorkspace === w
+                ? 'bg-primary-600 text-white'
+                : 'bg-surface-base text-ink-secondary hover:bg-surface-muted'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
   const navItems = (
     <>
-      {entries
+      {workspaceSwitch}
+      {visibleEntries
         .filter(([to]) => !(to === '/final-review' && finalCount > 0))
         .map(([to, label, Icon]) => navLink(to, label, Icon))}
-      {finalCount > 0 && navLink('/final-review', `Final Review (${finalCount})`, Gavel)}
+      {finalCount > 0 && (!dual || activeWorkspace === 'staff') &&
+        navLink('/final-review', `Final Review (${finalCount})`, Gavel)}
     </>
   );
 

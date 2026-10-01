@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { appraisalApi } from '../../api/appraisals';
+import { appraisalApi, type TargetStatus } from '../../api/appraisals';
 import { userApi } from '../../api/users';
 import toast from 'react-hot-toast';
-import { FileText, Plus, Clock, Send, CheckCircle2 } from 'lucide-react';
+import { FileText, Plus, Clock, Send, CheckCircle2, Target, Check } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import PageHeader from '../../components/PageHeader';
 import Card from '../../components/Card';
@@ -16,6 +16,7 @@ export default function DashboardPage() {
   const [years, setYears] = useState<any[]>([]);
   const [selectedYear, setSelectedYear] = useState('');
   const [loading, setLoading] = useState(true);
+  const [targets, setTargets] = useState<TargetStatus | null>(null);
   const { user } = useAuthStore();
 
   useEffect(() => {
@@ -42,9 +43,20 @@ export default function DashboardPage() {
   const currentYear = years.find((y) => y.id === selectedYear);
   // One appraisal per faculty per year — hide "New Appraisal" once an active
   // (non-REJECTED) one exists for the selected year (backend enforces this too).
-  const hasActiveThisYear = submissions.some(
+  const activeSub = submissions.find(
     (s: any) => ((s.academicYearId ?? s.academicYear?.id) === selectedYear) && s.status !== 'REJECTED'
   );
+  const hasActiveThisYear = !!activeSub;
+
+  // Target progress for the selected year's appraisal — drives the top bar.
+  useEffect(() => {
+    if (!activeSub?.id) { setTargets(null); return; }
+    let live = true;
+    appraisalApi.getTargetStatus(activeSub.id)
+      .then((t) => { if (live) setTargets(t); })
+      .catch(() => { if (live) setTargets(null); });
+    return () => { live = false; };
+  }, [activeSub?.id]);
 
   if (loading) {
     return (
@@ -65,7 +77,9 @@ export default function DashboardPage() {
     <div className="max-w-5xl">
       <PageHeader
         title={`Welcome, ${user?.name?.split(' ')[0] ?? 'Faculty'}`}
+        titleStyle={{ fontFamily: 'var(--font-sans)', fontSize: '1.125rem', fontWeight: 600, letterSpacing: 0 }}
         subtitle="Faculty Appraisal Dashboard"
+        help="Your home. Start or continue this year’s appraisal draft, see your latest reviewed score out of 500, and track proof status. One draft carries through the year; submit after Q4."
         breadcrumbs={[{ label: 'Home' }, { label: 'Dashboard' }]}
         actions={
           <div className="flex items-center gap-2">
@@ -93,8 +107,11 @@ export default function DashboardPage() {
         }
       />
 
+      {/* Top target bar — progress against the FAPA targets */}
+      {targets && targets.total > 0 && <TargetBar t={targets} />}
+
       {/* Stats row */}
-      <div className="grid grid-cols-3 gap-4 mb-5">
+      <div className="grid grid-cols-3 gap-4 mb-5 animate-rise" style={{ animationDelay: '60ms' }}>
         <StatTile icon={<FileText size={18} />} label="Drafts" value={drafts} color="warning" />
         <StatTile icon={<Send size={18} />} label="In Review" value={submitted} color="primary" />
         <StatTile icon={<CheckCircle2 size={18} />} label="Approved" value={approved} color="success" />
@@ -114,8 +131,10 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Submissions list */}
-      <Card padding="none">
+      {/* Submissions list. The active one for the selected year is pinned to the
+          top and highlighted, so a queue cluttered by past/demo submissions
+          still surfaces the one that matters now. */}
+      <Card padding="none" className="animate-rise" style={{ animationDelay: '120ms' }}>
         <div className="px-5 py-3 border-b border-surface-border">
           <h2 className="text-sm font-semibold text-ink-primary">My Submissions</h2>
         </div>
@@ -126,35 +145,105 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="divide-y divide-surface-border">
-            {submissions.map((sub) => (
-              <div key={sub.id} className="px-5 py-3 flex items-center justify-between hover:bg-surface-muted/50 transition-colors">
-                <div className="flex items-center gap-3">
-                  <FileText size={16} className="text-ink-subtle" />
-                  <div>
-                    <div className="text-sm font-medium text-ink-primary">
-                      Submission #{sub.submissionNumber} — {sub.academicYear?.label}
+            {[...submissions]
+              .sort((a, b) => (a.id === activeSub?.id ? -1 : b.id === activeSub?.id ? 1 : 0))
+              .map((sub) => {
+                const isActive = sub.id === activeSub?.id;
+                return (
+                  <div
+                    key={sub.id}
+                    className={`px-5 py-3 flex items-center justify-between transition-colors ${
+                      isActive
+                        ? 'bg-primary-50/70 border-l-4 border-primary-600'
+                        : 'hover:bg-surface-muted/50 opacity-80'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <FileText size={16} className={isActive ? 'text-primary-600' : 'text-ink-subtle'} />
+                      <div>
+                        <div className="text-sm font-medium text-ink-primary flex items-center gap-2">
+                          Submission #{sub.submissionNumber} — {sub.academicYear?.label}
+                          {isActive && (
+                            <span className="text-[10px] font-semibold uppercase tracking-wide bg-primary-600 text-white px-1.5 py-0.5 rounded">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-ink-muted">
+                          {sub.submittedAt
+                            ? `Submitted ${new Date(sub.submittedAt).toLocaleDateString()}`
+                            : sub.status === 'DRAFT' ? 'Draft — open all year, submit after the Q4 review window' : 'Not submitted'}
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-xs text-ink-muted">
-                      {sub.submittedAt
-                        ? `Submitted ${new Date(sub.submittedAt).toLocaleDateString()}`
-                        : sub.status === 'DRAFT' ? 'Draft — open all year, submit after the Q4 review window' : 'Not submitted'}
+                    <div className="flex items-center gap-3">
+                      <StatusBadge status={sub.status} />
+                      <Link
+                        to={sub.status === 'DRAFT' ? `/appraisal/${sub.id}/edit` : `/appraisal/${sub.id}`}
+                        className="text-primary-600 text-sm font-medium hover:underline"
+                      >
+                        {sub.status === 'DRAFT' ? 'Edit' : 'View'}
+                      </Link>
                     </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <StatusBadge status={sub.status} />
-                  <Link
-                    to={sub.status === 'DRAFT' ? `/appraisal/${sub.id}/edit` : `/appraisal/${sub.id}`}
-                    className="text-primary-600 text-sm font-medium hover:underline"
-                  >
-                    {sub.status === 'DRAFT' ? 'Edit' : 'View'}
-                  </Link>
-                </div>
-              </div>
-            ))}
+                );
+              })}
           </div>
         )}
       </Card>
     </div>
+  );
+}
+
+// The faculty's progress against their FAPA targets — a single horizontal bar
+// with a per-target breakdown. Faculty-safe: it shows only the target labels,
+// the counts and how many are met (from /target-status), never cadre or tier
+// machinery.
+function TargetBar({ t }: { t: TargetStatus }) {
+  const pct = t.total > 0 ? Math.round((t.achieved / t.total) * 100) : 0;
+  const done = t.achieved >= t.total;
+  return (
+    <Card className="mb-5 animate-rise">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <Target size={16} className="text-primary-600" />
+          <h2 className="text-sm font-semibold text-ink-primary">Your Targets — {t.year}</h2>
+        </div>
+        <span className={`text-xs font-semibold ${done ? 'text-emerald-700' : 'text-ink-secondary'}`}>
+          {t.achieved} / {t.total} met
+        </span>
+      </div>
+
+      {/* The bar */}
+      <div className="h-2.5 rounded-full bg-surface-muted overflow-hidden" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+        <div
+          className={`h-full rounded-full transition-all ${done ? 'bg-emerald-500' : 'bg-primary-600'}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <p className="text-xs text-ink-muted mt-1.5">
+        {done ? 'All targets met.' : t.leftText}
+      </p>
+
+      {/* Per-target breakdown */}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {t.rows.map((r) => (
+          <span
+            key={r.label}
+            className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${
+              r.achieved
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-surface-base border-surface-border text-ink-secondary'
+            }`}
+          >
+            {r.achieved
+              ? <Check size={12} className="text-emerald-600" />
+              : <span className="text-ink-subtle">•</span>}
+            {r.label}: <strong>{r.current}</strong>/{r.required}
+            {!r.achieved && <span className="text-ink-subtle">({r.left} to go)</span>}
+          </span>
+        ))}
+      </div>
+    </Card>
   );
 }
