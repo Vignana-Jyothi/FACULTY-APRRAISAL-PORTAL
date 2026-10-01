@@ -39,6 +39,8 @@ const INDEX_OPTIONS = ['WOS', 'SCOPUS', 'ESCI', 'ICI', 'NONE'];
 const IMPACT_FACTOR_SOURCES = ['Clarivate Analytics (JCR)', 'Scopus / SCImago (SJR / CiteScore)', 'Google Scholar'];
 const RESOURCE_PROGRAM_TYPES = ['FDP', 'Conference', 'Workshop', 'Guest Lecture', 'Webinar'];
 const EDITORIAL_NATURES = ['Editorial Board', 'Review Committee', 'Org Committee', 'Reviewer'];
+// 1.1 Year/Sem — the four B.Tech years, two semesters each.
+const YEAR_SEM_OPTIONS = ['I-I', 'I-II', 'II-I', 'II-II', 'III-I', 'III-II', 'IV-I', 'IV-II'];
 const ICT_PLATFORMS = ['Google Classroom', 'Moodle', 'MS Teams'];
 const ICT_USES = ['Assignments', 'Quizzes', 'Recorded Lectures', 'Discussion Forums'];
 // 2.1-A journal lifecycle. Submitted/Accepted record the status only; Published
@@ -730,7 +732,10 @@ export default function AppraisalEditPage() {
                     </div>
                     <div>
                       <label className={labelCls}>Year/Sem</label>
-                      <input {...register(`cat1Courses.${i}.yearSem`)} className={inputCls} />
+                      <select {...register(`cat1Courses.${i}.yearSem`)} className={inputCls}>
+                        <option value="">Select...</option>
+                        {YEAR_SEM_OPTIONS.map((ys) => <option key={ys} value={ys}>{ys}</option>)}
+                      </select>
                     </div>
                     <div>
                       <label className={labelCls}>Periods Planned</label>
