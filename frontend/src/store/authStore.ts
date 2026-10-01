@@ -9,19 +9,20 @@ export type Role =
   | 'HOD'
   | 'REVIEWER'
   | 'ADMIN'
+  | 'DEPT_ADMIN'
   | 'PRINCIPAL'
   | 'DEAN'
   | 'SCRUTINIZER'
   | 'SPECIAL_SCRUTINIZER';
 
 export const ALL_ROLES: readonly Role[] = [
-  'FACULTY', 'HOD', 'REVIEWER', 'ADMIN',
+  'FACULTY', 'HOD', 'REVIEWER', 'ADMIN', 'DEPT_ADMIN',
   'PRINCIPAL', 'DEAN', 'SCRUTINIZER', 'SPECIAL_SCRUTINIZER',
 ] as const;
 
-// Only these two are department-scoped; every other role is institute-wide and
+// These three are department-scoped; every other role is institute-wide and
 // `assignRole` rejects a departmentId for them.
-export const DEPT_SCOPED_ROLES: readonly Role[] = ['HOD', 'REVIEWER'] as const;
+export const DEPT_SCOPED_ROLES: readonly Role[] = ['HOD', 'REVIEWER', 'DEPT_ADMIN'] as const;
 
 // Tier allocation: the dean, the 2-3 special scrutinizers they delegate to, and
 // the principal who sees everything.
@@ -73,6 +74,11 @@ interface AuthState {
   /** Maintenance admin ONLY — accounts, roles, email queue, audit log.
    *  Never a stand-in for "has power": an admin sees no appraisal content. */
   isAdmin: () => boolean;
+  /** Department-scoped maintenance admin — faculty accounts, password resets,
+   *  email + audit, confined to their own department by the server. */
+  isDeptAdmin: () => boolean;
+  /** Either flavour of account maintainer: the institute admin or a dept admin. */
+  isAccountAdmin: () => boolean;
   isPrincipal: () => boolean;
   isDean: () => boolean;
   /** Either flavour of scrutinizer. */
@@ -108,6 +114,8 @@ export const useAuthStore = create<AuthState>()(
       hasRole: (role) => get().user?.roles.some((r) => r.role === role) ?? false,
       hasAnyRole: (roles) => get().user?.roles.some((r) => roles.includes(r.role)) ?? false,
       isAdmin: () => get().hasRole('ADMIN'),
+      isDeptAdmin: () => get().hasRole('DEPT_ADMIN'),
+      isAccountAdmin: () => get().hasAnyRole(['ADMIN', 'DEPT_ADMIN']),
       isPrincipal: () => get().hasRole('PRINCIPAL'),
       isDean: () => get().hasRole('DEAN'),
       isScrutinizer: () => get().hasAnyRole(['SCRUTINIZER', 'SPECIAL_SCRUTINIZER']),

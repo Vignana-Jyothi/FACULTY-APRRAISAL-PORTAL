@@ -13,8 +13,18 @@ import { RoleType } from '@prisma/client';
  * See docs/superpowers/plans/role-hierarchy-rework.md.
  */
 
-/** App maintenance only. No appraisal content, no Cat 6, no tier. */
+/** Institute-wide app maintenance only. No appraisal content, no Cat 6, no tier. */
 export const MAINTENANCE: RoleType[] = [RoleType.ADMIN];
+
+/**
+ * Account maintenance: managing faculty accounts, resetting passwords, and
+ * reading the email queue and audit log. The institute ADMIN does this across
+ * every department; a DEPT_ADMIN does it only within their own department —
+ * every route and controller below narrows a DEPT_ADMIN to their dept, so this
+ * set grants *reach*, not *scope*. Role assignment, bulk import and the email
+ * retry/trigger controls stay ADMIN-only (MAINTENANCE), never DEPT_ADMIN.
+ */
+export const ACCOUNT_ADMIN: RoleType[] = [RoleType.ADMIN, RoleType.DEPT_ADMIN];
 
 /** Institute-wide sight of everything, Cat 6 and the /550 grand total included. */
 export const SEES_ALL: RoleType[] = [RoleType.PRINCIPAL];
@@ -54,7 +64,7 @@ export const SCRUTINY_POOL: RoleType[] = [RoleType.SCRUTINIZER, RoleType.SPECIAL
 export const DEPT_CONTENT_READ: RoleType[] = [RoleType.HOD, ...CONFIG];
 
 /** Roles that carry a departmentId. Everything else is institute-wide. */
-export const DEPARTMENT_SCOPED: RoleType[] = [RoleType.HOD, RoleType.REVIEWER];
+export const DEPARTMENT_SCOPED: RoleType[] = [RoleType.HOD, RoleType.REVIEWER, RoleType.DEPT_ADMIN];
 
 /** Roles that must NOT be assigned with a departmentId. */
 export const INSTITUTE_WIDE: RoleType[] = [
@@ -65,6 +75,20 @@ export const INSTITUTE_WIDE: RoleType[] = [
   RoleType.SCRUTINIZER,
   RoleType.SPECIAL_SCRUTINIZER,
 ];
+
+/**
+ * The departments a DEPT_ADMIN maintains. Empty for anyone who is not a
+ * department admin (including the institute ADMIN, whose reach is every
+ * department and is expressed by `isFullAdmin` instead).
+ */
+export function deptAdminScope(user: RoleHolder): string[] {
+  return deptIdsFor(user, [RoleType.DEPT_ADMIN]);
+}
+
+/** True for the institute-wide maintenance admin (unrestricted by department). */
+export function isFullAdmin(user: RoleHolder | undefined | null): boolean {
+  return hasAnyRole(user, MAINTENANCE);
+}
 
 export interface RoleHolder {
   roles: Array<{ role: RoleType; departmentId?: string | null }>;

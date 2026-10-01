@@ -18,6 +18,7 @@ const needsDept = (role: Role) => DEPT_SCOPED_ROLES.includes(role);
 
 const ROLE_HINT: Partial<Record<Role, string>> = {
   ADMIN: 'Maintenance only — accounts, roles, email queue, audit log. No appraisal content.',
+  DEPT_ADMIN: 'Department maintenance — faculty accounts, password resets, and email/audit for their own department only. No roles, no appraisal content.',
   PRINCIPAL: 'Institute-wide. The only role that sees core values and the /550 grand total everywhere.',
   DEAN: 'Configuration, tier allocation, and scrutinizer assignment.',
   SCRUTINIZER: 'Pool for final sign-off. Assigned per submission by the dean. Sees /500 only.',

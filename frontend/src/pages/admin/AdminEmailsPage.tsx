@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { emailApi } from '../../api/emails';
+import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
 import { Mail, RefreshCw, Send, CheckCircle2, XCircle, Clock } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
@@ -15,6 +16,9 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default function AdminEmailsPage() {
+  // A DEPT_ADMIN may read their department's queue but not act on it: sending
+  // reminders/digests and retrying a failed send stay with the institute admin.
+  const isFullAdmin = useAuthStore((s) => s.isAdmin());
   const [emails, setEmails] = useState<any[]>([]);
   const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(true);
@@ -74,22 +78,24 @@ export default function AdminEmailsPage() {
         subtitle="Transactional + reminder emails queued from the system"
         breadcrumbs={[{ label: 'Admin', to: '/admin/dashboard' }, { label: 'Emails' }]}
         actions={
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => triggerNow('draft_reminders')}
-              disabled={triggering}
-              className="flex items-center gap-2 text-sm border border-surface-border px-3 py-2 rounded hover:bg-surface-muted disabled:opacity-50"
-            >
-              <Send size={14} /> Send Draft Reminders
-            </button>
-            <button
-              onClick={() => triggerNow('reviewer_digest')}
-              disabled={triggering}
-              className="flex items-center gap-2 text-sm border border-surface-border px-3 py-2 rounded hover:bg-surface-muted disabled:opacity-50"
-            >
-              <Send size={14} /> Send Reviewer Digest
-            </button>
-          </div>
+          isFullAdmin ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => triggerNow('draft_reminders')}
+                disabled={triggering}
+                className="flex items-center gap-2 text-sm border border-surface-border px-3 py-2 rounded hover:bg-surface-muted disabled:opacity-50"
+              >
+                <Send size={14} /> Send Draft Reminders
+              </button>
+              <button
+                onClick={() => triggerNow('reviewer_digest')}
+                disabled={triggering}
+                className="flex items-center gap-2 text-sm border border-surface-border px-3 py-2 rounded hover:bg-surface-muted disabled:opacity-50"
+              >
+                <Send size={14} /> Send Reviewer Digest
+              </button>
+            </div>
+          ) : undefined
         }
       />
 
@@ -180,7 +186,7 @@ export default function AdminEmailsPage() {
                   <td className="px-4 py-2 text-ink-muted text-xs">{new Date(e.createdAt).toLocaleString()}</td>
                   <td className="px-4 py-2 text-ink-muted text-xs">{e.sentAt ? new Date(e.sentAt).toLocaleString() : '—'}</td>
                   <td className="px-4 py-2">
-                    {e.status === 'FAILED' && (
+                    {e.status === 'FAILED' && isFullAdmin && (
                       <button
                         onClick={() => retry(e.id)}
                         className="flex items-center gap-1 text-xs text-primary-600 hover:underline font-medium"

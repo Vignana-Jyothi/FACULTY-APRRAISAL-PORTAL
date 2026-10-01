@@ -16,6 +16,11 @@ export const userApi = {
   deactivateUser: (id: string) => api.delete(`/admin/users/${id}`).then((r) => r.data),
   reactivateUser: (id: string) =>
     api.post(`/admin/users/${id}/reactivate`).then((r) => r.data),
+  // Operator-set password reset. Sets a temporary password the user must change
+  // at next sign-in and kills their existing sessions. Scoped to the caller's
+  // department for a DEPT_ADMIN, any user for the institute admin.
+  resetPassword: (id: string, newPassword: string) =>
+    api.post(`/admin/users/${id}/reset-password`, { newPassword }).then((r) => r.data),
   assignRole: (id: string, role: string, departmentId?: string) =>
     api.post(`/admin/users/${id}/roles`, { role, departmentId }).then((r) => r.data),
   revokeRole: (userId: string, roleId: string) =>

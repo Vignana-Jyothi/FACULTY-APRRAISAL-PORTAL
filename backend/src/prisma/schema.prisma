@@ -8,14 +8,16 @@ datasource db {
 }
 
 // Role hierarchy (2026-09-18 rework — docs/superpowers/plans/role-hierarchy-rework.md).
-// FACULTY / HOD / REVIEWER are department-level; HOD and REVIEWER are the only
-// roles that carry a departmentId. PRINCIPAL, DEAN, SCRUTINIZER,
-// SPECIAL_SCRUTINIZER and ADMIN are institute-wide and never carry one.
+// HOD, REVIEWER and DEPT_ADMIN are department-scoped and carry a departmentId.
+// PRINCIPAL, DEAN, SCRUTINIZER, SPECIAL_SCRUTINIZER and ADMIN are institute-wide
+// and never carry one. (FACULTY is institute-wide too — a person's home
+// department lives on the user, not on the FACULTY role.)
 enum RoleType {
   FACULTY
   HOD
   REVIEWER
   ADMIN // app maintenance only: accounts, roles, email queue, audit log
+  DEPT_ADMIN // department-scoped maintenance: faculty accounts, password resets, email+audit — own dept only
   PRINCIPAL // sees everything institute-wide, incl. Cat 6 and the /550 total
   DEAN // configuration, tier allocation, assigns scrutinizers
   SCRUTINIZER // cross-department final-review pool; sees /500 only
