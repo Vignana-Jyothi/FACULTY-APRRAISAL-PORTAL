@@ -485,6 +485,51 @@ export default function AppraisalEditPage() {
     />
   );
 
+  // Multi-select of novel pedagogy methods, stored comma-joined in one string
+  // field (no schema change). Any selection sets the paired "used" flag; it
+  // clears when nothing is left selected. Free-text "Other" methods are kept as
+  // the parts not matching a listed option.
+  const pedagogyField = (name: string, usedName: string) => (
+    <Controller
+      control={control}
+      name={name as any}
+      render={({ field }) => {
+        const parts = String(field.value ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+        const selected = new Set(parts.filter((p) => NOVEL_PEDAGOGY_OPTIONS.includes(p)));
+        const other = parts.filter((p) => !NOVEL_PEDAGOGY_OPTIONS.includes(p)).join(', ');
+        const commit = (sel: Set<string>, otherText: string) => {
+          const list = NOVEL_PEDAGOGY_OPTIONS.filter((o) => sel.has(o));
+          if (otherText.trim()) list.push(otherText.trim());
+          const joined = list.join(', ');
+          field.onChange(joined);
+          setValue(usedName as any, joined.length > 0, { shouldDirty: true });
+        };
+        return (
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-1">
+              {NOVEL_PEDAGOGY_OPTIONS.map((o) => (
+                <label key={o} className="flex items-center gap-1.5 text-xs text-ink-secondary">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(o)}
+                    onChange={(e) => { const s = new Set(selected); e.target.checked ? s.add(o) : s.delete(o); commit(s, other); }}
+                  />
+                  {o}
+                </label>
+              ))}
+            </div>
+            <input
+              className={inputCls}
+              placeholder="Other method(s), comma-separated"
+              value={other}
+              onChange={(e) => commit(selected, e.target.value)}
+            />
+          </div>
+        );
+      }}
+    />
+  );
+
   // 2.1 controls shared by journals (A), conference proceedings (B) and
   // conference book chapters (C).
   const indexSelect = (name: string, allowNone = true) => (
@@ -745,11 +790,10 @@ export default function AppraisalEditPage() {
                       <label className={labelCls}>Periods Conducted</label>
                       <input {...numField(`cat1Courses.${i}.periodsConducted`, { min: 0, integer: true })} className={inputCls} />
                     </div>
-                    <div>
-                      <label className={labelCls}>Novel Pedagogy Method</label>
-                      {/* Picking a method means it was used — tick the box with it. */}
-                      {selectOther(`cat1Courses.${i}.novelPedagogyMethod`, NOVEL_PEDAGOGY_OPTIONS, 'Select...', 'Specify method',
-                        (v) => { if (v) setValue(`cat1Courses.${i}.novelPedagogyUsed`, true, { shouldDirty: true }); })}
+                    <div className="col-span-3">
+                      <label className={labelCls}>Novel Pedagogy Method(s)</label>
+                      {/* Tick every method used — selecting any marks it used. */}
+                      {pedagogyField(`cat1Courses.${i}.novelPedagogyMethod`, `cat1Courses.${i}.novelPedagogyUsed`)}
                     </div>
                     <div className="flex items-end pb-1">
                       <label className="flex items-center gap-2 text-sm text-ink-secondary">
