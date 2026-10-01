@@ -446,3 +446,61 @@ export async function clearHold(req: Request, res: Response) {
 
   return res.json({ message: 'Hold cleared' });
 }
+
+// ─── Per-row HoD approval (sections with no proof) ───────────────────────
+//
+// 4.1, 4.2, 5.1, 5.3 and 5.4 carry no proof file — instead the HoD (or the
+// department incharge, or the principal) marks each row approved or not. The
+// relation key names the section; mapped here to its Prisma model.
+// Relation key (as it appears on the submission payload) → Prisma delegate name.
+const APPROVAL_DELEGATE: Record<string, string> = {
+  cat4AdminResp: 'cat4AdminResp',
+  cat4StudentAct: 'cat4StudentActivity',
+  cat5Memberships: 'cat5Membership',
+  cat5Differentiators: 'cat5Differentiator',
+  cat5Internships: 'cat5Internship',
+};
+
+const approvalSchema = z.object({
+  key: z.enum(['cat4AdminResp', 'cat4StudentAct', 'cat5Memberships', 'cat5Differentiators', 'cat5Internships']),
+  rowId: z.string().min(1),
+  // true = approved, false = not approved, null = back to pending.
+  approved: z.boolean().nullable(),
+});
+
+// POST /appraisals/:id/item-approval — set one row's HoD approval.
+export async function setItemApproval(req: Request, res: Response) {
+  const sub = await prisma.appraisalSubmission.findUnique({
+    where: { id: req.params.id },
+    include: { user: { select: { id: true, departmentId: true } } },
+  });
+  if (!sub) return res.status(404).json({ error: 'Not found' });
+  if (!canVerifyProof(req.user!, sub.userId, sub.user.departmentId)) {
+    return res.status(403).json({ error: 'Only the HoD or incharge can approve these items' });
+  }
+  if (!PROOF_CHECK_STATUSES.includes(sub.status)) {
+    return res.status(400).json({ error: `These items are approved on the draft and through review — this one is ${sub.status}` });
+  }
+
+  const { key, rowId, approved } = approvalSchema.parse(req.body);
+  const delegate = APPROVAL_DELEGATE[key];
+
+  // The row must belong to this submission — never approve across submissions.
+  const row = await (prisma as any)[delegate].findFirst({ where: { id: rowId, submissionId: sub.id } });
+  if (!row) return res.status(404).json({ error: 'Item not found on this submission' });
+
+  await prisma.$transaction(async (tx) => {
+    await (tx as any)[delegate].update({ where: { id: rowId }, data: { hodApproved: approved } });
+    await tx.auditLog.create({
+      data: {
+        userId: req.user!.id,
+        action: approved === null ? 'ITEM_APPROVAL_CLEARED' : approved ? 'ITEM_APPROVED' : 'ITEM_REJECTED',
+        entityType: 'AppraisalItem',
+        entityId: rowId,
+        metadata: { submissionId: sub.id, section: key },
+      },
+    });
+  });
+
+  return res.json({ message: 'Approval updated' });
+}

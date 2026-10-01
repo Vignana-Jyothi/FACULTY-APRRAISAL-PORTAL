@@ -945,6 +945,7 @@ model Cat4AdminResp {
   workInvolved   String
   period         String
   proofFile      String?
+  hodApproved    Boolean? // HoD yes/no approval — replaces proof verification for this section (null = pending)
 
   submission AppraisalSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 }
@@ -955,6 +956,7 @@ model Cat4StudentActivity {
   activityName String
   period       String
   proofFile    String?
+  hodApproved  Boolean? // HoD yes/no approval — replaces proof verification for this section (null = pending)
 
   submission AppraisalSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 }
@@ -965,6 +967,7 @@ model Cat5Membership {
   association  String
   status       String
   proofFile    String?
+  hodApproved  Boolean? // HoD yes/no approval — replaces proof verification for this section (null = pending)
 
   submission AppraisalSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 }
@@ -986,6 +989,7 @@ model Cat5Differentiator {
   name         String
   role         String
   proofFile    String?
+  hodApproved  Boolean? // HoD yes/no approval — replaces proof verification for this section (null = pending)
 
   submission AppraisalSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 }
@@ -998,6 +1002,7 @@ model Cat5Internship {
   internshipDetails String
   period            String
   proofFile         String?
+  hodApproved       Boolean? // HoD yes/no approval — replaces proof verification for this section (null = pending)
 
   submission AppraisalSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 }

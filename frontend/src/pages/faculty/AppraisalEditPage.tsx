@@ -1704,7 +1704,6 @@ export default function AppraisalEditPage() {
                   </div>
                   <div><label className={labelCls}>Work Involved</label><input {...register(`cat4AdminResp.${i}.workInvolved`)} className={inputCls} /></div>
                   <div><label className={labelCls}>Period</label><input {...register(`cat4AdminResp.${i}.period`)} className={inputCls} /></div>
-                  {proofField(`cat4AdminResp.${i}.proofFile`)}
                   <button type="button" onClick={() => adminResp.remove(i)} className="text-red-400 text-xs">Remove</button>
                 </div>
               ))}
@@ -1720,7 +1719,6 @@ export default function AppraisalEditPage() {
                 <div key={field.id} className="grid grid-cols-2 gap-3 mb-2">
                   <div><label className={labelCls}>Activity</label><input {...register(`cat4StudentAct.${i}.activityName`)} className={inputCls} /></div>
                   <div><label className={labelCls}>Period</label><input {...register(`cat4StudentAct.${i}.period`)} className={inputCls} /></div>
-                  {proofField(`cat4StudentAct.${i}.proofFile`)}
                   <button type="button" onClick={() => studentAct.remove(i)} className="text-red-400 text-xs">Remove</button>
                 </div>
               ))}
@@ -1752,7 +1750,6 @@ export default function AppraisalEditPage() {
                       <option value="life_member">Life Membership</option>
                     </select>
                   </div>
-                  {proofField(`cat5Memberships.${i}.proofFile`, 'Certificate')}
                   <button type="button" onClick={() => memberships.remove(i)} className="text-red-400 text-xs">Remove</button>
                 </div>
               ))}
@@ -1798,7 +1795,6 @@ export default function AppraisalEditPage() {
                       <option value="initiating">Initiating, shaping &amp; executing</option>
                     </select>
                   </div>
-                  {proofField(`cat5Differentiators.${i}.proofFile`)}
                   <button type="button" onClick={() => differentiators.remove(i)} className="text-red-400 text-xs">Remove</button>
                 </div>
               ))}
@@ -1817,7 +1813,6 @@ export default function AppraisalEditPage() {
                     <div><label className={labelCls}>Student Batch</label><input {...register(`cat5Internships.${i}.studentBatch`)} className={inputCls} /></div>
                     <div><label className={labelCls}>Internship Details</label><input {...register(`cat5Internships.${i}.internshipDetails`)} className={inputCls} /></div>
                     <div><label className={labelCls}>Period</label><input {...register(`cat5Internships.${i}.period`)} className={inputCls} /></div>
-                    {proofField(`cat5Internships.${i}.proofFile`)}
                   </div>
                   <button type="button" onClick={() => internships.remove(i)} className="text-red-400 text-xs mt-2">Remove</button>
                 </div>

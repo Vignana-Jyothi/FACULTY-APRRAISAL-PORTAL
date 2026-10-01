@@ -64,6 +64,10 @@ export const verificationApi = {
     api.get(`/appraisals/${submissionId}/proofs`).then((r) => r.data),
   verifyProof: (submissionId: string, url: string, status: 'VERIFIED' | 'REJECTED', comment?: string) =>
     api.post(`/appraisals/${submissionId}/proofs/verify`, { url, status, comment }).then((r) => r.data),
+  // Per-row HoD yes/no approval for the no-proof sections (4.1, 4.2, 5.1, 5.3, 5.4).
+  // approved: true = approved, false = not approved, null = back to pending.
+  setItemApproval: (submissionId: string, key: string, rowId: string, approved: boolean | null) =>
+    api.post(`/appraisals/${submissionId}/item-approval`, { key, rowId, approved }).then((r) => r.data),
   // Faculty only: swap a REJECTED proof for a corrected one while on hold.
   replaceProof: (submissionId: string, url: string, newUrl: string) =>
     api.post(`/appraisals/${submissionId}/proofs/replace`, { url, newUrl }).then((r) => r.data),
