@@ -99,10 +99,10 @@ jobs:
         run: npm run build
 
   deploy:
-    name: Deploy to Gamma Server
+    name: Deploy to Server
     needs: [backend, frontend]
-    if: github.ref == 'refs/heads/main'
-    runs-on: gamma
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/dev'
+    runs-on: ${{ github.ref == 'refs/heads/main' && 'gamma' || 'dev-ai' }}
 
     steps:
       - uses: actions/checkout@v4
