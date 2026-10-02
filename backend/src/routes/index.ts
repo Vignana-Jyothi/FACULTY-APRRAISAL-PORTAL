@@ -8,6 +8,7 @@ import { RoleType } from '@prisma/client';
 // One source of truth for who may do what — utils/roles.ts.
 import {
   MAINTENANCE,
+  ACCOUNT_ADMIN,
   SEES_ALL,
   CONFIG,
   TIER,
@@ -73,14 +74,19 @@ router.put('/users/me/profile', authenticate, user.updateProfile);
 router.post('/users/me/password-otp', authenticate, otpLimiter, user.requestPasswordOtp);
 router.post('/users/me/change-password', authenticate, user.changePasswordWithOtp);
 
-// Admin: user management
-router.get('/admin/users', authenticate, roleGuard(MAINTENANCE), user.listUsers);
-router.post('/admin/users', authenticate, roleGuard(MAINTENANCE), user.createUser);
-router.put('/admin/users/:id', authenticate, roleGuard(MAINTENANCE), user.updateUser);
+// Admin: user management. Account maintenance (list / create / edit /
+// deactivate / reactivate / reset password) is open to the institute ADMIN and
+// to a DEPT_ADMIN — the controllers confine a DEPT_ADMIN to their own
+// department. Role assignment and bulk import stay ADMIN-only (MAINTENANCE): a
+// dept-admin cannot hand out roles or import rosters.
+router.get('/admin/users', authenticate, roleGuard(ACCOUNT_ADMIN), user.listUsers);
+router.post('/admin/users', authenticate, roleGuard(ACCOUNT_ADMIN), user.createUser);
+router.put('/admin/users/:id', authenticate, roleGuard(ACCOUNT_ADMIN), user.updateUser);
 // Soft delete: deactivates the account and stands down its roles. Nothing is
 // erased — appraisals, the reviews this user gave, and the audit trail survive.
-router.delete('/admin/users/:id', authenticate, roleGuard(MAINTENANCE), user.deactivateUser);
-router.post('/admin/users/:id/reactivate', authenticate, roleGuard(MAINTENANCE), user.reactivateUser);
+router.delete('/admin/users/:id', authenticate, roleGuard(ACCOUNT_ADMIN), user.deactivateUser);
+router.post('/admin/users/:id/reactivate', authenticate, roleGuard(ACCOUNT_ADMIN), user.reactivateUser);
+router.post('/admin/users/:id/reset-password', authenticate, roleGuard(ACCOUNT_ADMIN), user.adminResetPassword);
 router.post('/admin/users/:id/roles', authenticate, roleGuard(MAINTENANCE), user.assignRole);
 router.delete('/admin/users/:id/roles/:roleId', authenticate, roleGuard(MAINTENANCE), user.revokeRole);
 
@@ -159,6 +165,8 @@ router.post('/appraisals/:id/final-review', authenticate, finalReview.submitFina
 // listProofs checks owner / same-dept HoD or incharge / principal itself.
 router.get('/appraisals/:id/proofs', authenticate, verification.listProofs);
 router.post('/appraisals/:id/proofs/verify', authenticate, roleGuard([...DEPT_REVIEW, ...SEES_ALL]), verification.verifyProof);
+// Per-row HoD yes/no approval for the no-proof sections (4.1, 4.2, 5.1, 5.3, 5.4).
+router.post('/appraisals/:id/item-approval', authenticate, roleGuard([...DEPT_REVIEW, ...SEES_ALL]), verification.setItemApproval);
 // Faculty replaces a rejected proof before the correction deadline (owner-only).
 router.post('/appraisals/:id/proofs/replace', authenticate, verification.replaceProof);
 // Faculty-wise uploads overview (counts per faculty) for the Uploads page.
@@ -212,9 +220,15 @@ router.get('/reports/department', authenticate, roleGuard(DEPT_CONTENT_READ), re
 router.get('/reports/criteria', authenticate, roleGuard(DEPT_CONTENT_READ), report.getCriteriaReport);
 router.get('/reports/institute', authenticate, roleGuard(CONFIG), report.getInstituteReport);
 router.get('/reports/export', authenticate, roleGuard(DEPT_CONTENT_READ), report.exportReport);
+// Per-department appraisal Excel in the institute's output format. HoD exports
+// their own dept (Tier/Eligibility hidden); dean/principal pick any dept and
+// get those two columns. Controller enforces the dept scope.
+router.get('/reports/appraisal-excel', authenticate, roleGuard(DEPT_CONTENT_READ), report.exportAppraisalExcel);
 
-// Admin: email notifications
-router.get('/admin/emails', authenticate, roleGuard(MAINTENANCE), email.listEmails);
+// Admin: email notifications. A DEPT_ADMIN may READ the queue (scoped to their
+// department's recipients in the controller); retrying and manually triggering
+// sends stay ADMIN-only.
+router.get('/admin/emails', authenticate, roleGuard(ACCOUNT_ADMIN), email.listEmails);
 router.post('/admin/emails/:id/retry', authenticate, roleGuard(MAINTENANCE), email.retryEmail);
 router.post('/admin/emails/trigger', authenticate, roleGuard(MAINTENANCE), email.manualTrigger);
 
@@ -223,8 +237,9 @@ router.post('/uploads/proof', authenticate, handleUpload, upload.uploadProof);
 router.delete('/uploads/proof', authenticate, upload.deleteProof);
 router.get('/uploads/file/:filename', authenticate, upload.serveProof);
 
-// Admin: audit log
-router.get('/admin/audit', authenticate, roleGuard(MAINTENANCE), audit.listAuditLogs);
-router.get('/admin/audit/actions', authenticate, roleGuard(MAINTENANCE), audit.listAuditActions);
+// Admin: audit log. A DEPT_ADMIN sees only entries concerning their department
+// (scoped in the controller); the action list is harmless metadata.
+router.get('/admin/audit', authenticate, roleGuard(ACCOUNT_ADMIN), audit.listAuditLogs);
+router.get('/admin/audit/actions', authenticate, roleGuard(ACCOUNT_ADMIN), audit.listAuditActions);
 
 export default router;

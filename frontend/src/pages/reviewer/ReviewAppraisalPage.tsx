@@ -7,6 +7,7 @@ import { CheckCircle, XCircle, Eye } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Card from '../../components/Card';
 import ProofVerificationPanel from '../../components/ProofVerificationPanel';
+import ItemApprovalPanel from '../../components/ItemApprovalPanel';
 import FeedbackSection from '../../components/FeedbackSection';
 import { useAuthStore } from '../../store/authStore';
 import {
@@ -565,6 +566,8 @@ export default function ReviewAppraisalPage({ mode = 'review' }: { mode?: 'revie
           })()}
 
           <ProofVerificationPanel submissionId={id!} />
+
+          <ItemApprovalPanel submission={submission} onChanged={() => appraisalApi.get(id!).then(setSubmission)} />
 
           <FeedbackSection submissionId={id!} />
 

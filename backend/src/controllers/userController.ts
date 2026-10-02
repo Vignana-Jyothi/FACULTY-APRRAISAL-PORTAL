@@ -5,9 +5,28 @@ import { z } from 'zod';
 import { parse as parseCsv } from 'csv-parse/sync';
 import prisma from '../utils/prismaClient';
 import { RoleType } from '@prisma/client';
-import { DEPARTMENT_SCOPED, INSTITUTE_WIDE } from '../utils/roles';
+import { DEPARTMENT_SCOPED, INSTITUTE_WIDE, isFullAdmin, deptAdminScope } from '../utils/roles';
 import { DEFAULT_IMPORT_PASSWORD } from '../utils/defaultPassword';
 import { issueSession } from './authController';
+
+/**
+ * How far an account-admin's reach extends.
+ *   null  → the institute ADMIN: every department, no restriction.
+ *   [...] → a DEPT_ADMIN: confined to exactly these departmentIds.
+ *           An empty array denies everything (a dept-admin with no department).
+ * Every account-management handler consults this so a DEPT_ADMIN can never see
+ * or touch a user outside their own department.
+ */
+function accountAdminScope(req: Request): string[] | null {
+  if (isFullAdmin(req.user)) return null;
+  return deptAdminScope(req.user!);
+}
+
+/** True when `departmentId` is inside the caller's account-admin reach. */
+function deptInScope(scope: string[] | null, departmentId: string | null): boolean {
+  if (scope === null) return true; // full admin
+  return !!departmentId && scope.includes(departmentId);
+}
 
 const profileUpdateSchema = z.object({
   name: z.string().optional(),
@@ -184,12 +203,24 @@ export async function listUsers(req: Request, res: Response) {
   // Deactivated users are hidden from every picker and list. An admin can ask
   // for them, so a soft-deleted account stays findable and can be reactivated —
   // otherwise deactivating would be as final as the hard delete it replaced.
-  const isAdmin = req.user?.roles.some((r) => r.role === RoleType.ADMIN) ?? false;
-  const includeInactive = isAdmin && req.query.includeInactive === 'true';
+  const scope = accountAdminScope(req);
+  const includeInactive = req.query.includeInactive === 'true'; // ADMIN and DEPT_ADMIN alike may surface deactivated accounts to reactivate them.
+
+  // A DEPT_ADMIN sees only their own department(s). If a `dept` filter is given
+  // it must fall inside that reach; the full admin may filter to any department.
+  let deptWhere: any = {};
+  if (scope !== null) {
+    if (scope.length === 0) return res.json([]); // dept-admin with no department: nothing to show
+    const requested = dept as string | undefined;
+    if (requested && !scope.includes(requested)) return res.json([]);
+    deptWhere = { departmentId: requested ? requested : { in: scope } };
+  } else if (dept) {
+    deptWhere = { departmentId: dept as string };
+  }
 
   const where: any = {
     ...(includeInactive ? {} : { isActive: true }),
-    ...(dept ? { departmentId: dept as string } : {}),
+    ...deptWhere,
     ...(search ? { OR: [{ name: { contains: search as string, mode: 'insensitive' } }, { employeeCode: { contains: search as string, mode: 'insensitive' } }] } : {}),
     ...(role ? { userRoles: { some: { role: role as RoleType, isActive: true } } } : {}),
   };
@@ -219,6 +250,15 @@ export async function listUsers(req: Request, res: Response) {
 
 export async function createUser(req: Request, res: Response) {
   const { employeeCode, name, email, password, departmentId, designation } = createUserSchema.parse(req.body);
+
+  // A DEPT_ADMIN may only create accounts inside their own department, and the
+  // account is a plain FACULTY one (the FACULTY role is added below). The full
+  // admin may create in any department or none.
+  const scope = accountAdminScope(req);
+  if (scope !== null && !deptInScope(scope, departmentId ?? null)) {
+    return res.status(403).json({ error: 'You can only create accounts in your own department' });
+  }
+
   const passwordHash = await bcrypt.hash(password, 12);
 
   const user = await prisma.$transaction(async (tx) => {
@@ -254,6 +294,16 @@ export async function createUser(req: Request, res: Response) {
 export async function updateUser(req: Request, res: Response) {
   const { id } = req.params;
   const data = profileUpdateSchema.parse(req.body);
+
+  const scope = accountAdminScope(req);
+  if (scope !== null) {
+    const target = await prisma.user.findUnique({ where: { id }, select: { departmentId: true } });
+    if (!target) return res.status(404).json({ error: 'Not found' });
+    if (!deptInScope(scope, target.departmentId)) {
+      return res.status(403).json({ error: 'That account is not in your department' });
+    }
+  }
+
   const user = await prisma.user.update({ where: { id }, data });
   const { passwordHash, ...safeUser } = user;
   return res.json(safeUser);
@@ -277,9 +327,14 @@ export async function deactivateUser(req: Request, res: Response) {
 
   const user = await prisma.user.findUnique({
     where: { id },
-    select: { id: true, name: true, employeeCode: true, isActive: true },
+    select: { id: true, name: true, employeeCode: true, isActive: true, departmentId: true },
   });
   if (!user) return res.status(404).json({ error: 'Not found' });
+
+  const scope = accountAdminScope(req);
+  if (!deptInScope(scope, user.departmentId)) {
+    return res.status(403).json({ error: 'That account is not in your department' });
+  }
 
   // An admin who deactivates themselves cannot sign back in to undo it.
   if (id === req.user!.id) {
@@ -316,8 +371,14 @@ export async function deactivateUser(req: Request, res: Response) {
 export async function reactivateUser(req: Request, res: Response) {
   const { id } = req.params;
 
-  const user = await prisma.user.findUnique({ where: { id }, select: { id: true, employeeCode: true, name: true, isActive: true } });
+  const user = await prisma.user.findUnique({ where: { id }, select: { id: true, employeeCode: true, name: true, isActive: true, departmentId: true } });
   if (!user) return res.status(404).json({ error: 'Not found' });
+
+  const scope = accountAdminScope(req);
+  if (!deptInScope(scope, user.departmentId)) {
+    return res.status(403).json({ error: 'That account is not in your department' });
+  }
+
   if (user.isActive) return res.json({ message: 'User is already active', user });
 
   const updated = await prisma.$transaction(async (tx) => {
@@ -336,6 +397,50 @@ export async function reactivateUser(req: Request, res: Response) {
 
   const { passwordHash, ...safeUser } = updated;
   return res.json({ message: 'User reactivated', user: safeUser });
+}
+
+const adminResetSchema = z.object({ newPassword: z.string().min(6) });
+
+/**
+ * Admin-set password reset. The institute ADMIN or the user's own DEPT_ADMIN
+ * sets a temporary password for a user who is locked out; the user must replace
+ * it at next sign-in, and every existing session is killed (tokenVersion bump).
+ * Unlike the self-service OTP reset in authController this needs no OTP — it is
+ * an operator action, so it is audited and department-scoped.
+ */
+export async function adminResetPassword(req: Request, res: Response) {
+  const { id } = req.params;
+  const { newPassword } = adminResetSchema.parse(req.body);
+
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: { id: true, employeeCode: true, name: true, departmentId: true },
+  });
+  if (!user) return res.status(404).json({ error: 'Not found' });
+
+  const scope = accountAdminScope(req);
+  if (!deptInScope(scope, user.departmentId)) {
+    return res.status(403).json({ error: 'That account is not in your department' });
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id },
+      data: { passwordHash, mustChangePassword: true, tokenVersion: { increment: 1 } },
+    });
+    await tx.auditLog.create({
+      data: {
+        userId: req.user!.id,
+        action: 'PASSWORD_RESET_BY_ADMIN',
+        entityType: 'User',
+        entityId: id,
+        metadata: { employeeCode: user.employeeCode, name: user.name },
+      },
+    });
+  });
+
+  return res.json({ message: 'Password reset — the user must change it at next sign-in' });
 }
 
 export async function assignRole(req: Request, res: Response) {

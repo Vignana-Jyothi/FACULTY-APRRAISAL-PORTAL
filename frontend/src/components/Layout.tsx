@@ -9,7 +9,7 @@ import Footer from './Footer';
 import { finalReviewApi } from '../api/appraisals';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { isAdmin, isPrincipal, isDean, isScrutinizer, isHodOrReviewer, canAllocateTier, hasRole,
+  const { isAdmin, isDeptAdmin, isPrincipal, isDean, isScrutinizer, isHodOrReviewer, canAllocateTier, hasRole,
     canSwitchWorkspace, activeWorkspace, setWorkspace } = useAuthStore();
   const location = useLocation();
   const navigate = useNavigate();
@@ -70,6 +70,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     add('/admin/dashboard', isPrincipal() || isDean() ? 'Admin Dashboard' : 'Dashboard', LayoutDashboard);
     add('/admin/users', 'Users', Users);
     add('/admin/incharges', 'Incharges', ShieldCheck);
+    add('/admin/emails', 'Emails', Mail);
+    add('/admin/audit', 'Audit Log', Activity);
+  }
+
+  // Department admin: account maintenance within their own department only —
+  // the same Users / Emails / Audit pages as the institute admin, scoped to
+  // their department by the server. No admin dashboard or incharge management.
+  if (isDeptAdmin() && !isAdmin()) {
+    add('/admin/users', 'Users', Users);
     add('/admin/emails', 'Emails', Mail);
     add('/admin/audit', 'Audit Log', Activity);
   }

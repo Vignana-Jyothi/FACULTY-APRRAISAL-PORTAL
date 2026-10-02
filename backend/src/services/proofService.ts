@@ -40,11 +40,9 @@ export const PROOF_SOURCES: Source[] = [
   { key: 'cat3ResourcePerson', section: '3.3 Resource Person', title: (r) => r.programName || r.topic, fields: [['proofFile', 'Proof']] },
   { key: 'cat3Editorial', section: '3.4 Editorial / Review Roles', title: (r) => r.orgOrJournal, fields: [['proofFile', 'Proof']] },
   { key: 'cat3IntlTravel', section: '3.6 International Travel', title: (r) => r.purpose || r.placeOrUniv, fields: [['proofFile', 'Proof']] },
-  { key: 'cat4AdminResp', section: '4.1 Administrative Responsibilities', title: (r) => r.responsibility, fields: [['proofFile', 'Proof']] },
-  { key: 'cat4StudentAct', section: '4.2 Student Activities', title: (r) => r.activityName, fields: [['proofFile', 'Proof']] },
-  { key: 'cat5Memberships', section: '5.1 Professional Memberships', title: (r) => r.association, fields: [['proofFile', 'Proof']] },
-  { key: 'cat5Differentiators', section: '5.3 Differentiators', title: (r) => r.name, fields: [['proofFile', 'Proof']] },
-  { key: 'cat5Internships', section: '5.4 Internships', title: (r) => r.industryOrInst || r.internshipDetails, fields: [['proofFile', 'Proof']] },
+  // 4.1, 4.2, 5.1, 5.3 and 5.4 no longer carry a proof — they are cleared by a
+  // per-row HoD yes/no approval (hodApproved) instead of proof verification, so
+  // they are deliberately absent from this catalog (see itemApprovalController).
   { key: 'cat3Training', section: '3.5 Training Attended', title: (r) => r.name, fields: [['proofFile', 'Proof']] },
   { key: 'cat5Awards', section: '5.2 Awards', title: (r) => r.awardType, fields: [['proofFile', 'Proof']] },
 ];

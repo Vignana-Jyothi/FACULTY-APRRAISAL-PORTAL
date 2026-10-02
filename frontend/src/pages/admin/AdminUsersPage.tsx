@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { userApi } from '../../api/users';
+import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
-import { Plus, Search, Upload, Shield, UserMinus, RotateCcw } from 'lucide-react';
+import { Plus, Search, Upload, Shield, UserMinus, RotateCcw, KeyRound } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Card from '../../components/Card';
 import CsvImportModal from '../../components/CsvImportModal';
@@ -12,6 +13,14 @@ import { SkeletonTable } from '../../components/Skeleton';
 const PAGE_SIZE = 50;
 
 export default function AdminUsersPage() {
+  // A DEPT_ADMIN is confined to their own department: no bulk import, no role
+  // management, and the create form is locked to their department. The server
+  // enforces all of this too — this just hides what they cannot do.
+  const { isAdmin, isDeptAdmin } = useAuthStore();
+  const authUser = useAuthStore((s) => s.user);
+  const deptScoped = isDeptAdmin() && !isAdmin();
+  const myDeptId = authUser?.roles.find((r) => r.role === 'DEPT_ADMIN')?.departmentId ?? '';
+
   const [users, setUsers] = useState<any[]>([]);
   const [depts, setDepts] = useState<any[]>([]);
   const [search, setSearch] = useState('');
@@ -119,6 +128,27 @@ export default function AdminUsersPage() {
     }
   };
 
+  // A dept-admin's create form is locked to their own department; preselect it
+  // whenever the form is opened so it is never left blank or changeable.
+  useEffect(() => {
+    if (deptScoped && showCreate && myDeptId) setForm((f) => ({ ...f, departmentId: myDeptId }));
+  }, [deptScoped, showCreate, myDeptId]);
+
+  const resetPassword = async (u: any) => {
+    const pw = window.prompt(
+      `Set a temporary password for ${u.employeeCode} (${u.name}).\n` +
+      `They must change it at next sign-in, and their current sessions will end.`,
+    );
+    if (pw === null) return;
+    if (pw.length < 6) { toast.error('Password must be at least 6 characters'); return; }
+    try {
+      await userApi.resetPassword(u.id, pw);
+      toast.success('Password reset — the user must change it at next sign-in');
+    } catch (err: any) {
+      toast.error(err.response?.data?.error ?? 'Failed');
+    }
+  };
+
   const inputCls = "w-full border border-surface-border rounded px-3 py-2 text-sm bg-surface-base focus:outline-none focus:ring-2 focus:ring-primary-500";
 
   return (
@@ -129,9 +159,11 @@ export default function AdminUsersPage() {
         breadcrumbs={[{ label: 'Admin', to: '/admin/dashboard' }, { label: 'Users' }]}
         actions={
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowImport(true)} className="flex items-center gap-2 border border-surface-border bg-surface-card text-ink-primary px-4 py-2 rounded text-sm font-medium hover:bg-surface-muted">
-              <Upload size={16} /> Import CSV
-            </button>
+            {!deptScoped && (
+              <button onClick={() => setShowImport(true)} className="flex items-center gap-2 border border-surface-border bg-surface-card text-ink-primary px-4 py-2 rounded text-sm font-medium hover:bg-surface-muted">
+                <Upload size={16} /> Import CSV
+              </button>
+            )}
             <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-primary-700">
               <Plus size={16} /> New User
             </button>
@@ -209,13 +241,17 @@ export default function AdminUsersPage() {
               <select
                 value={form.departmentId}
                 onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
-                className={inputCls}
+                className={`${inputCls} disabled:bg-surface-muted disabled:text-ink-muted`}
+                disabled={deptScoped}
               >
                 <option value="">— Select Department —</option>
                 {depts.map((d) => (
                   <option key={d.id} value={d.id}>{d.code} — {d.name}</option>
                 ))}
               </select>
+              {deptScoped && (
+                <p className="mt-1 text-[11px] text-ink-muted">New accounts are created in your department.</p>
+              )}
             </div>
             <div className="col-span-2 flex gap-2 justify-end pt-2">
               <button type="button" onClick={() => setShowCreate(false)} className="text-sm text-ink-secondary px-4 py-2 border border-surface-border rounded hover:bg-surface-muted">Cancel</button>
@@ -293,13 +329,24 @@ export default function AdminUsersPage() {
                 </td>
                 <td className="px-4 py-2.5">
                   <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => setRoleUser(u)}
-                      className="flex items-center gap-1 text-xs text-primary-600 hover:underline font-medium"
-                      title="Manage roles"
-                    >
-                      <Shield size={11} /> Roles
-                    </button>
+                    {!deptScoped && (
+                      <button
+                        onClick={() => setRoleUser(u)}
+                        className="flex items-center gap-1 text-xs text-primary-600 hover:underline font-medium"
+                        title="Manage roles"
+                      >
+                        <Shield size={11} /> Roles
+                      </button>
+                    )}
+                    {u.isActive !== false && (
+                      <button
+                        onClick={() => resetPassword(u)}
+                        className="flex items-center gap-1 text-xs text-primary-600 hover:underline font-medium"
+                        title="Reset password"
+                      >
+                        <KeyRound size={11} /> Reset PW
+                      </button>
+                    )}
                     {u.isActive === false ? (
                       <button onClick={() => reactivateUser(u.id)} className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700">
                         <RotateCcw size={12} /> Reactivate

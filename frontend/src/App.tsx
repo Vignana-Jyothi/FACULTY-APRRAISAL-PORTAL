@@ -32,7 +32,8 @@ import OversightDashboardPage from './pages/oversight/OversightDashboardPage';
 
 // Role sets, mirroring backend/src/utils/roles.ts. The routes below are the
 // UI's half of P2: maintenance (/admin/*) never overlaps appraisal content.
-const MAINTENANCE = ['ADMIN'] as const;                       // accounts, roles, mail, audit
+const MAINTENANCE = ['ADMIN'] as const;                       // accounts, roles, mail, audit (institute-wide)
+const ACCOUNT_ADMIN = ['ADMIN', 'DEPT_ADMIN'] as const;       // account maintenance; DEPT_ADMIN scoped to own dept server-side
 const CONFIG = ['DEAN', 'PRINCIPAL'] as const;                // dean-owned configuration
 const SEES_ALL = ['PRINCIPAL'] as const;                      // institute-wide content
 // Cross-department readers of tracking; HoD is scoped to their own department
@@ -112,16 +113,16 @@ export default function App() {
           <ProtectedRoute roles={MAINTENANCE}><AdminDashboardPage /></ProtectedRoute>
         } />
         <Route path="/admin/users" element={
-          <ProtectedRoute roles={MAINTENANCE}><AdminUsersPage /></ProtectedRoute>
+          <ProtectedRoute roles={ACCOUNT_ADMIN}><AdminUsersPage /></ProtectedRoute>
         } />
         <Route path="/admin/incharges" element={
           <ProtectedRoute roles={MAINTENANCE}><AdminInchargesPage /></ProtectedRoute>
         } />
         <Route path="/admin/emails" element={
-          <ProtectedRoute roles={MAINTENANCE}><AdminEmailsPage /></ProtectedRoute>
+          <ProtectedRoute roles={ACCOUNT_ADMIN}><AdminEmailsPage /></ProtectedRoute>
         } />
         <Route path="/admin/audit" element={
-          <ProtectedRoute roles={MAINTENANCE}><AdminAuditPage /></ProtectedRoute>
+          <ProtectedRoute roles={ACCOUNT_ADMIN}><AdminAuditPage /></ProtectedRoute>
         } />
 
         {/* Dean — configuration and scrutinizer assignment. */}

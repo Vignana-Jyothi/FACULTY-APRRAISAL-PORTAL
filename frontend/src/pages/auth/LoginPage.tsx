@@ -26,6 +26,7 @@ const LANDING: [role: string, path: string][] = [
   ['HOD', '/reviews'],
   ['REVIEWER', '/reviews'],
   ['ADMIN', '/admin/dashboard'],
+  ['DEPT_ADMIN', '/admin/users'],
 ];
 
 const landingFor = (roles: { role: string }[]) =>

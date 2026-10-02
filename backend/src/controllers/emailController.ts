@@ -4,12 +4,24 @@ import prisma from '../utils/prismaClient';
 import { EmailStatus } from '@prisma/client';
 import { sendEmail } from '../services/emailService';
 import { triggerDraftReminders, triggerReviewerDigest } from '../cron/reminders';
+import { isFullAdmin, deptAdminScope } from '../utils/roles';
 
 export async function listEmails(req: Request, res: Response) {
   const { status, userId, limit, offset, paginated } = req.query;
   const where: any = {};
   if (status) where.status = status as EmailStatus;
   if (userId) where.toUserId = userId;
+
+  // A DEPT_ADMIN sees only mail addressed to their own department's users
+  // (system mail with no recipient user is institute-admin only). The full
+  // admin is unrestricted.
+  const scope = isFullAdmin(req.user) ? null : deptAdminScope(req.user!);
+  if (scope !== null) {
+    if (scope.length === 0) {
+      return res.json(paginated === 'true' ? { rows: [], total: 0, limit: 0, offset: 0 } : []);
+    }
+    where.toUser = { departmentId: { in: scope } };
+  }
 
   const include = { toUser: { select: { id: true, name: true, employeeCode: true, email: true } } };
 

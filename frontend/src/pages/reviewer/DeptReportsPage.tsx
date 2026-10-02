@@ -26,6 +26,7 @@ export default function DeptReportsPage() {
   const [deptFilter, setDeptFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [exportingForm, setExportingForm] = useState(false);
 
   useEffect(() => {
     userApi.listAcademicYears().then(setYears).catch(() => {});
@@ -73,6 +74,28 @@ export default function DeptReportsPage() {
     }
   };
 
+  // The institute's consolidated appraisal form, one row per faculty, for a
+  // single department. The dean/principal must pick a department first; a HoD
+  // always gets their own (Tier/Eligibility columns are hidden for them).
+  const exportAppraisalForm = async () => {
+    if (seesAllDepts && !deptFilter) { toast.error('Pick a department first'); return; }
+    setExportingForm(true);
+    try {
+      const academicYearId = years.find((y) => y.label === yearFilter)?.id;
+      const blob = await reportApi.appraisalExcel({ dept: deptParam, academicYearId });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `appraisal-form-${deptCode ? `${deptCode}-` : ''}${yearFilter || 'current'}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Export failed');
+    } finally {
+      setExportingForm(false);
+    }
+  };
+
   return (
     <div>
       <PageHeader
@@ -107,7 +130,15 @@ export default function DeptReportsPage() {
               disabled={exporting}
               className="flex items-center gap-2 bg-primary-600 text-white px-3 py-2 rounded text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
             >
-              <Download size={14} /> {exporting ? 'Exporting...' : 'Export Excel'}
+              <Download size={14} /> {exporting ? 'Exporting...' : 'Scores (Excel)'}
+            </button>
+            <button
+              onClick={exportAppraisalForm}
+              disabled={exportingForm}
+              className="flex items-center gap-2 border border-primary-600 text-primary-700 px-3 py-2 rounded text-sm font-medium hover:bg-primary-50 disabled:opacity-50"
+              title="Consolidated appraisal form (one row per faculty) in the institute's output format"
+            >
+              <Download size={14} /> {exportingForm ? 'Exporting...' : 'Appraisal Form (Excel)'}
             </button>
           </div>
         }
