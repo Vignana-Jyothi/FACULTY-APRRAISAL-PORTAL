@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { appraisalApi, type TargetStatus } from '../../api/appraisals';
 import { userApi } from '../../api/users';
 import toast from 'react-hot-toast';
-import { FileText, Plus, Clock, Send, CheckCircle2, Target, Check } from 'lucide-react';
+import { FileText, Plus, Clock, Send, CheckCircle2, Target, Check, AlertTriangle } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import PageHeader from '../../components/PageHeader';
 import Card from '../../components/Card';
@@ -69,6 +69,10 @@ export default function DashboardPage() {
     );
   }
 
+  // A faculty is red-listed when a proof of theirs was rejected: the appraisal
+  // goes on hold until they replace it. Surface it loudly so they act.
+  const redSub = submissions.find((s: any) => s.redListed || s.status === 'HOLD');
+
   const drafts = submissions.filter((s) => s.status === 'DRAFT').length;
   const submitted = submissions.filter((s) => s.status === 'SUBMITTED' || s.status === 'UNDER_REVIEW').length;
   const approved = submissions.filter((s) => s.status === 'APPROVED').length;
@@ -106,6 +110,23 @@ export default function DashboardPage() {
           </div>
         }
       />
+
+      {redSub && (
+        <div className="mb-5 flex items-start gap-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3">
+          <AlertTriangle size={18} className="text-red-600 mt-0.5 shrink-0" />
+          <div className="text-sm text-red-800">
+            <div className="font-semibold">You are on the red list — your appraisal is on hold.</div>
+            {redSub.holdReason && <div className="mt-0.5 text-red-700">{redSub.holdReason}</div>}
+            <div className="mt-1 text-red-700">
+              Replace the rejected proof in{' '}
+              <Link to={`/appraisal/${redSub.id}`} className="font-medium underline">your appraisal</Link>
+              {redSub.proofDeadlineAt && (
+                <> before <span className="font-medium">{new Date(redSub.proofDeadlineAt).toLocaleDateString()}</span>, or the marks for that item are voided</>
+              )}.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Top target bar — progress against the FAPA targets */}
       {targets && targets.total > 0 && <TargetBar t={targets} />}
