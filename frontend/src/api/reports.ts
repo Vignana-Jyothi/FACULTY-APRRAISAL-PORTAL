@@ -14,6 +14,10 @@ export const reportApi = {
   // and get those columns.
   appraisalExcel: (params?: { dept?: string; academicYearId?: string }): Promise<Blob> =>
     api.get('/reports/appraisal-excel', { params, responseType: 'blob' }).then((r) => r.data),
+  // Per-department quarterly review summary PDF — each faculty's snapshot +
+  // the HoD's issued quarterly feedback. period = Q1..Q4 | ANNUAL.
+  quarterlySummaryPdf: (params: { period: string; dept?: string; academicYearId?: string }): Promise<Blob> =>
+    api.get('/reports/quarterly-summary', { params, responseType: 'blob' }).then((r) => r.data),
 };
 
 export interface CategoryBreakdown { total: number; [k: string]: number }

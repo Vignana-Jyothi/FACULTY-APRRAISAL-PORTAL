@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
-import { RoleType, SubmissionStatus } from '@prisma/client';
+import { RoleType, SubmissionStatus, FeedbackPeriod } from '@prisma/client';
 import prisma from '../utils/prismaClient';
 import * as XLSX from 'xlsx';
+import { renderHtmlToPdf, renderQuarterlyDeptSummaryHtml } from '../services/pdfService';
 import { computeScore } from '../services/scoringEngine';
 import { TRACKING_INCLUDE } from '../services/trackingService';
 import { AuthUser } from '../middleware/auth';
@@ -406,6 +407,81 @@ export async function exportAppraisalExcel(req: Request, res: Response) {
   const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
   const fname = `appraisal-${dept?.code ?? 'dept'}-${year.label}.xlsx`.replace(/\s+/g, '_');
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename=${fname}`);
+  return res.send(buf);
+}
+
+// ─── Department quarterly review summary (PDF) ───────────────────────────
+//
+// One PDF for a department and quarter: every faculty's snapshot plus the
+// HoD's issued quarterly feedback. HoD exports their own department; the
+// dean/principal pick any department. Same scope rule as the appraisal Excel.
+
+const Q_PERIOD_LABEL: Record<FeedbackPeriod, string> = {
+  Q1: 'Quarter 1 (Jul-Sep)', Q2: 'Quarter 2 (Oct-Dec)', Q3: 'Quarter 3 (Jan-Mar)',
+  Q4: 'Quarter 4 (Apr-Jun)', ANNUAL: 'Annual (final)',
+};
+
+export async function exportQuarterlyDeptPdf(req: Request, res: Response) {
+  const user = req.user!;
+  const seesAllDepts = hasAnyRole(user, CONFIG); // dean / principal
+  const deptFilter = typeof req.query.dept === 'string' ? req.query.dept : undefined;
+
+  let departmentId: string | undefined;
+  if (seesAllDepts) {
+    if (!deptFilter) return res.status(400).json({ error: 'Select a department to export' });
+    departmentId = deptFilter;
+  } else {
+    const own = deptIdsFor(user, [RoleType.HOD]);
+    if (own.length === 0) return res.status(403).json({ error: 'No department to export' });
+    departmentId = own[0];
+  }
+
+  const periodRaw = typeof req.query.period === 'string' ? req.query.period.toUpperCase() : 'Q1';
+  const period = (Object.values(FeedbackPeriod) as string[]).includes(periodRaw)
+    ? (periodRaw as FeedbackPeriod) : FeedbackPeriod.Q1;
+
+  const year = typeof req.query.academicYearId === 'string'
+    ? await prisma.academicYear.findUnique({ where: { id: req.query.academicYearId } })
+    : await prisma.academicYear.findFirst({ where: { submissionOpen: true }, orderBy: { startDate: 'desc' } });
+  if (!year) return res.status(404).json({ error: 'Academic year not found' });
+
+  const submissions = await prisma.appraisalSubmission.findMany({
+    where: { academicYearId: year.id, user: { departmentId } },
+    include: {
+      user: { select: { id: true, name: true, employeeCode: true, designation: true, department: { select: { name: true } } } },
+      feedbacks: {
+        where: { period, status: 'ISSUED' },
+        include: { issuedBy: { select: { name: true } } },
+      },
+    },
+    orderBy: { submissionNumber: 'desc' },
+  });
+
+  // Reviewed-preferred, else latest, per faculty.
+  const picked = new Map<string, (typeof submissions)[number]>();
+  for (const s of submissions) {
+    const cur = picked.get(s.userId);
+    if (!cur) picked.set(s.userId, s);
+    else if (cur.status !== SubmissionStatus.APPROVED && s.status === SubmissionStatus.APPROVED) picked.set(s.userId, s);
+  }
+
+  const items = [...picked.values()]
+    .map((s) => {
+      const fb = (s as any).feedbacks?.[0] ?? null;
+      return { user: (s as any).user, feedback: fb, snapshot: fb?.snapshot ?? null };
+    })
+    .sort((a, b) => (a.user?.name ?? '').localeCompare(b.user?.name ?? ''));
+
+  const dept = await prisma.department.findUnique({ where: { id: departmentId }, select: { code: true, name: true } });
+  const html = renderQuarterlyDeptSummaryHtml(items, {
+    deptName: dept?.name ?? '—',
+    periodLabel: Q_PERIOD_LABEL[period],
+    yearLabel: year.label,
+  });
+  const buf = await renderHtmlToPdf(html);
+  const fname = `quarterly-${period}-${dept?.code ?? 'dept'}-${year.label}.pdf`.replace(/\s+/g, '_');
+  res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename=${fname}`);
   return res.send(buf);
 }

@@ -224,6 +224,9 @@ router.get('/reports/export', authenticate, roleGuard(DEPT_CONTENT_READ), report
 // their own dept (Tier/Eligibility hidden); dean/principal pick any dept and
 // get those two columns. Controller enforces the dept scope.
 router.get('/reports/appraisal-excel', authenticate, roleGuard(DEPT_CONTENT_READ), report.exportAppraisalExcel);
+// Per-department quarterly review summary PDF (snapshot + issued HoD feedback).
+// HoD exports their own dept; dean/principal pick any. Controller enforces scope.
+router.get('/reports/quarterly-summary', authenticate, roleGuard(DEPT_CONTENT_READ), report.exportQuarterlyDeptPdf);
 
 // Admin: email notifications. A DEPT_ADMIN may READ the queue (scoped to their
 // department's recipients in the controller); retrying and manually triggering

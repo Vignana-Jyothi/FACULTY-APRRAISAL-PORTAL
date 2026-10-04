@@ -27,6 +27,8 @@ export default function DeptReportsPage() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [exportingForm, setExportingForm] = useState(false);
+  const [quarter, setQuarter] = useState('Q1');
+  const [exportingQuarter, setExportingQuarter] = useState(false);
 
   useEffect(() => {
     userApi.listAcademicYears().then(setYears).catch(() => {});
@@ -96,6 +98,27 @@ export default function DeptReportsPage() {
     }
   };
 
+  // Quarterly review summary PDF for the chosen quarter — each faculty's
+  // snapshot plus the HoD's issued quarterly feedback.
+  const exportQuarterly = async () => {
+    if (seesAllDepts && !deptFilter) { toast.error('Pick a department first'); return; }
+    setExportingQuarter(true);
+    try {
+      const academicYearId = years.find((y) => y.label === yearFilter)?.id;
+      const blob = await reportApi.quarterlySummaryPdf({ period: quarter, dept: deptParam, academicYearId });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `quarterly-${quarter}-${deptCode ? `${deptCode}-` : ''}${yearFilter || 'current'}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Export failed');
+    } finally {
+      setExportingQuarter(false);
+    }
+  };
+
   return (
     <div>
       <PageHeader
@@ -139,6 +162,26 @@ export default function DeptReportsPage() {
               title="Consolidated appraisal form (one row per faculty) in the institute's output format"
             >
               <Download size={14} /> {exportingForm ? 'Exporting...' : 'Appraisal Form (Excel)'}
+            </button>
+            <select
+              value={quarter}
+              onChange={(e) => setQuarter(e.target.value)}
+              aria-label="Quarter"
+              className="border border-surface-border rounded px-3 py-2 text-sm bg-surface-base"
+            >
+              <option value="Q1">Q1</option>
+              <option value="Q2">Q2</option>
+              <option value="Q3">Q3</option>
+              <option value="Q4">Q4</option>
+              <option value="ANNUAL">Annual</option>
+            </select>
+            <button
+              onClick={exportQuarterly}
+              disabled={exportingQuarter}
+              className="flex items-center gap-2 border border-primary-600 text-primary-700 px-3 py-2 rounded text-sm font-medium hover:bg-primary-50 disabled:opacity-50"
+              title="Quarterly review summary (snapshot + issued HoD feedback) for all faculty, as a PDF"
+            >
+              <Download size={14} /> {exportingQuarter ? 'Exporting...' : 'Quarterly Summary (PDF)'}
             </button>
           </div>
         }
