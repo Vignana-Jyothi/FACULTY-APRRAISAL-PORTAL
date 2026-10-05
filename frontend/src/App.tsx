@@ -164,7 +164,9 @@ export default function App() {
         <Route path="/admin/cadre-targets" element={<Navigate to="/dean/cadre-targets" replace />} />
         <Route path="/admin/review-windows" element={<Navigate to="/dean/review-windows" replace />} />
         <Route path="/admin/appraisals" element={<Navigate to="/dean/appraisals" replace />} />
-        <Route path="/admin/departments" element={<Navigate to="/dean/departments" replace />} />
+        <Route path="/admin/departments" element={
+          <ProtectedRoute roles={MAINTENANCE}><AdminDepartmentsPage /></ProtectedRoute>
+        } />
         <Route path="/admin/reports" element={<Navigate to="/reports/institute" replace />} />
         <Route path="/principal/reports" element={<Navigate to="/reports/institute" replace />} />
       </Routes>

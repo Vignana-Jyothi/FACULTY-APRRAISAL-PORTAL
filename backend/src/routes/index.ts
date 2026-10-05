@@ -99,12 +99,16 @@ router.get('/admin/users/bulk-import/template', authenticate, roleGuard(MAINTENA
 router.post('/admin/users/bulk-import', authenticate, roleGuard(MAINTENANCE), user.bulkImportUsers);
 
 // Admin: departments
+// Departments are structural: the dean owns them as configuration, and the
+// maintenance admin — who creates accounts and assigns them to departments —
+// may add and manage them too.
+const DEPT_ADMIN_SET = [...CONFIG, RoleType.ADMIN];
 router.get('/admin/departments', authenticate, dept.listDepartments);
-router.post('/admin/departments', authenticate, roleGuard(CONFIG), dept.createDepartment);
-router.put('/admin/departments/:id', authenticate, roleGuard(CONFIG), dept.updateDepartment);
+router.post('/admin/departments', authenticate, roleGuard(DEPT_ADMIN_SET), dept.createDepartment);
+router.put('/admin/departments/:id', authenticate, roleGuard(DEPT_ADMIN_SET), dept.updateDepartment);
 // Soft delete: deactivates the department. Nothing attached to it is removed.
-router.delete('/admin/departments/:id', authenticate, roleGuard(CONFIG), dept.deleteDepartment);
-router.post('/admin/departments/:id/reactivate', authenticate, roleGuard(CONFIG), dept.reactivateDepartment);
+router.delete('/admin/departments/:id', authenticate, roleGuard(DEPT_ADMIN_SET), dept.deleteDepartment);
+router.post('/admin/departments/:id/reactivate', authenticate, roleGuard(DEPT_ADMIN_SET), dept.reactivateDepartment);
 
 // Public departments (for forms)
 router.get('/departments', authenticate, dept.listDepartments);

@@ -70,6 +70,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     add('/admin/dashboard', isPrincipal() || isDean() ? 'Admin Dashboard' : 'Dashboard', LayoutDashboard);
     add('/admin/users', 'Users', Users);
     add('/admin/incharges', 'Incharges', ShieldCheck);
+    // The admin creates accounts and assigns them to departments, so they may
+    // add and manage the departments too (the dean owns the same page).
+    add('/admin/departments', 'Departments', Settings);
     add('/admin/emails', 'Emails', Mail);
     add('/admin/audit', 'Audit Log', Activity);
   }

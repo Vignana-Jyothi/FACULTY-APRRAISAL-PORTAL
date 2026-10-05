@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
 import { userApi } from '../../api/users';
+import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
 import { Plus, Edit2, Check, X, Trash2, RotateCcw } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Card from '../../components/Card';
 
 export default function AdminDepartmentsPage() {
+  // The dean and the admin both reach this page; label the breadcrumb for whoever it is.
+  const isAdmin = useAuthStore((s) => s.isAdmin());
   const [depts, setDepts] = useState<any[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ code: '', name: '' });
@@ -90,7 +93,7 @@ export default function AdminDepartmentsPage() {
         title="Departments"
         help="Create and manage departments. Deleting deactivates rather than erases and can be reactivated. Only CSE is active right now."
         subtitle={`${depts.filter((d) => d.isActive !== false).length} active department(s)`}
-        breadcrumbs={[{ label: 'Dean' }, { label: 'Departments' }]}
+        breadcrumbs={[{ label: isAdmin ? 'Admin' : 'Dean' }, { label: 'Departments' }]}
         actions={
           <div className="flex items-center gap-3">
             <label className="flex items-center gap-2 text-xs text-ink-secondary whitespace-nowrap cursor-pointer">
