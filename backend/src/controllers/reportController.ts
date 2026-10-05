@@ -486,3 +486,86 @@ export async function exportQuarterlyDeptPdf(req: Request, res: Response) {
   return res.send(buf);
 }
 
+// ─── IQAC quarterly sheet (Excel) ────────────────────────────────────────
+//
+// A compact per-faculty Excel for the IQAC cell, for a chosen quarter:
+// Employee ID, Employee Name, Targets Achieved (the ideal targets met, each
+// with its current value), and the HoD's review (the issued quarterly
+// feedback). Both the targets and the review come from the quarter's issued
+// feedback snapshot; a faculty with no issued feedback is listed as pending.
+
+export async function exportIqacQuarterlyExcel(req: Request, res: Response) {
+  const user = req.user!;
+  const seesAllDepts = hasAnyRole(user, CONFIG);
+  const deptFilter = typeof req.query.dept === 'string' ? req.query.dept : undefined;
+
+  let departmentId: string | undefined;
+  if (seesAllDepts) {
+    if (!deptFilter) return res.status(400).json({ error: 'Select a department to export' });
+    departmentId = deptFilter;
+  } else {
+    const own = deptIdsFor(user, [RoleType.HOD]);
+    if (own.length === 0) return res.status(403).json({ error: 'No department to export' });
+    departmentId = own[0];
+  }
+
+  const periodRaw = typeof req.query.period === 'string' ? req.query.period.toUpperCase() : 'Q1';
+  const period = (Object.values(FeedbackPeriod) as string[]).includes(periodRaw)
+    ? (periodRaw as FeedbackPeriod) : FeedbackPeriod.Q1;
+
+  const year = typeof req.query.academicYearId === 'string'
+    ? await prisma.academicYear.findUnique({ where: { id: req.query.academicYearId } })
+    : await prisma.academicYear.findFirst({ where: { submissionOpen: true }, orderBy: { startDate: 'desc' } });
+  if (!year) return res.status(404).json({ error: 'Academic year not found' });
+
+  const submissions = await prisma.appraisalSubmission.findMany({
+    where: { academicYearId: year.id, user: { departmentId } },
+    include: {
+      user: { select: { id: true, name: true, employeeCode: true } },
+      feedbacks: { where: { period, status: 'ISSUED' } },
+    },
+    orderBy: { submissionNumber: 'desc' },
+  });
+
+  const picked = new Map<string, (typeof submissions)[number]>();
+  for (const s of submissions) {
+    const cur = picked.get(s.userId);
+    if (!cur) picked.set(s.userId, s);
+    else if (cur.status !== SubmissionStatus.APPROVED && s.status === SubmissionStatus.APPROVED) picked.set(s.userId, s);
+  }
+
+  const rows = [...picked.values()]
+    .sort((a, b) => ((a as any).user.name ?? '').localeCompare((b as any).user.name ?? ''))
+    .map((s) => {
+      const a = s as any;
+      const fb = a.feedbacks?.[0] ?? null;
+      const snap = fb?.snapshot ?? null;
+      // Targets met, each with its current value — "Label: actual".
+      const achieved = (snap?.requirements ?? [])
+        .filter((r: any) => r.met)
+        .map((r: any) => `${r.label}: ${r.actual}`)
+        .join('; ');
+      // HoD review = the issued quarterly feedback narrative, combined.
+      const review = fb
+        ? [
+            fb.strengths ? `Strengths: ${fb.strengths}` : '',
+            fb.improvements ? `Areas to improve: ${fb.improvements}` : '',
+            fb.growthTargets ? `Growth targets: ${fb.growthTargets}` : '',
+          ].filter(Boolean).join('\n')
+        : 'Feedback not issued for this quarter';
+      return [a.user.employeeCode ?? '', a.user.name ?? '', achieved, review];
+    });
+
+  const headers = ['Employee ID', 'Employee Name', 'Targets Achieved (name: current value)', 'HoD Review'];
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws['!cols'] = [{ wch: 14 }, { wch: 26 }, { wch: 60 }, { wch: 70 }];
+  const wb = XLSX.utils.book_new();
+  const dept = await prisma.department.findUnique({ where: { id: departmentId }, select: { code: true } });
+  XLSX.utils.book_append_sheet(wb, ws, `${dept?.code ?? 'Dept'}-${period}`.slice(0, 28));
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  const fname = `iqac-${period}-${dept?.code ?? 'dept'}-${year.label}.xlsx`.replace(/\s+/g, '_');
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename=${fname}`);
+  return res.send(buf);
+}
+

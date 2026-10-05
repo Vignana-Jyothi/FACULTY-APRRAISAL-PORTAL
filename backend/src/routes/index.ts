@@ -227,6 +227,8 @@ router.get('/reports/appraisal-excel', authenticate, roleGuard(DEPT_CONTENT_READ
 // Per-department quarterly review summary PDF (snapshot + issued HoD feedback).
 // HoD exports their own dept; dean/principal pick any. Controller enforces scope.
 router.get('/reports/quarterly-summary', authenticate, roleGuard(DEPT_CONTENT_READ), report.exportQuarterlyDeptPdf);
+// IQAC quarterly sheet: Emp ID, Name, Targets Achieved, HoD Review — per dept + quarter.
+router.get('/reports/iqac-excel', authenticate, roleGuard(DEPT_CONTENT_READ), report.exportIqacQuarterlyExcel);
 
 // Admin: email notifications. A DEPT_ADMIN may READ the queue (scoped to their
 // department's recipients in the controller); retrying and manually triggering

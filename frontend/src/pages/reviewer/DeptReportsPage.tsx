@@ -29,6 +29,7 @@ export default function DeptReportsPage() {
   const [exportingForm, setExportingForm] = useState(false);
   const [quarter, setQuarter] = useState('Q1');
   const [exportingQuarter, setExportingQuarter] = useState(false);
+  const [exportingIqac, setExportingIqac] = useState(false);
 
   useEffect(() => {
     userApi.listAcademicYears().then(setYears).catch(() => {});
@@ -119,6 +120,26 @@ export default function DeptReportsPage() {
     }
   };
 
+  // IQAC quarterly sheet — Emp ID, Name, Targets Achieved, HoD Review.
+  const exportIqac = async () => {
+    if (seesAllDepts && !deptFilter) { toast.error('Pick a department first'); return; }
+    setExportingIqac(true);
+    try {
+      const academicYearId = years.find((y) => y.label === yearFilter)?.id;
+      const blob = await reportApi.iqacExcel({ period: quarter, dept: deptParam, academicYearId });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `iqac-${quarter}-${deptCode ? `${deptCode}-` : ''}${yearFilter || 'current'}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Export failed');
+    } finally {
+      setExportingIqac(false);
+    }
+  };
+
   return (
     <div>
       <PageHeader
@@ -182,6 +203,14 @@ export default function DeptReportsPage() {
               title="Quarterly review summary (snapshot + issued HoD feedback) for all faculty, as a PDF"
             >
               <Download size={14} /> {exportingQuarter ? 'Exporting...' : 'Quarterly Summary (PDF)'}
+            </button>
+            <button
+              onClick={exportIqac}
+              disabled={exportingIqac}
+              className="flex items-center gap-2 border border-primary-600 text-primary-700 px-3 py-2 rounded text-sm font-medium hover:bg-primary-50 disabled:opacity-50"
+              title="IQAC sheet (Emp ID, Name, Targets Achieved, HoD Review) for the selected quarter, as Excel"
+            >
+              <Download size={14} /> {exportingIqac ? 'Exporting...' : 'IQAC Sheet (Excel)'}
             </button>
           </div>
         }
