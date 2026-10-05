@@ -92,13 +92,17 @@ export function checkEligibility(actuals: CriteriaActuals, target: CadreTargetRo
       key: 'feedback', label: 'Feedback', target: `>= ${target.feedbackTarget}`,
       actual: String(actuals.feedback), met: actuals.feedback >= target.feedbackTarget, gating: true,
     },
+    // Indexed publications is the umbrella requirement. A minimum journal count,
+    // when the cadre sets one, is a condition *within* it — "N indexed, of which
+    // M a journal" — not a separate target. minJournal = 0 => no journal clause
+    // is shown at all (the cadre only asks for indexed publications).
     {
-      key: 'indexed', label: 'Indexed (WOS+Scopus)', target: `>= ${target.indexedCount}`,
-      actual: String(actuals.indexedCount), met: actuals.indexedCount >= target.indexedCount, gating: true,
-    },
-    {
-      key: 'journal', label: 'Indexed journals', target: `>= ${target.minJournal}`,
-      actual: String(actuals.journalCount), met: actuals.journalCount >= target.minJournal, gating: true,
+      key: 'indexed',
+      label: 'Indexed publications (WOS+Scopus)',
+      target: `>= ${target.indexedCount}${target.minJournal > 0 ? `, incl. ${target.minJournal} journal${target.minJournal > 1 ? 's' : ''}` : ''}`,
+      actual: `${actuals.indexedCount}${target.minJournal > 0 ? ` (${actuals.journalCount} journal${actuals.journalCount === 1 ? '' : 's'})` : ''}`,
+      met: actuals.indexedCount >= target.indexedCount && (target.minJournal === 0 || actuals.journalCount >= target.minJournal),
+      gating: true,
     },
     {
       key: 'ppc', label: `Patents/Projects/Consultancy (${target.ppcRule.toLowerCase()})`,
