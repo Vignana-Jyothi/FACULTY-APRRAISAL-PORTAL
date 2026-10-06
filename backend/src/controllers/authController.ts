@@ -56,15 +56,25 @@ export function issueSession(
 export async function login(req: Request, res: Response) {
   const { employeeCode, password } = loginSchema.parse(req.body);
 
-  const user = await prisma.user.findUnique({
-    where: { employeeCode },
-    include: {
-      userRoles: {
-        where: { isActive: true },
-        select: { role: true, departmentId: true },
-      },
+  // The identifier is either an employee code or an email — a value containing
+  // '@' is treated as an email (matched case-insensitively), otherwise it is an
+  // employee code (always upper-case). Lets a faculty sign in with either.
+  const identifier = employeeCode.trim();
+  const roleInclude = {
+    userRoles: {
+      where: { isActive: true },
+      select: { role: true, departmentId: true },
     },
-  });
+  } as const;
+  const user = identifier.includes('@')
+    ? await prisma.user.findFirst({
+        where: { email: { equals: identifier, mode: 'insensitive' } },
+        include: roleInclude,
+      })
+    : await prisma.user.findUnique({
+        where: { employeeCode: identifier.toUpperCase() },
+        include: roleInclude,
+      });
 
   // Constant-time-ish: always run one bcrypt compare, even for an unknown or
   // inactive account, so response timing does not reveal whether the employee

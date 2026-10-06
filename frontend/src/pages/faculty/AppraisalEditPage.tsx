@@ -771,8 +771,8 @@ export default function AppraisalEditPage() {
                     <div>
                       <label className={labelCls}>Level</label>
                       <select {...register(`cat1Courses.${i}.level`)} className={inputCls}>
-                        <option value="BTECH">BTech</option>
-                        <option value="MTECH">MTech</option>
+                        <option value="BTECH">B.Tech</option>
+                        <option value="MTECH">M.Tech</option>
                       </select>
                     </div>
                     <div>
@@ -872,8 +872,8 @@ export default function AppraisalEditPage() {
                   <div>
                     <label className={labelCls}>Course Level</label>
                     <select {...register(`cat1Projects.${i}.course`)} className={inputCls}>
-                      <option value="BTECH">BTech</option>
-                      <option value="MTECH">MTech</option>
+                      <option value="BTECH">B.Tech</option>
+                      <option value="MTECH">M.Tech</option>
                     </select>
                   </div>
                   <div>

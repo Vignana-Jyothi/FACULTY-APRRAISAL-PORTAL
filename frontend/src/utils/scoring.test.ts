@@ -137,12 +137,22 @@ describe('computeScore — cat3 branch coverage', () => {
 describe('computeScore — cat4 caps', () => {
   it('adminResp +10 capped at 40, studentActivities +5 capped at 10', () => {
     const s = computeScore({
-      cat4AdminResp: [{}, {}, {}, {}, {}], // 5 * 10 = 50, cap 40
-      cat4StudentAct: [{}, {}, {}],        // 3 * 5 = 15, cap 10
+      cat4AdminResp: [{ responsibility: 'a' }, { responsibility: 'b' }, { responsibility: 'c' }, { responsibility: 'd' }, { responsibility: 'e' }], // 5 * 10 = 50, cap 40
+      cat4StudentAct: [{ activityName: 'a' }, { activityName: 'b' }, { activityName: 'c' }],        // 3 * 5 = 15, cap 10
     });
     expect(s.cat4.adminResp).toBe(40);
     expect(s.cat4.studentActivities).toBe(10);
     expect(s.cat4.total).toBe(50);
+  });
+
+  it('empty flat rows score nothing (no data, no marks)', () => {
+    const s = computeScore({
+      cat4AdminResp: [{}, {}, {}], cat4StudentAct: [{}, {}],
+      cat3Organised: [{}, {}], cat5Internships: [{}],
+    });
+    expect(s.cat4.total).toBe(0);
+    expect(s.cat3.total).toBe(0);
+    expect(s.cat5.total).toBe(0);
   });
 });
 

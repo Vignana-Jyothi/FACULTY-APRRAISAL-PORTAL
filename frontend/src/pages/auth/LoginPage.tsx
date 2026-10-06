@@ -130,16 +130,19 @@ export default function LoginPage() {
 
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-ink-secondary mb-1">Employee Code</label>
+                  <label className="block text-xs font-medium text-ink-secondary mb-1">Employee Code or Email</label>
                   <input
                     {...register('employeeCode', {
-                      // Employee codes are always upper-case (FAC001) — fold the
-                      // typed value so a lower-case entry still matches the account.
-                      onChange: (e) => setValue('employeeCode', e.target.value.toUpperCase()),
+                      // Sign in with either an employee code or an email. Codes are
+                      // always upper-case (FAC001), so fold them; an email (has '@')
+                      // is left as typed so it still matches the account.
+                      onChange: (e) => {
+                        const v = e.target.value;
+                        setValue('employeeCode', v.includes('@') ? v : v.toUpperCase());
+                      },
                     })}
-                    autoCapitalize="characters"
-                    className="w-full border border-surface-border rounded px-3 py-2 text-sm bg-surface-base uppercase placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    placeholder="e.g. FAC001"
+                    className="w-full border border-surface-border rounded px-3 py-2 text-sm bg-surface-base focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="FAC001 or you@vnrvjiet.in"
                   />
                   {errors.employeeCode && <p className="text-danger-500 text-xs mt-1">{errors.employeeCode.message}</p>}
                 </div>

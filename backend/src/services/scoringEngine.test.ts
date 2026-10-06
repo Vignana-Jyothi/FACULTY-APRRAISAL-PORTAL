@@ -272,19 +272,27 @@ describe('Category 3 — Faculty Development', () => {
   });
 
   it('3.3 resource person: 10 each, capped 20', () => {
-    const s = computeScore(emptySubmission({ cat3ResourcePerson: [{}, {}, {}] }));
+    const s = computeScore(emptySubmission({ cat3ResourcePerson: [{ programName: 'A' }, { programName: 'B' }, { programName: 'C' }] }));
     expect(s.cat3.resourcePerson).toBe(20); // 3*10=30, cap 20
   });
 
   it('3.4 editorial: 10 each, capped 20', () => {
-    const s = computeScore(emptySubmission({ cat3Editorial: [{}, {}, {}] }));
+    const s = computeScore(emptySubmission({ cat3Editorial: [{ orgOrJournal: 'A' }, { orgOrJournal: 'B' }, { orgOrJournal: 'C' }] }));
     expect(s.cat3.editorial).toBe(20); // 3*10=30, cap 20
   });
 
   it('3.3 conferences attended: 10 each, capped 20', () => {
-    const s = computeScore(emptySubmission({ cat3ConferencesAttended: [{}, {}, {}] }));
+    const s = computeScore(emptySubmission({ cat3ConferencesAttended: [{ paperTitle: 'A' }, { paperTitle: 'B' }, { paperTitle: 'C' }] }));
     expect(s.cat3.conferencesAttended).toBe(20); // 3*10=30, cap 20
     expect(s.cat3.total).toBe(20);
+  });
+
+  it('empty flat rows score nothing — adding a row without data earns no marks', () => {
+    const s = computeScore(emptySubmission({
+      cat3Organised: [{}, {}], cat3ConferencesAttended: [{}], cat3ResourcePerson: [{}],
+      cat3Editorial: [{}], cat3IntlTravel: [{}],
+    }));
+    expect(s.cat3.total).toBe(0);
   });
 
   it('3.5 training: >5 days scores 10, exactly 5 days scores 5, capped 25', () => {
@@ -298,12 +306,19 @@ describe('Category 3 — Faculty Development', () => {
 describe('Category 4 — Governance', () => {
   it('admin resp +10 capped 40, student act +5 capped 10', () => {
     const s = computeScore(emptySubmission({
-      cat4AdminResp: [{}, {}, {}, {}, {}], // 50 → cap 40
-      cat4StudentAct: [{}, {}, {}],        // 15 → cap 10
+      cat4AdminResp: [{ responsibility: 'a' }, { responsibility: 'b' }, { responsibility: 'c' }, { responsibility: 'd' }, { responsibility: 'e' }], // 50 → cap 40
+      cat4StudentAct: [{ activityName: 'a' }, { activityName: 'b' }, { activityName: 'c' }],        // 15 → cap 10
     }));
     expect(s.cat4.adminResp).toBe(40);
     expect(s.cat4.studentActivities).toBe(10);
     expect(s.cat4.total).toBe(50);
+  });
+
+  it('empty admin/activity rows earn nothing', () => {
+    const s = computeScore(emptySubmission({
+      cat4AdminResp: [{}, {}, {}], cat4StudentAct: [{}, {}],
+    }));
+    expect(s.cat4.total).toBe(0);
   });
 });
 
@@ -448,19 +463,20 @@ describe('sample appraisal — form alignment', () => {
       { industryName: 'Ind A', outcome: 'Internships' }, { industryName: 'Ind B', outcome: 'Lab' }, { industryName: 'Ind C', outcome: 'Talks' },
     ],
     // 3.2 -> 20, 3.3 conferences (2) -> 20, 3.3 resourcePerson (1) -> 10,
-    // 3.4 editorial (1) -> 10, 3.5 (10+5+5+5)=25  → cat3 = 85
-    cat3Organised: [{}, {}],
-    cat3ConferencesAttended: [{}, {}],
-    cat3ResourcePerson: [{}],
-    cat3Editorial: [{}],
+    // 3.4 editorial (1) -> 10, 3.5 (10+5+5+5)=25  → cat3 = 85.
+    // Each flat row carries its identifier field — an empty row scores 0 now.
+    cat3Organised: [{ title: 'FDP on AI' }, { title: 'Workshop on IoT' }],
+    cat3ConferencesAttended: [{ paperTitle: 'Paper A' }, { paperTitle: 'Paper B' }],
+    cat3ResourcePerson: [{ programName: 'Guest lecture' }],
+    cat3Editorial: [{ orgOrJournal: 'IEEE Access' }],
     cat3Training: [{ durationDays: 30 }, { durationDays: 1 }, { durationDays: 1 }, { durationDays: 1 }],
     // 4.1 -> 40, 4.2 -> 10
-    cat4AdminResp: [{}, {}, {}, {}],
-    cat4StudentAct: [{}, {}],
+    cat4AdminResp: [{ responsibility: 'Exam cell' }, { responsibility: 'Timetable' }, { responsibility: 'NBA coord' }, { responsibility: 'Admissions' }],
+    cat4StudentAct: [{ activityName: 'Hackathon' }, { activityName: 'Tech fest' }],
     // 5.1 (3 national=15), 5.3 (3+3+7+7=20), 5.4 (2 -> cap 5)
     cat5Memberships: [{ status: 'national_member' }, { status: 'national_member' }, { status: 'national_member' }],
     cat5Differentiators: [{ role: 'participating' }, { role: 'participating' }, { role: 'leading' }, { role: 'leading' }],
-    cat5Internships: [{}, {}],
+    cat5Internships: [{ industryOrInst: 'TCS' }, { industryOrInst: 'Infosys' }],
   });
 
   const s = computeScore(sample);

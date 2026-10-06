@@ -477,6 +477,28 @@ export const PER_ENTRY = {
   adminResp: 10, studentActivities: 5, internships: 5,
 } as const;
 
+// The flat "N per entry" subsections (3.2–3.4, 3.6, 4.1, 4.2, 5.4) pay per row.
+// A row counts only when it carries real content in an identifier field — never
+// for an empty auto-row. The scoring engine enforces this itself so that an
+// unfilled row can never earn marks, regardless of whether the save-time
+// blank-row strip ran. The identifier fields are the same table that strip uses.
+export const SCORED_ROW_FIELDS: Record<string, string[]> = {
+  cat3Organised: ['title'],
+  cat3ConferencesAttended: ['paperTitle', 'conferenceName'],
+  cat3ResourcePerson: ['programName', 'topic'],
+  cat3Editorial: ['orgOrJournal'],
+  cat3IntlTravel: ['purpose', 'placeOrUniv'],
+  cat4AdminResp: ['responsibility'],
+  cat4StudentAct: ['activityName'],
+  cat5Internships: ['industryOrInst'],
+};
+
+/** Rows with real content in an identifier field — the ones a flat section pays for. */
+export function countScoredRows(list: readonly any[] | null | undefined, key: keyof typeof SCORED_ROW_FIELDS): number {
+  const fields = SCORED_ROW_FIELDS[key];
+  return (list ?? []).filter((r) => fields.some((f) => filled(r?.[f]))).length;
+}
+
 /** 3.5 per-row working. PDF: 10 for more than 5 days, 5 for a minimum of 5 days; shorter scores nothing. */
 export function trainingRowScore(t: { durationDays?: number | null }) {
   const days = Number(t.durationDays);
@@ -580,18 +602,18 @@ function scoreCategory3(s: FullSubmission) {
   // 3.1 Status of Ph.D. / advanced qualification (max 10) — highest applicable, see advQualScore.
   const advQual = advQualScore(s.cat3AdvQual).score;
 
-  // 3.2 Organised Programs (max 20, 10 each)
-  const organisedPrograms = Math.min(s.cat3Organised.length * PER_ENTRY.organisedPrograms, 20);
+  // 3.2 Organised Programs (max 20, 10 each) — only rows with real content.
+  const organisedPrograms = Math.min(countScoredRows(s.cat3Organised, 'cat3Organised') * PER_ENTRY.organisedPrograms, 20);
 
   // Conferences / Seminars / Workshops Attended (max 20, 10 each) — local
   // addition, deliberately un-numbered: the PDF has no such subsection.
-  const conferencesAttended = Math.min(s.cat3ConferencesAttended.length * PER_ENTRY.conferencesAttended, 20);
+  const conferencesAttended = Math.min(countScoredRows(s.cat3ConferencesAttended, 'cat3ConferencesAttended') * PER_ENTRY.conferencesAttended, 20);
 
   // 3.3 Resource Person (max 20, 10 each)
-  const resourcePerson = Math.min(s.cat3ResourcePerson.length * PER_ENTRY.resourcePerson, 20);
+  const resourcePerson = Math.min(countScoredRows(s.cat3ResourcePerson, 'cat3ResourcePerson') * PER_ENTRY.resourcePerson, 20);
 
   // 3.4 Editorial (max 20, 10 each)
-  const editorial = Math.min(s.cat3Editorial.length * PER_ENTRY.editorial, 20);
+  const editorial = Math.min(countScoredRows(s.cat3Editorial, 'cat3Editorial') * PER_ENTRY.editorial, 20);
 
   // 3.5 Training (max 25) — per-row rules in trainingRowScore. Shorter
   // programmes carry no score; anything, a blank row included, once collected 5.
@@ -600,7 +622,7 @@ function scoreCategory3(s: FullSubmission) {
   training = Math.min(training, 25);
 
   // 3.6 International Travel (max 5, 5 each)
-  const intlTravel = Math.min(s.cat3IntlTravel.length * PER_ENTRY.intlTravel, 5);
+  const intlTravel = Math.min(countScoredRows(s.cat3IntlTravel, 'cat3IntlTravel') * PER_ENTRY.intlTravel, 5);
 
   const total = Math.min(
     advQual + organisedPrograms + conferencesAttended + resourcePerson + editorial + training + intlTravel,
@@ -611,8 +633,8 @@ function scoreCategory3(s: FullSubmission) {
 
 function scoreCategory4(s: FullSubmission) {
   // 4.1 Administrative responsibilities (max 40, 10 each); 4.2 student activities (max 10, 5 each).
-  const adminResp = Math.min(s.cat4AdminResp.length * PER_ENTRY.adminResp, 40);
-  const studentActivities = Math.min(s.cat4StudentAct.length * PER_ENTRY.studentActivities, 10);
+  const adminResp = Math.min(countScoredRows(s.cat4AdminResp, 'cat4AdminResp') * PER_ENTRY.adminResp, 40);
+  const studentActivities = Math.min(countScoredRows(s.cat4StudentAct, 'cat4StudentAct') * PER_ENTRY.studentActivities, 10);
   const total = Math.min(adminResp + studentActivities, 50);
   return { adminResp, studentActivities, total };
 }
@@ -635,7 +657,7 @@ function scoreCategory5(s: FullSubmission) {
   differentiators = Math.min(differentiators, 20);
 
   // 5.4 Internships (max 5, 5 each)
-  const internships = Math.min(s.cat5Internships.length * PER_ENTRY.internships, 5);
+  const internships = Math.min(countScoredRows(s.cat5Internships, 'cat5Internships') * PER_ENTRY.internships, 5);
 
   const total = Math.min(memberships + awards + differentiators + internships, 50);
   return { memberships, awards, differentiators, internships, total };

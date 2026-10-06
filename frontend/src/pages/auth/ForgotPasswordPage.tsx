@@ -106,10 +106,11 @@ export default function ForgotPasswordPage() {
                     <label className="block text-xs font-medium text-ink-secondary mb-1">Employee Code</label>
                     <input
                       value={employeeCode}
-                      onChange={(e) => setEmployeeCode(e.target.value)}
+                      onChange={(e) => setEmployeeCode(e.target.value.toUpperCase())}
                       required
+                      autoCapitalize="characters"
                       placeholder="e.g. FAC001"
-                      className="w-full border border-surface-border rounded px-3 py-2 text-sm bg-surface-base focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full border border-surface-border rounded px-3 py-2 text-sm bg-surface-base uppercase placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                   </div>
 
