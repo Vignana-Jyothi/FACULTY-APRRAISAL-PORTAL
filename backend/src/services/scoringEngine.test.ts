@@ -97,6 +97,13 @@ describe('Category 1 — Teaching', () => {
     expect(many.cat1.attendanceFeedback).toBe(80); // 100 capped at 80
   });
 
+  it('1.2 ongoing course scores attendance only — feedback and results are ignored', () => {
+    // Same figures as a full course worth 20, but ongoing → attendance (5) only.
+    const ongoing = { courseName: 'X', courseStatus: 'ONGOING', classSize: 10, avgAttendancePct: 100, feedbackReceived: 5, passPercentage: 100 };
+    const s = computeScore(emptySubmission({ cat1CourseResults: [ongoing] }));
+    expect(s.cat1.attendanceFeedback).toBe(5);
+  });
+
   it('projects: BTECH MINI = 2/count, MTECH MAJOR = 5/count', () => {
     const s = computeScore(emptySubmission({
       cat1Projects: [

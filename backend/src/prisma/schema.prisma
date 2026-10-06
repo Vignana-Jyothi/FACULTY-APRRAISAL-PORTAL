@@ -67,6 +67,21 @@ enum CourseLevel {
   MTECH
 }
 
+// 1.1 — a course is either theory (counted in periods) or a lab (counted in
+// sessions). Scoring is identical (conducted ÷ planned); the type drives only
+// the field labels on the form.
+enum CourseType {
+  THEORY
+  LAB
+}
+
+// 1.2 — an ongoing course has no feedback or results yet, so only its class
+// size and attendance are captured and scored; a completed course captures all.
+enum CourseStatus {
+  ONGOING
+  COMPLETED
+}
+
 enum PublicationIndex {
   ESCI
   WOS
@@ -547,6 +562,7 @@ model Cat1Course {
   submissionId        String
   courseName          String
   level               CourseLevel
+  courseType          CourseType  @default(THEORY) // theory (periods) or lab (sessions)
   yearSem             String
   novelPedagogyUsed   Boolean     @default(false)
   novelPedagogyMethod String? // e.g. "Chalk and Talk", "Project Based Learning"
@@ -564,6 +580,7 @@ model Cat1CourseResults {
   id                String @id @default(uuid())
   submissionId      String
   courseName        String
+  courseStatus      CourseStatus @default(COMPLETED) // ongoing = attendance only; completed = all fields
   classSize         Int // Y — size of the class
   avgAttendancePct  Float  @default(0) // a — A = (a/100) * 5
   feedbackReceived  Float  @default(0) // B (out of 5)

@@ -36,6 +36,7 @@ export interface Cat1CourseInput {
 }
 
 export interface Cat1CourseResultInput {
+  courseStatus?: string; // 'ONGOING' | 'COMPLETED'
   classSize?: number;
   avgAttendancePct?: number;
   feedbackReceived?: number;
@@ -665,9 +666,11 @@ export function ictRowScore(i: Cat1ICTInput | null | undefined) {
 }
 
 export function courseResultScore(c: Cat1CourseResultInput | null | undefined) {
+  // An ongoing course has no feedback or results yet — score attendance only.
+  const ongoing = (c as any)?.courseStatus === 'ONGOING';
   const A = Math.min(Math.max(n(c?.avgAttendancePct), 0) / 100 * 5, 5);
-  const B = Math.min(Math.max(n(c?.feedbackReceived), 0), 5);
-  const C = Math.min(Math.max(n(c?.passPercentage), 0) / 100 * 10, 10);
+  const B = ongoing ? 0 : Math.min(Math.max(n(c?.feedbackReceived), 0), 5);
+  const C = ongoing ? 0 : Math.min(Math.max(n(c?.passPercentage), 0) / 100 * 10, 10);
   return { A, B, C, total: Math.min(A + B + C, 20) };
 }
 

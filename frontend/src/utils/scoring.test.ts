@@ -59,6 +59,13 @@ describe('computeScore — cat1 branch coverage', () => {
     expect(computeScore({ cat1CourseResults: five }).cat1.attendanceFeedback).toBe(80);
   });
 
+  it('1.2 ongoing course scores attendance only', () => {
+    const s = computeScore({ cat1CourseResults: [
+      { courseStatus: 'ONGOING', classSize: 10, avgAttendancePct: 100, feedbackReceived: 5, passPercentage: 100 },
+    ] });
+    expect(s.cat1.attendanceFeedback).toBe(5); // attendance 5; feedback + results ignored
+  });
+
   it('1.3 projects: BTECH MAJOR = 5/count, MTECH MINI = 3/count', () => {
     const s = computeScore({
       cat1Projects: [

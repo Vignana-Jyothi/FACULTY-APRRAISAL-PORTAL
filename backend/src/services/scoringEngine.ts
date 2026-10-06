@@ -239,9 +239,11 @@ function scoreCategory1(s: FullSubmission) {
   //      C = (pass % / 100) * 10.
   let attendanceFeedback = 0;
   for (const c of s.cat1CourseResults) {
+    // An ongoing course has no feedback or results yet — score attendance only.
+    const ongoing = (c as any).courseStatus === 'ONGOING';
     const A = Math.min(Math.max(c.avgAttendancePct, 0) / 100 * 5, 5);
-    const B = Math.min(Math.max(c.feedbackReceived, 0), 5);
-    const C = Math.min(Math.max(c.passPercentage, 0) / 100 * 10, 10);
+    const B = ongoing ? 0 : Math.min(Math.max(c.feedbackReceived, 0), 5);
+    const C = ongoing ? 0 : Math.min(Math.max(c.passPercentage, 0) / 100 * 10, 10);
     attendanceFeedback += Math.min(A + B + C, 20);
   }
   attendanceFeedback = Math.min(attendanceFeedback, 80);

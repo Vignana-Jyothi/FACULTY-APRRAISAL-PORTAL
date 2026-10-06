@@ -776,20 +776,37 @@ export default function AppraisalEditPage() {
                       </select>
                     </div>
                     <div>
+                      <label className={labelCls}>Course Type</label>
+                      <select {...register(`cat1Courses.${i}.courseType`)} className={inputCls}>
+                        <option value="THEORY">Theory</option>
+                        <option value="LAB">Lab</option>
+                      </select>
+                    </div>
+                    <div>
                       <label className={labelCls}>Year/Sem</label>
                       <select {...register(`cat1Courses.${i}.yearSem`)} className={inputCls}>
                         <option value="">Select...</option>
                         {YEAR_SEM_OPTIONS.map((ys) => <option key={ys} value={ys}>{ys}</option>)}
                       </select>
                     </div>
-                    <div>
-                      <label className={labelCls}>Periods Planned</label>
-                      <input {...numField(`cat1Courses.${i}.periodPlanned`, { min: 0, integer: true })} className={inputCls} />
-                    </div>
-                    <div>
-                      <label className={labelCls}>Periods Conducted</label>
-                      <input {...numField(`cat1Courses.${i}.periodsConducted`, { min: 0, integer: true })} className={inputCls} />
-                    </div>
+                    {(() => {
+                      // Theory is counted in periods, a lab in sessions — the
+                      // scoring (conducted ÷ planned) is identical either way.
+                      const isLab = (watchedValues as any)?.cat1Courses?.[i]?.courseType === 'LAB';
+                      const unit = isLab ? 'Sessions' : 'Periods';
+                      return (
+                        <>
+                          <div>
+                            <label className={labelCls}>{unit} Planned</label>
+                            <input {...numField(`cat1Courses.${i}.periodPlanned`, { min: 0, integer: true })} className={inputCls} />
+                          </div>
+                          <div>
+                            <label className={labelCls}>{unit} Conducted</label>
+                            <input {...numField(`cat1Courses.${i}.periodsConducted`, { min: 0, integer: true })} className={inputCls} />
+                          </div>
+                        </>
+                      );
+                    })()}
                     <div className="col-span-3">
                       <label className={labelCls}>Novel Pedagogy Method(s)</label>
                       {/* Tick every method used — selecting any marks it used. */}
@@ -822,7 +839,7 @@ export default function AppraisalEditPage() {
                   <button type="button" onClick={() => courses.remove(i)} className="text-red-400 text-xs mt-2">Remove</button>
                 </div>
               ))}
-              {addRowBtn('Add Course', () => courses.append({ courseName: '', level: 'BTECH', yearSem: '', periodPlanned: 0, periodsConducted: 0, novelPedagogyUsed: false, novelPedagogyMethod: '' }))}
+              {addRowBtn('Add Course', () => courses.append({ courseName: '', level: 'BTECH', courseType: 'THEORY', yearSem: '', periodPlanned: 0, periodsConducted: 0, novelPedagogyUsed: false, novelPedagogyMethod: '' }))}
             </details>
 
             <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
@@ -831,7 +848,11 @@ export default function AppraisalEditPage() {
                 <ScoreBadge value={live.cat1.attendanceFeedback} max={80} />
               </summary>
               <p className="text-xs text-ink-muted mb-3">Per course max 20 — Attendance = (avg attendance % ÷ 100) × 5, Feedback out of 5, Results = (pass % ÷ 100) × 10. Section max 80.</p>
-              {courseResults.fields.map((field, i) => (
+              <p className="text-xs text-ink-muted mb-3">Pick the course status first. An <strong>ongoing</strong> course has no feedback or results yet, so only class size and attendance are entered and scored; a <strong>completed</strong> course captures all fields.</p>
+              {courseResults.fields.map((field, i) => {
+                // Ongoing → attendance only (feedback + results come at completion).
+                const ongoing = (watchedValues as any)?.cat1CourseResults?.[i]?.courseStatus === 'ONGOING';
+                return (
                 <div key={field.id} className="border border-surface-border rounded p-3 mb-2">
                   <div className="grid grid-cols-4 gap-3">
                     <div className="col-span-2">
@@ -839,26 +860,38 @@ export default function AppraisalEditPage() {
                       <input {...register(`cat1CourseResults.${i}.courseName`)} className={inputCls} />
                     </div>
                     <div>
-                      <label className={labelCls}>Class Size (Y)</label>
-                      <input {...numField(`cat1CourseResults.${i}.classSize`, { min: 0, integer: true })} className={inputCls} />
+                      <label className={labelCls}>Course Status</label>
+                      <select {...register(`cat1CourseResults.${i}.courseStatus`)} className={inputCls}>
+                        <option value="COMPLETED">Completed</option>
+                        <option value="ONGOING">Ongoing</option>
+                      </select>
                     </div>
                     <div>
-                      <label className={labelCls}>Feedback Received (0-5)</label>
-                      <input {...numField(`cat1CourseResults.${i}.feedbackReceived`, { min: 0, max: 5, step: '0.01' })} className={inputCls} />
+                      <label className={labelCls}>Class Size (Y)</label>
+                      <input {...numField(`cat1CourseResults.${i}.classSize`, { min: 0, integer: true })} className={inputCls} />
                     </div>
                     <div>
                       <label className={labelCls}>Avg. Attendance %</label>
                       <input {...numField(`cat1CourseResults.${i}.avgAttendancePct`, { min: 0, max: 100, step: '0.01' })} className={inputCls} />
                     </div>
-                    <div>
-                      <label className={labelCls}>Pass %</label>
-                      <input {...numField(`cat1CourseResults.${i}.passPercentage`, { min: 0, max: 100, step: '0.01' })} className={inputCls} />
-                    </div>
+                    {!ongoing && (
+                      <>
+                        <div>
+                          <label className={labelCls}>Feedback Received (0-5)</label>
+                          <input {...numField(`cat1CourseResults.${i}.feedbackReceived`, { min: 0, max: 5, step: '0.01' })} className={inputCls} />
+                        </div>
+                        <div>
+                          <label className={labelCls}>Pass %</label>
+                          <input {...numField(`cat1CourseResults.${i}.passPercentage`, { min: 0, max: 100, step: '0.01' })} className={inputCls} />
+                        </div>
+                      </>
+                    )}
                   </div>
                   <button type="button" onClick={() => courseResults.remove(i)} className="text-red-400 text-xs mt-2">Remove</button>
                 </div>
-              ))}
-              {addRowBtn('Add Course Result', () => courseResults.append({ courseName: '', classSize: 0, avgAttendancePct: 0, feedbackReceived: 0, passPercentage: 0 }))}
+                );
+              })}
+              {addRowBtn('Add Course Result', () => courseResults.append({ courseName: '', courseStatus: 'COMPLETED', classSize: 0, avgAttendancePct: 0, feedbackReceived: 0, passPercentage: 0 }))}
             </details>
 
             <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
