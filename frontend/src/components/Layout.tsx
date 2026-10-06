@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import BrandHeader from './BrandHeader';
 import Footer from './Footer';
-import { finalReviewApi } from '../api/appraisals';
+import { finalReviewApi, appraisalApi } from '../api/appraisals';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { isAdmin, isDeptAdmin, isPrincipal, isDean, isScrutinizer, isHodOrReviewer, canAllocateTier, hasRole,
@@ -17,10 +17,21 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // Any user can be a dean-assigned final reviewer, so surface the link only to
   // those who actually have something awaiting their sign-off.
   const [finalCount, setFinalCount] = useState(0);
+  // A faculty is red-listed when one of their submissions is held after a
+  // rejected proof. Surfaced as a standing "Red List" tab with a notification
+  // dot so they see it from anywhere, not only the dashboard banner.
+  const [facultyRedListed, setFacultyRedListed] = useState(false);
 
   useEffect(() => {
     finalReviewApi.pending().then((r) => setFinalCount(r.length)).catch(() => setFinalCount(0));
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!hasRole('FACULTY')) { setFacultyRedListed(false); return; }
+    appraisalApi.list()
+      .then((subs: any[]) => setFacultyRedListed(subs.some((s) => s.redListed || s.status === 'HOLD')))
+      .catch(() => setFacultyRedListed(false));
+  }, [location.pathname, hasRole]);
 
   // Close drawer on route change
   useEffect(() => { setDrawerOpen(false); }, [location.pathname]);
@@ -32,7 +43,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return () => { document.body.style.overflow = ''; };
   }, [drawerOpen]);
 
-  const navLink = (to: string, label: string, Icon: any) => {
+  const navLink = (to: string, label: string, Icon: any, dot = false) => {
     const active = location.pathname.startsWith(to);
     return (
       <Link
@@ -45,7 +56,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         }`}
       >
         <Icon size={15} className={active ? 'text-primary-600' : 'text-ink-muted'} />
-        {label}
+        <span className="flex-1">{label}</span>
+        {dot && (
+          <span
+            className="ml-auto inline-block h-2 w-2 rounded-full bg-red-500 ring-2 ring-red-100"
+            aria-label="Red-listed — action needed"
+            title="Red-listed — action needed"
+          />
+        )}
       </Link>
     );
   };
@@ -128,6 +146,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     add('/drafts', 'Drafts in progress', FilePen);
     add('/uploads', 'Uploads', UploadCloud);
     if (hasRole('HOD')) add('/department/reviewers', 'Reviewers', ShieldCheck);
+    // A HoD can add and view faculty accounts in their own department.
+    if (hasRole('HOD')) add('/admin/users', 'Users', Users);
     if (hasRole('HOD')) add('/reports/department', 'Reports', BarChart2);
   }
 
@@ -145,6 +165,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   if (hasRole('FACULTY') || entries.length === 0) {
     add('/dashboard', 'Dashboard', LayoutDashboard);
     if (hasRole('FACULTY')) add('/appraisal', 'Appraisals', FileText);
+    // A faculty's own Red List — a standing tab (separate from the HoD's
+    // department red-list workflow at /red-list) that shows any held
+    // submission, with a notification dot when they are red-listed.
+    if (hasRole('FACULTY')) add('/my-red-list', 'Red List', AlertTriangle);
   }
 
   // Every role has an account, so every role gets Profile — last, so it sits at
@@ -155,7 +179,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // the personal filing pages, the staff workspace only the review pages, so the
   // two never sit in one menu. Profile stays in both. A non-dual account is
   // unaffected and keeps its full additive menu.
-  const FACULTY_PATHS = ['/dashboard', '/appraisal'];
+  const FACULTY_PATHS = ['/dashboard', '/appraisal', '/my-red-list'];
   const dual = canSwitchWorkspace();
   const visibleEntries = !dual
     ? entries
@@ -200,7 +224,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {workspaceSwitch}
       {visibleEntries
         .filter(([to]) => !(to === '/final-review' && finalCount > 0))
-        .map(([to, label, Icon]) => navLink(to, label, Icon))}
+        .map(([to, label, Icon]) => navLink(to, label, Icon, to === '/my-red-list' && facultyRedListed))}
       {finalCount > 0 && (!dual || activeWorkspace === 'staff') &&
         navLink('/final-review', `Final Review (${finalCount})`, Gavel)}
     </>

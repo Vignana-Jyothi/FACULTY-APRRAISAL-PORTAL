@@ -9,6 +9,7 @@ import { RoleType } from '@prisma/client';
 import {
   MAINTENANCE,
   ACCOUNT_ADMIN,
+  USER_MANAGE,
   SEES_ALL,
   CONFIG,
   TIER,
@@ -79,8 +80,11 @@ router.post('/users/me/change-password', authenticate, user.changePasswordWithOt
 // to a DEPT_ADMIN — the controllers confine a DEPT_ADMIN to their own
 // department. Role assignment and bulk import stay ADMIN-only (MAINTENANCE): a
 // dept-admin cannot hand out roles or import rosters.
-router.get('/admin/users', authenticate, roleGuard(ACCOUNT_ADMIN), user.listUsers);
-router.post('/admin/users', authenticate, roleGuard(ACCOUNT_ADMIN), user.createUser);
+// A HoD may create and list accounts in their own department (USER_MANAGE);
+// the handlers confine them via accountAdminScope. Editing, deactivating,
+// resetting and role assignment stay ACCOUNT_ADMIN / MAINTENANCE below.
+router.get('/admin/users', authenticate, roleGuard(USER_MANAGE), user.listUsers);
+router.post('/admin/users', authenticate, roleGuard(USER_MANAGE), user.createUser);
 router.put('/admin/users/:id', authenticate, roleGuard(ACCOUNT_ADMIN), user.updateUser);
 // Soft delete: deactivates the account and stands down its roles. Nothing is
 // erased — appraisals, the reviews this user gave, and the audit trail survive.
@@ -231,7 +235,7 @@ router.get('/reports/appraisal-excel', authenticate, roleGuard(DEPT_CONTENT_READ
 // Per-department quarterly review summary PDF (snapshot + issued HoD feedback).
 // HoD exports their own dept; dean/principal pick any. Controller enforces scope.
 router.get('/reports/quarterly-summary', authenticate, roleGuard(DEPT_CONTENT_READ), report.exportQuarterlyDeptPdf);
-// IQAC quarterly sheet: Emp ID, Name, Targets Achieved, HoD Review — per dept + quarter.
+// Quarterly summary (Excel): Emp ID, Name, Targets Achieved, HoD Review — per dept + quarter.
 router.get('/reports/iqac-excel', authenticate, roleGuard(DEPT_CONTENT_READ), report.exportIqacQuarterlyExcel);
 
 // Admin: email notifications. A DEPT_ADMIN may READ the queue (scoped to their

@@ -120,7 +120,7 @@ export default function DeptReportsPage() {
     }
   };
 
-  // IQAC quarterly sheet — Emp ID, Name, Targets Achieved, HoD Review.
+  // Quarterly summary (Excel) — Emp ID, Name, Targets Achieved, HoD Review.
   const exportIqac = async () => {
     if (seesAllDepts && !deptFilter) { toast.error('Pick a department first'); return; }
     setExportingIqac(true);
@@ -130,7 +130,7 @@ export default function DeptReportsPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `iqac-${quarter}-${deptCode ? `${deptCode}-` : ''}${yearFilter || 'current'}.xlsx`;
+      a.download = `quarterly-summary-${quarter}-${deptCode ? `${deptCode}-` : ''}${yearFilter || 'current'}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
     } catch {
@@ -174,15 +174,15 @@ export default function DeptReportsPage() {
               disabled={exporting}
               className="flex items-center gap-2 bg-primary-600 text-white px-3 py-2 rounded text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
             >
-              <Download size={14} /> {exporting ? 'Exporting...' : 'Scores (Excel)'}
+              <Download size={14} /> {exporting ? 'Exporting...' : 'Scores (Criteria-wise)'}
             </button>
             <button
               onClick={exportAppraisalForm}
               disabled={exportingForm}
               className="flex items-center gap-2 border border-primary-600 text-primary-700 px-3 py-2 rounded text-sm font-medium hover:bg-primary-50 disabled:opacity-50"
-              title="Consolidated appraisal form (one row per faculty) in the institute's output format"
+              title="Consolidated appraisal (one row per faculty) in the institute's output format"
             >
-              <Download size={14} /> {exportingForm ? 'Exporting...' : 'Appraisal Form (Excel)'}
+              <Download size={14} /> {exportingForm ? 'Exporting...' : 'Consolidated (Excel)'}
             </button>
             <select
               value={quarter}
@@ -208,9 +208,9 @@ export default function DeptReportsPage() {
               onClick={exportIqac}
               disabled={exportingIqac}
               className="flex items-center gap-2 border border-primary-600 text-primary-700 px-3 py-2 rounded text-sm font-medium hover:bg-primary-50 disabled:opacity-50"
-              title="IQAC sheet (Emp ID, Name, Targets Achieved, HoD Review) for the selected quarter, as Excel"
+              title="Quarterly summary (Emp ID, Name, Targets Achieved, HoD Review) for the selected quarter, as Excel"
             >
-              <Download size={14} /> {exportingIqac ? 'Exporting...' : 'IQAC Sheet (Excel)'}
+              <Download size={14} /> {exportingIqac ? 'Exporting...' : 'Quarterly Summary (Excel)'}
             </button>
           </div>
         }

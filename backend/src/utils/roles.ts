@@ -26,6 +26,17 @@ export const MAINTENANCE: RoleType[] = [RoleType.ADMIN];
  */
 export const ACCOUNT_ADMIN: RoleType[] = [RoleType.ADMIN, RoleType.DEPT_ADMIN];
 
+/**
+ * Who may create and list faculty accounts. The HoD is added here (on top of
+ * ACCOUNT_ADMIN) so a HoD can add faculty to their OWN department — the
+ * createUser/listUsers handlers confine a HoD to their department via
+ * accountAdminScope, exactly as they do a DEPT_ADMIN. The destructive and
+ * role-granting routes (update, deactivate, reset, role assignment) stay on
+ * ACCOUNT_ADMIN / MAINTENANCE — a HoD creates and views, it does not edit or
+ * stand down existing accounts.
+ */
+export const USER_MANAGE: RoleType[] = [RoleType.ADMIN, RoleType.DEPT_ADMIN, RoleType.HOD];
+
 /** Institute-wide sight of everything, Cat 6 and the /550 grand total included. */
 export const SEES_ALL: RoleType[] = [RoleType.PRINCIPAL];
 

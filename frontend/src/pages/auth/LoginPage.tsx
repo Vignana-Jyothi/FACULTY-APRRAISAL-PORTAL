@@ -6,7 +6,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { authApi } from '../../api/auth';
 import { useAuthStore } from '../../store/authStore';
-import { GraduationCap, Eye, EyeOff } from 'lucide-react';
+import { GraduationCap, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 const schema = z.object({
   employeeCode: z.string().min(1, 'Required'),
@@ -36,17 +36,26 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
   const [showPassword, setShowPassword] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
 
   const onSubmit = async (data: FormData) => {
+    setAuthError(null);
     try {
       const res = await authApi.login(data.employeeCode, data.password);
       login(res.accessToken, res.user);
       navigate(landingFor(res.user.roles));
-    } catch {
-      toast.error('Invalid credentials');
+    } catch (err: any) {
+      // 401 = bad employee code or password. Keep the message generic (never
+      // reveal which field is wrong) but show it plainly as a persistent popup.
+      const status = err?.response?.status;
+      const msg = status === 401
+        ? 'Invalid employee code or password. Please try again.'
+        : 'Could not sign in — please try again in a moment.';
+      setAuthError(msg);
+      toast.error(status === 401 ? 'Invalid credentials' : 'Sign-in failed');
     }
   };
 
@@ -108,6 +117,16 @@ export default function LoginPage() {
                 <h2 className="text-lg font-bold text-ink-primary">Faculty Portal</h2>
               </div>
               <p className="text-xs text-ink-muted mb-5">Sign in with your employee credentials</p>
+
+              {authError && (
+                <div
+                  role="alert"
+                  className="mb-4 flex items-start gap-2 rounded border border-red-300 bg-red-50 px-3 py-2.5 text-sm text-red-700"
+                >
+                  <AlertCircle size={16} className="mt-0.5 shrink-0 text-red-600" />
+                  <span>{authError}</span>
+                </div>
+              )}
 
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 <div>

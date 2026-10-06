@@ -35,7 +35,12 @@ api.interceptors.response.use(
       // only thing the user should act on.
       return new Promise(() => {});
     }
-    if (error.response?.status === 401) {
+    // A 401 from the sign-in request itself is "wrong credentials", not an
+    // expired session — let LoginPage show its own error instead of forcing a
+    // full reload that would wipe the form before the message can render.
+    const reqUrl: string = error.config?.url ?? '';
+    const isAuthEntry = /\/auth\/(login|forgot-password|reset-password)$/.test(reqUrl);
+    if (error.response?.status === 401 && !isAuthEntry) {
       useAuthStore.getState().logout();
       window.location.href = '/login';
     }

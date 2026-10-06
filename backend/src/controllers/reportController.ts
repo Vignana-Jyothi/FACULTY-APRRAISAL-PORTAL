@@ -168,57 +168,69 @@ export async function exportReport(req: Request, res: Response) {
     ? await prisma.academicYear.findUnique({ where: { label: year as string } })
     : null;
 
-  const reviews = await prisma.appraisalReview.findMany({
+  // Criteria-wise scores: one row per faculty with each category's SELF and
+  // REVIEWED subtotal side by side (self from the self-assessment via
+  // computeScore, reviewed from the review row), then the two /500 totals and
+  // the Cat 6 / grand total. Reviewed-preferred, else latest, per faculty.
+  const submissions = await prisma.appraisalSubmission.findMany({
     where: {
-      submission: {
-        ...(academicYear ? { academicYearId: academicYear.id } : {}),
-        user: reportUserWhere(req.user!, typeof dept === 'string' ? dept : undefined),
-      },
+      ...(academicYear ? { academicYearId: academicYear.id } : {}),
+      user: reportUserWhere(req.user!, typeof dept === 'string' ? dept : undefined),
     },
-    include: {
-      submission: {
-        include: {
-          user: { select: { name: true, employeeCode: true, designation: true, departmentId: true, department: true } },
-          academicYear: { select: { label: true } },
-        },
-      },
-    },
+    include: { ...TRACKING_INCLUDE, academicYear: { select: { label: true } } },
+    orderBy: { submissionNumber: 'desc' },
   });
 
-  // Columns mirror the Faculty-wise Breakdown table. The two Cat 6 columns are
-  // blank for a caller who may not see the reviewer's assessment of that
-  // faculty — the dean exports institute-wide and gets the /500 only.
-  const rows = reviews.map((r) => {
-    const cat6Visible = canSeeReviewerAssessment(
-      req.user!,
-      r.submission.userId,
-      r.submission.user.departmentId,
-    );
-    return {
-      'Name': csvSafe(r.submission.user.name),
-      'Employee Code': csvSafe(r.submission.user.employeeCode),
-      'Designation': csvSafe(r.submission.user.designation ?? ''),
-      'Department': csvSafe(r.submission.user.department?.name ?? ''),
-      'Academic Year': csvSafe(r.submission.academicYear.label),
-      // Every score column names its scale. Self and reviewed stay side by side
-      // because HR needs both assessments separately.
-      'Self /500': r.selfTotalScore ?? '',
-      'C1 /150': r.cat1Score ?? '',
-      'C2 /150': r.cat2Score ?? '',
-      'C3 /100': r.cat3Score ?? '',
-      'C4 /50': r.cat4Score ?? '',
-      'C5 /50': r.cat5Score ?? '',
-      'Reviewed /500': r.totalScore ?? '',
-      'Core values (Cat 6) /50': cat6Visible
-        ? ((r.cat6Punctuality ?? 0) + (r.cat6Professionalism ?? 0) + (r.cat6Willingness ?? 0) + (r.cat6Cordiality ?? 0) + (r.cat6Classroom ?? 0))
-        : '',
-      'Grand total /550': cat6Visible ? (r.grandTotal ?? '') : '',
-      // The HoD's decision is not the appraisal's standing: an approval that
-      // went on to final review is still waiting on a scrutinizer.
-      'HoD decision': r.status,
-      'Appraisal status': r.submission.status,
-    };
-  });
+  const picked = new Map<string, (typeof submissions)[number]>();
+  for (const s of submissions) {
+    const cur = picked.get(s.userId);
+    if (!cur) picked.set(s.userId, s);
+    else if (cur.status !== SubmissionStatus.APPROVED && s.status === SubmissionStatus.APPROVED) picked.set(s.userId, s);
+  }
+
+  const round1 = (n: number | null | undefined) =>
+    typeof n === 'number' && Number.isFinite(n) ? Math.round(n * 10) / 10 : '';
+
+  const rows = [...picked.values()]
+    .sort((a, b) => (((a as any).user.name ?? '') as string).localeCompare((b as any).user.name ?? ''))
+    .map((sub) => {
+      const u = (sub as any).user;
+      const rev = (sub as any).review ?? null;
+      const self = computeScore(sub as any);
+      const cat6Visible = canSeeReviewerAssessment(req.user!, sub.userId, u.departmentId ?? null);
+      const cat6 = rev
+        ? ((rev.cat6Punctuality ?? 0) + (rev.cat6Professionalism ?? 0) + (rev.cat6Willingness ?? 0) + (rev.cat6Cordiality ?? 0) + (rev.cat6Classroom ?? 0))
+        : null;
+      return {
+        'Name': csvSafe(u.name),
+        'Employee Code': csvSafe(u.employeeCode),
+        'Designation': csvSafe(u.designation ?? ''),
+        'Department': csvSafe(u.department?.name ?? ''),
+        'Academic Year': csvSafe((sub as any).academicYear?.label ?? (academicYear?.label ?? '')),
+        // Each criterion: self subtotal, then the reviewer's subtotal.
+        'C1 Self /150': round1(self.cat1.total),
+        'C1 Reviewed /150': rev?.cat1Score ?? '',
+        'C2 Self /150': round1(self.cat2.total),
+        'C2 Reviewed /150': rev?.cat2Score ?? '',
+        'C3 Self /100': round1(self.cat3.total),
+        'C3 Reviewed /100': rev?.cat3Score ?? '',
+        'C4 Self /50': round1(self.cat4.total),
+        'C4 Reviewed /50': rev?.cat4Score ?? '',
+        'C5 Self /50': round1(self.cat5.total),
+        'C5 Reviewed /50': rev?.cat5Score ?? '',
+        // Category subtotals roll up to the two /500 totals.
+        'Self Total /500': round1(self.selfTotal),
+        'Reviewed Total /500': rev?.totalScore ?? '',
+        // Cat 6 and the /550 are the reviewer's assessment — own-dept HoD /
+        // principal only; blank otherwise.
+        'Core values (Cat 6) /50': cat6Visible ? (cat6 ?? '') : '',
+        'Grand total /550': cat6Visible ? (rev?.grandTotal ?? '') : '',
+        // The HoD's decision is not the appraisal's standing: an approval that
+        // went on to final review is still waiting on a scrutinizer.
+        'HoD decision': rev?.status ?? '—',
+        'Appraisal status': sub.status,
+      };
+    });
 
   if (format === 'excel') {
     const wb = XLSX.utils.book_new();
@@ -486,10 +498,10 @@ export async function exportQuarterlyDeptPdf(req: Request, res: Response) {
   return res.send(buf);
 }
 
-// ─── IQAC quarterly sheet (Excel) ────────────────────────────────────────
+// ─── Quarterly summary sheet (Excel) ─────────────────────────────────────
 //
-// A compact per-faculty Excel for the IQAC cell, for a chosen quarter:
-// Employee ID, Employee Name, Targets Achieved (the ideal targets met, each
+// A compact per-faculty Excel (the "Quarterly Summary" download), for a chosen
+// quarter: Employee ID, Employee Name, Targets Achieved (the ideal targets met, each
 // with its current value), and the HoD's review (the issued quarterly
 // feedback). Both the targets and the review come from the quarter's issued
 // feedback snapshot; a faculty with no issued feedback is listed as pending.

@@ -16,10 +16,16 @@ export default function AdminUsersPage() {
   // A DEPT_ADMIN is confined to their own department: no bulk import, no role
   // management, and the create form is locked to their department. The server
   // enforces all of this too — this just hides what they cannot do.
-  const { isAdmin, isDeptAdmin } = useAuthStore();
+  const { isAdmin, isDeptAdmin, hasRole } = useAuthStore();
   const authUser = useAuthStore((s) => s.user);
-  const deptScoped = isDeptAdmin() && !isAdmin();
-  const myDeptId = authUser?.roles.find((r) => r.role === 'DEPT_ADMIN')?.departmentId ?? '';
+  // A HoD can create and view accounts in their own department, but not edit,
+  // deactivate or reset existing ones — those stay with the admins. So a HoD is
+  // dept-scoped (locked dept, no bulk import, no role management) like a
+  // DEPT_ADMIN, and additionally has no per-row modify actions.
+  const isHodManager = hasRole('HOD') && !isAdmin() && !isDeptAdmin();
+  const deptScoped = (isDeptAdmin() || isHodManager) && !isAdmin();
+  const canModifyExisting = isAdmin() || isDeptAdmin(); // not a plain HoD
+  const myDeptId = authUser?.roles.find((r) => r.role === 'DEPT_ADMIN' || r.role === 'HOD')?.departmentId ?? '';
 
   const [users, setUsers] = useState<any[]>([]);
   const [depts, setDepts] = useState<any[]>([]);
@@ -156,7 +162,7 @@ export default function AdminUsersPage() {
       <PageHeader
         title="Users"
         help="Create accounts, reset passwords and assign roles. A HoD needs a department first. Deleting deactivates; toggle inactive to reactivate."
-        breadcrumbs={[{ label: 'Admin', to: '/admin/dashboard' }, { label: 'Users' }]}
+        breadcrumbs={isHodManager ? [{ label: 'Users' }] : [{ label: 'Admin', to: '/admin/dashboard' }, { label: 'Users' }]}
         actions={
           <div className="flex items-center gap-2">
             {!deptScoped && (
@@ -261,7 +267,7 @@ export default function AdminUsersPage() {
         </Card>
       )}
 
-      {someSelected && (
+      {canModifyExisting && someSelected && (
         <div className="mb-3 flex items-center justify-between bg-primary-50 border border-primary-200 rounded px-4 py-2.5 text-sm">
           <span className="text-primary-700 font-medium">{selected.size} selected</span>
           <div className="flex items-center gap-3">
@@ -277,16 +283,18 @@ export default function AdminUsersPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-primary-700 text-white text-xs">
-              <th className="w-10 px-4 py-2.5">
-                <input
-                  type="checkbox"
-                  aria-label="Select all rows"
-                  className="align-middle cursor-pointer accent-accent-500"
-                  checked={allSelected}
-                  ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
-                  onChange={toggleAll}
-                />
-              </th>
+              {canModifyExisting && (
+                <th className="w-10 px-4 py-2.5">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all rows"
+                    className="align-middle cursor-pointer accent-accent-500"
+                    checked={allSelected}
+                    ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
+                    onChange={toggleAll}
+                  />
+                </th>
+              )}
               <th className="text-left px-4 py-2.5 font-medium">Code</th>
               <th className="text-left px-4 py-2.5 font-medium">Name</th>
               <th className="text-left px-4 py-2.5 font-medium">Email</th>
@@ -298,15 +306,17 @@ export default function AdminUsersPage() {
           <tbody className="divide-y divide-surface-border">
             {users.map((u, i) => (
               <tr key={u.id} className={`${selected.has(u.id) ? 'bg-primary-50' : i % 2 === 1 ? 'bg-surface-muted/50' : ''}`}>
-                <td className="px-4 py-2.5">
-                  <input
-                    type="checkbox"
-                    aria-label={`Select ${u.employeeCode}`}
-                    className="align-middle cursor-pointer accent-accent-500"
-                    checked={selected.has(u.id)}
-                    onChange={() => toggleRow(u.id)}
-                  />
-                </td>
+                {canModifyExisting && (
+                  <td className="px-4 py-2.5">
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${u.employeeCode}`}
+                      className="align-middle cursor-pointer accent-accent-500"
+                      checked={selected.has(u.id)}
+                      onChange={() => toggleRow(u.id)}
+                    />
+                  </td>
+                )}
                 <td className="px-4 py-2.5 font-mono text-xs">{u.employeeCode}</td>
                 <td className="px-4 py-2.5 font-medium text-ink-primary">
                   {u.name}
@@ -338,7 +348,7 @@ export default function AdminUsersPage() {
                         <Shield size={11} /> Roles
                       </button>
                     )}
-                    {u.isActive !== false && (
+                    {canModifyExisting && u.isActive !== false && (
                       <button
                         onClick={() => resetPassword(u)}
                         className="flex items-center gap-1 text-xs text-primary-600 hover:underline font-medium"
@@ -347,13 +357,14 @@ export default function AdminUsersPage() {
                         <KeyRound size={11} /> Reset PW
                       </button>
                     )}
-                    {u.isActive === false ? (
+                    {canModifyExisting && (u.isActive === false ? (
                       <button onClick={() => reactivateUser(u.id)} className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700">
                         <RotateCcw size={12} /> Reactivate
                       </button>
                     ) : (
                       <button onClick={() => deactivateUser(u.id)} className="text-xs text-danger-500 hover:text-red-700">Deactivate</button>
-                    )}
+                    ))}
+                    {!canModifyExisting && <span className="text-xs text-ink-subtle">View only</span>}
                   </div>
                 </td>
               </tr>

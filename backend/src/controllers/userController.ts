@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { parse as parseCsv } from 'csv-parse/sync';
 import prisma from '../utils/prismaClient';
 import { RoleType } from '@prisma/client';
-import { DEPARTMENT_SCOPED, INSTITUTE_WIDE, isFullAdmin, deptAdminScope } from '../utils/roles';
+import { DEPARTMENT_SCOPED, INSTITUTE_WIDE, isFullAdmin, deptAdminScope, deptIdsFor } from '../utils/roles';
 import { DEFAULT_IMPORT_PASSWORD } from '../utils/defaultPassword';
 import { issueSession } from './authController';
 
@@ -19,7 +19,10 @@ import { issueSession } from './authController';
  */
 function accountAdminScope(req: Request): string[] | null {
   if (isFullAdmin(req.user)) return null;
-  return deptAdminScope(req.user!);
+  // A DEPT_ADMIN is scoped to their dept-admin department(s); a HoD who manages
+  // accounts (create/list) is scoped to the department(s) they head. Either way
+  // the caller is confined to their own department.
+  return [...new Set([...deptAdminScope(req.user!), ...deptIdsFor(req.user!, [RoleType.HOD])])];
 }
 
 /** True when `departmentId` is inside the caller's account-admin reach. */

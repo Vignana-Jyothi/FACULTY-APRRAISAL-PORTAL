@@ -4,6 +4,7 @@ import LoginPage from './pages/auth/LoginPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import DashboardPage from './pages/faculty/DashboardPage';
+import MyRedListPage from './pages/faculty/MyRedListPage';
 import AppraisalEditPage from './pages/faculty/AppraisalEditPage';
 import AppraisalViewPage from './pages/faculty/AppraisalViewPage';
 import ReviewQueuePage from './pages/reviewer/ReviewQueuePage';
@@ -34,6 +35,7 @@ import OversightDashboardPage from './pages/oversight/OversightDashboardPage';
 // UI's half of P2: maintenance (/admin/*) never overlaps appraisal content.
 const MAINTENANCE = ['ADMIN'] as const;                       // accounts, roles, mail, audit (institute-wide)
 const ACCOUNT_ADMIN = ['ADMIN', 'DEPT_ADMIN'] as const;       // account maintenance; DEPT_ADMIN scoped to own dept server-side
+const USER_MANAGE = ['ADMIN', 'DEPT_ADMIN', 'HOD'] as const;  // create + list accounts; HOD confined to own dept server-side
 const CONFIG = ['DEAN', 'PRINCIPAL'] as const;                // dean-owned configuration
 const SEES_ALL = ['PRINCIPAL'] as const;                      // institute-wide content
 // Cross-department readers of tracking; HoD is scoped to their own department
@@ -61,6 +63,7 @@ export default function App() {
         {/* Faculty */}
         <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
         <Route path="/appraisal" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/my-red-list" element={<ProtectedRoute><MyRedListPage /></ProtectedRoute>} />
         <Route path="/appraisal/:id/edit" element={<ProtectedRoute><AppraisalEditPage /></ProtectedRoute>} />
         <Route path="/appraisal/:id" element={<ProtectedRoute><AppraisalViewPage /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
@@ -113,7 +116,7 @@ export default function App() {
           <ProtectedRoute roles={MAINTENANCE}><AdminDashboardPage /></ProtectedRoute>
         } />
         <Route path="/admin/users" element={
-          <ProtectedRoute roles={ACCOUNT_ADMIN}><AdminUsersPage /></ProtectedRoute>
+          <ProtectedRoute roles={USER_MANAGE}><AdminUsersPage /></ProtectedRoute>
         } />
         <Route path="/admin/incharges" element={
           <ProtectedRoute roles={MAINTENANCE}><AdminInchargesPage /></ProtectedRoute>
