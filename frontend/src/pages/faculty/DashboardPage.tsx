@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { appraisalApi, type TargetStatus } from '../../api/appraisals';
 import { userApi } from '../../api/users';
 import toast from 'react-hot-toast';
@@ -17,9 +17,15 @@ export default function DashboardPage() {
   const [selectedYear, setSelectedYear] = useState('');
   const [loading, setLoading] = useState(true);
   const [targets, setTargets] = useState<TargetStatus | null>(null);
-  const { user } = useAuthStore();
+  const { user, hasRole, isPrincipal, isDean, isScrutinizer, isHodOrReviewer, isAdmin, isDeptAdmin } = useAuthStore();
+  // This is the faculty filing page (My Submissions, targets, drafts). It is
+  // for FACULTY only — a HoD/reviewer/dean/etc. who lands here (e.g. via the
+  // "/" catch-all) is sent to their own home, so they never see a personal
+  // submissions list that isn't theirs.
+  const isFaculty = hasRole('FACULTY');
 
   useEffect(() => {
+    if (!isFaculty) { setLoading(false); return; }
     Promise.all([
       appraisalApi.list(),
       userApi.listAcademicYears(),
@@ -28,7 +34,7 @@ export default function DashboardPage() {
       setYears(yrs);
       if (yrs.length) setSelectedYear(yrs[0].id);
     }).catch(() => toast.error('Failed to load')).finally(() => setLoading(false));
-  }, []);
+  }, [isFaculty]);
 
   const createNew = async () => {
     if (!selectedYear) return toast.error('Select an academic year');
@@ -57,6 +63,16 @@ export default function DashboardPage() {
       .catch(() => { if (live) setTargets(null); });
     return () => { live = false; };
   }, [activeSub?.id]);
+
+  // Non-faculty never see the faculty filing page — send them to their home.
+  if (!isFaculty) {
+    const home = isPrincipal() || isDean() ? '/oversight'
+      : isScrutinizer() ? '/final-review'
+      : isHodOrReviewer() ? '/reviews'
+      : (isAdmin() || isDeptAdmin()) ? '/admin/users'
+      : '/profile';
+    return <Navigate to={home} replace />;
+  }
 
   if (loading) {
     return (

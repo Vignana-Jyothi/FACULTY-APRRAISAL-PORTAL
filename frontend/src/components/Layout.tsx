@@ -140,8 +140,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   }
 
   // Department review layer. A plain REVIEWER (incharge) verifies uploads only.
+  // No personal "/dashboard" here — that is the faculty filing page (My
+  // Submissions); a HoD/reviewer home is the Review Queue.
   if (isHodOrReviewer()) {
-    add('/dashboard', 'Dashboard', LayoutDashboard);
     add('/reviews', 'Review Queue', FileText);
     add('/drafts', 'Drafts in progress', FilePen);
     add('/uploads', 'Uploads', UploadCloud);
