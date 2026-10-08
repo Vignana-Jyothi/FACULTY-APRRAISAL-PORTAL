@@ -1,10 +1,13 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
 // Stricter limits on auth endpoints — prevents brute force
 export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 min
-  max: 10, // 10 attempts / IP / window
-  message: { error: 'Too many auth attempts. Try again in 15 minutes.' },
+  windowMs: 5 * 60 * 1000, // 5 min
+  max: 10, // 10 failed attempts per IP+account (campus NAT shares one public IP, so key on email too)
+  // Key on IP + email so one user's bad password doesn't lock everyone behind the same campus IP.
+  // Empty email (e.g. reset-password, which carries a token not an email) falls back to IP-only.
+  keyGenerator: (req) => `${ipKeyGenerator(req.ip ?? '')}:${String(req.body?.email || '').toLowerCase()}`,
+  message: { error: 'Too many auth attempts. Try again in 5 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true, // Don't count successful logins
