@@ -314,15 +314,15 @@ export function authorCount(r: { authorList?: string[] | null; authors?: string 
 }
 
 /**
- * 2.1 authorship claim, owner decisions 2026-09-15. When every author of a
- * paper is from VNRVJIET, only one of them may claim it: the form asks whether
- * the appraisal's owner or another co-author claims the paper, and the server
- * refuses to save a row claimed by someone else (utils/publicationAuthors).
- * The owner is always the faculty filing — there is no "which author is me"
- * question. A paper with co-authors from other institutions
- * is the faculty's to claim. The campus question must be answered — left
- * unanswered, the paper scores 0, as an unchosen 2.3 publisher level does.
- * Target counts (trackingEngine.countedItems) are deliberately unaffected.
+ * 2.1 authorship claim (owner decisions 2026-09-15, revised 2026-10-08).
+ * The claim is IDENTIFICATION ONLY — it no longer gates the score. When every
+ * author of a paper is from VNRVJIET the form still asks who claims it (the
+ * appraisal owner or another co-author), but the paper now scores the same
+ * either way, and a co-author may also enter the same paper in their own
+ * appraisal and score it. The owner is always the faculty filing — there is no
+ * "which author is me" question. The only completeness gate left is the campus
+ * question: left unanswered, the paper scores 0, as an unchosen 2.3 publisher
+ * level does. Target counts (trackingEngine.countedItems) are unaffected.
  * Mirrored in the frontend port.
  */
 export type PublicationClaimRow = {
@@ -332,9 +332,14 @@ export type PublicationClaimRow = {
 export function publicationClaim(r: PublicationClaimRow | null | undefined): { ok: boolean; reason: string } {
   if (r?.allAuthorsFromCampus == null) return { ok: false, reason: 'Answer "are all authors from VNRVJIET?" to score this paper' };
   if (r.allAuthorsFromCampus === false) return { ok: true, reason: 'Co-authors from other institutions' };
-  if (r.claimedBySelf == null) return { ok: false, reason: 'Choose who claims this paper' };
-  if (r.claimedBySelf === false) return { ok: false, reason: 'Claimed by another co-author' };
-  return { ok: true, reason: 'All authors from VNRVJIET, claimed by you' };
+  // All authors from VNRVJIET: the paper counts for whoever enters it; the
+  // claim records the primary author only, it does not change the score.
+  return {
+    ok: true,
+    reason: r.claimedBySelf === false
+      ? 'All authors from VNRVJIET, primary claim by a co-author'
+      : 'All authors from VNRVJIET',
+  };
 }
 
 /** 2.1 per-row score with the authorship claim applied. Views call this for a row. */

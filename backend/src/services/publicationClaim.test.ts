@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { publicationClaim, publicationScore, authorCount, computeScore } from './scoringEngine';
 
-// 2.1 authorship claim — owner decisions 2026-09-15. An all-VNRVJIET paper
-// scores only for the author who claims it; a paper with co-authors from other
-// institutions is the faculty's to claim; an unanswered campus question
-// scores 0. Mirrored in frontend/src/utils/publicationClaim.test.ts.
+// 2.1 authorship claim — owner decisions 2026-09-15, revised 2026-10-08. The
+// claim is identification only: an all-VNRVJIET paper scores the same whoever
+// claims it (a co-author may also enter it), a paper with co-authors from other
+// institutions is the faculty's to claim, and only an unanswered campus
+// question scores 0. Mirrored in frontend/src/utils/publicationClaim.test.ts.
 
 const base: any = {
   cat1Courses: [], cat1CourseResults: [], cat1Projects: [], cat1EContent: [], cat1ICT: [],
@@ -29,15 +30,16 @@ describe('2.1 authorship claim', () => {
     expect(publicationScore('chapter', { indexed: 'ICI', allAuthorsFromCampus: false }).score).toBe(10);
   });
 
-  it('scores an all-VNRVJIET paper only for the author who claims it', () => {
+  it('scores an all-VNRVJIET paper the same whoever claims it', () => {
     const mine = { indexed: 'SCOPUS', allAuthorsFromCampus: true, claimedBySelf: true };
     expect(publicationScore('journal', mine).score).toBe(15);
-    expect(publicationScore('journal', { ...mine, claimedBySelf: false })).toEqual({ score: 0, reason: 'Claimed by another co-author' });
+    // claim is identification only — a co-author scores the same, not 0.
+    expect(publicationScore('journal', { ...mine, claimedBySelf: false }).score).toBe(15);
   });
 
-  it('needs the claim answered before an all-VNRVJIET paper scores', () => {
-    expect(publicationScore('journal', { indexed: 'WOS', allAuthorsFromCampus: true }).reason).toBe('Choose who claims this paper');
-    expect(publicationScore('journal', { indexed: 'WOS', allAuthorsFromCampus: true, claimedBySelf: null }).score).toBe(0);
+  it('scores an all-VNRVJIET paper even with the claim unanswered (claim does not gate the score)', () => {
+    expect(publicationScore('journal', { indexed: 'WOS', allAuthorsFromCampus: true }).score).toBe(15);
+    expect(publicationScore('journal', { indexed: 'WOS', allAuthorsFromCampus: true, claimedBySelf: null }).score).toBe(15);
   });
 
   it('still applies the index rule once the claim holds', () => {

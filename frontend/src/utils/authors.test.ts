@@ -15,11 +15,10 @@ describe('2.1 author lists on the form', () => {
     expect(withAuthorList(undefined)).toEqual([]);
   });
 
-  it('blocks saving only an all-VNRVJIET paper claimed by another co-author', () => {
+  it('never blocks saving — the 2.1 claim is identification only (revised 2026-10-08)', () => {
     const row = { title: 'Edge AI', authorList: ['A', 'B'], allAuthorsFromCampus: true };
-    expect(publicationClaimConflict({ cat2Journals: [{ ...row, claimedBySelf: false }] })).toMatch(/^"Edge AI" is claimed by another co-author\./);
+    expect(publicationClaimConflict({ cat2Journals: [{ ...row, claimedBySelf: false }] })).toBeNull();
     expect(publicationClaimConflict({ cat2Journals: [{ ...row, claimedBySelf: true }] })).toBeNull();
     expect(publicationClaimConflict({ cat2Conferences: [{ ...row, claimedBySelf: null }] })).toBeNull();
-    expect(publicationClaimConflict({ cat2ConfBookChapters: [{ ...row, allAuthorsFromCampus: false, claimedBySelf: false }] })).toBeNull();
   });
 });

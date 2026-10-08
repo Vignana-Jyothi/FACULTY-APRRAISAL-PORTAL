@@ -274,9 +274,11 @@ export function authorCount(r: { authorList?: string[] | null; authors?: string 
 
 /**
  * 2.1 authorship claim. Mirror of the backend's publicationClaim (owner
- * decisions 2026-09-15): an all-VNRVJIET paper counts only for the author who
- * claims it; a paper with co-authors from other institutions is the faculty's
- * to claim; an unanswered campus question scores 0.
+ * decisions 2026-09-15, revised 2026-10-08): the claim is identification only
+ * and no longer gates the score — an all-VNRVJIET paper scores the same whether
+ * the owner or a co-author claims it, and a co-author may also enter it in their
+ * own appraisal. A paper with co-authors from other institutions is the
+ * faculty's to claim; an unanswered campus question still scores 0.
  */
 export type PublicationClaimRow = {
   allAuthorsFromCampus?: boolean | null;
@@ -285,9 +287,14 @@ export type PublicationClaimRow = {
 export function publicationClaim(r: PublicationClaimRow | null | undefined): { ok: boolean; reason: string } {
   if (r?.allAuthorsFromCampus == null) return { ok: false, reason: 'Answer "are all authors from VNRVJIET?" to score this paper' };
   if (r.allAuthorsFromCampus === false) return { ok: true, reason: 'Co-authors from other institutions' };
-  if (r.claimedBySelf == null) return { ok: false, reason: 'Choose who claims this paper' };
-  if (r.claimedBySelf === false) return { ok: false, reason: 'Claimed by another co-author' };
-  return { ok: true, reason: 'All authors from VNRVJIET, claimed by you' };
+  // All authors from VNRVJIET: the paper counts for whoever enters it; the
+  // claim records the primary author only, it does not change the score.
+  return {
+    ok: true,
+    reason: r.claimedBySelf === false
+      ? 'All authors from VNRVJIET, primary claim by a co-author'
+      : 'All authors from VNRVJIET',
+  };
 }
 
 /** 2.1 per-row score with the authorship claim applied. Mirror of the backend's publicationScore. */

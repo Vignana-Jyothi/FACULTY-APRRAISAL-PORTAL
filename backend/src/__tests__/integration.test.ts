@@ -136,9 +136,9 @@ describe('Full appraisal workflow', () => {
       });
     expect(fill.status).toBe(200);
 
-    // 2.1 claim rule: a paper whose authors are all from VNRVJIET belongs to
-    // the author who claims it — one claimed by someone else is refused, and
-    // the saved draft is left as it was.
+    // 2.1 claim rule (revised 2026-10-08): the claim is identification only, so
+    // an all-VNRVJIET paper recorded as claimed by another co-author still saves
+    // and scores — a co-author may enter it in their own appraisal too.
     const claimedByOther = await request(app)
       .put(`/api/appraisals/${subId}`)
       .set('Authorization', `Bearer ${facTok}`)
@@ -151,8 +151,7 @@ describe('Full appraisal workflow', () => {
           }],
         },
       });
-    expect(claimedByOther.status).toBe(400);
-    expect(claimedByOther.body.error).toMatch(/claimed by another co-author/);
+    expect(claimedByOther.status).toBe(200);
 
     // Score (faculty self)
     const score = await request(app).get(`/api/appraisals/${subId}/score`).set('Authorization', `Bearer ${facTok}`);

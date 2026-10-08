@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { publicationClaim, publicationScore, authorCount, computeScore } from './scoring';
 
 // Mirror of backend/src/services/publicationClaim.test.ts — the port must make
-// the same 2.1 claim decisions as the engine (owner decisions 2026-09-15).
+// the same 2.1 claim decisions as the engine (owner decisions 2026-09-15,
+// revised 2026-10-08: the claim is identification only and does not gate marks).
 
 describe('2.1 authorship claim (frontend port)', () => {
   it('scores nothing while the campus question is unanswered', () => {
@@ -16,15 +17,15 @@ describe('2.1 authorship claim (frontend port)', () => {
     expect(publicationScore('chapter', { indexed: 'ICI', allAuthorsFromCampus: false }).score).toBe(10);
   });
 
-  it('scores an all-VNRVJIET paper only for the author who claims it', () => {
+  it('scores an all-VNRVJIET paper the same whoever claims it', () => {
     const mine = { indexed: 'SCOPUS', allAuthorsFromCampus: true, claimedBySelf: true };
     expect(publicationScore('journal', mine).score).toBe(15);
-    expect(publicationScore('journal', { ...mine, claimedBySelf: false })).toEqual({ score: 0, reason: 'Claimed by another co-author' });
+    expect(publicationScore('journal', { ...mine, claimedBySelf: false }).score).toBe(15);
   });
 
-  it('needs the claim answered before an all-VNRVJIET paper scores', () => {
-    expect(publicationScore('journal', { indexed: 'WOS', allAuthorsFromCampus: true }).reason).toBe('Choose who claims this paper');
-    expect(publicationScore('journal', { indexed: 'WOS', allAuthorsFromCampus: true, claimedBySelf: null }).score).toBe(0);
+  it('scores an all-VNRVJIET paper even with the claim unanswered (claim does not gate the score)', () => {
+    expect(publicationScore('journal', { indexed: 'WOS', allAuthorsFromCampus: true }).score).toBe(15);
+    expect(publicationScore('journal', { indexed: 'WOS', allAuthorsFromCampus: true, claimedBySelf: null }).score).toBe(15);
   });
 
   it('carries into the category total', () => {

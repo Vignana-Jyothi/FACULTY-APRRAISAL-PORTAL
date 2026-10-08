@@ -12,11 +12,12 @@ describe('normalizePublicationAuthors (2.1 author lists on save)', () => {
     });
   });
 
-  it('refuses an all-VNRVJIET paper claimed by another co-author', () => {
+  it('saves an all-VNRVJIET paper claimed by another co-author (claim is identification only)', () => {
     const c: any = {
       cat2Conferences: [{ title: 'Edge AI', authorList: ['A', 'B'], claimedBySelf: false, allAuthorsFromCampus: true }],
     };
-    expect(normalizePublicationAuthors(c)).toMatch(/^"Edge AI" is claimed by another co-author\./);
+    expect(normalizePublicationAuthors(c)).toBeNull();
+    expect(c.cat2Conferences[0].claimedBySelf).toBe(false); // preserved for the record, not used to block
   });
 
   it('lets a draft in progress save (unanswered, or no claim yet)', () => {

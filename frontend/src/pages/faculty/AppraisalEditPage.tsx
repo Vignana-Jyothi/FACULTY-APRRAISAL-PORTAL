@@ -16,7 +16,7 @@ import {
   sponsoredProjectRowScore, consultancyRowScore, outcomeRowScore, trainingRowScore,
   type PublicationKind, type ScoreBreakdown,
 } from '../../utils/scoring';
-import { withAuthorList, publicationClaimConflict } from '../../utils/authors';
+import { withAuthorList } from '../../utils/authors';
 import { AuthorListField, PublicationClaimFields } from '../../components/AuthorListField';
 import { sponsoredProjectWarnings } from '../../utils/sponsoredProjects';
 import { patentWarnings } from '../../utils/patents';
@@ -349,14 +349,6 @@ export default function AppraisalEditPage() {
       await prev;
       if (!silent) setSaving(true);
       const values = deNan(getValues());
-      // A 2.1 paper claimed by another co-author cannot be saved (the server
-      // refuses it too). Say so even on a silent autosave, or a step change
-      // would just stall.
-      const conflict = publicationClaimConflict(values);
-      if (conflict) {
-        toast.error(conflict);
-        throw Object.assign(new Error(conflict), { shown: true });
-      }
       const { clLeaves, elLeaves, hplLeaves, odLeaves, otherLeaves, higherQualAcquired, ...categories } = values;
       await appraisalApi.update(id!, {
         leaveData: { clLeaves, elLeaves, hplLeaves, odLeaves, otherLeaves, higherQualAcquired },

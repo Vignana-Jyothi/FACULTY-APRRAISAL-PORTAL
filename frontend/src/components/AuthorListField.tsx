@@ -76,7 +76,7 @@ export function PublicationClaimFields({ ownerName, allFromCampus, claimedBySelf
 
       {allFromCampus === true && (
         <div className="mt-2">
-          <div className="text-xs font-medium text-ink-secondary">Only one author may claim this paper. Who claims it?</div>
+          <div className="text-xs font-medium text-ink-secondary">Who is the claiming (primary) author? For records only — it does not change the marks, and a co-author may also enter this paper.</div>
           <div className="mt-1 flex gap-4 text-sm">
             <label className="flex items-center gap-1.5">
               <input type="radio" name={`${name}-claim`} checked={claimedBySelf === true} onChange={() => onChange(true, true)} disabled={readOnly} />
@@ -88,11 +88,10 @@ export function PublicationClaimFields({ ownerName, allFromCampus, claimedBySelf
             </label>
           </div>
           {claimedBySelf === false && (
-            <p className="mt-1 text-xs font-medium text-red-600">
-              Another co-author claims this paper, so only they can enter it. Remove it from your appraisal — it cannot be saved.
+            <p className="mt-1 text-xs text-ink-secondary">
+              Recorded as claimed by a co-author. You can still enter and score this paper.
             </p>
           )}
-          {claimedBySelf == null && <p className="mt-1 text-xs text-amber-700">Choose who claims it to score the paper.</p>}
         </div>
       )}
       {allFromCampus === false && (

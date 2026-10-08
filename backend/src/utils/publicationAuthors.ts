@@ -8,11 +8,11 @@
  * blank names, and keeps the legacy `authors` text in step — the PDF and older
  * readers still use it.
  *
- * It also enforces the one rule the scoring engine cannot: an all-VNRVJIET
- * paper belongs to the author who claims it, so a row claimed by another
- * co-author is refused rather than saved at 0. Everything else (an unanswered
- * campus question, a claim not yet chosen) is a draft in progress and saves;
- * the engine scores it 0 until complete.
+ * The claim is identification only (owner decision revised 2026-10-08): a row
+ * claimed by another co-author saves and scores the same, and a co-author may
+ * enter the same paper in their own appraisal. This no longer refuses any row;
+ * it just normalises the fields. An unanswered campus question is a draft in
+ * progress and saves; the engine scores it 0 until answered.
  */
 
 const PUBLICATION_KEYS = ['cat2Journals', 'cat2Conferences', 'cat2ConfBookChapters'] as const;
@@ -42,12 +42,7 @@ export function normalizePublicationAuthors(categories: any): string | null {
 
       // Only an all-VNRVJIET paper has a claim to make.
       if (row.allAuthorsFromCampus !== true && 'claimedBySelf' in row) row.claimedBySelf = null;
-
-      if (row.allAuthorsFromCampus === true && row.claimedBySelf === false) {
-        const title = String(row.title ?? '').trim() || 'A 2.1 paper';
-        return `"${title}" is claimed by another co-author. All its authors are from VNRVJIET, `
-          + 'so only the claiming author can enter it — remove it from your appraisal.';
-      }
+      // The claim no longer gates saving — a co-author may enter the paper too.
     }
   }
   return null;
