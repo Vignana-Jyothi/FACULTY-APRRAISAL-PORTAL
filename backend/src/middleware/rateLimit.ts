@@ -1,4 +1,25 @@
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import type { Request } from 'express';
+import { verifyAccessToken } from '../utils/jwt';
+
+// Rate-limit key: logged-in users by their account id, everyone else by IP.
+// generalLimiter runs before `authenticate`, so we decode the Bearer token
+// here ourselves. On campus, hundreds of users share one public NAT IP — an
+// IP-only key would make them all share a single request budget. Keying by
+// user id gives each person their own budget; only pre-login traffic (which is
+// little) falls back to the shared IP key.
+function userOrIpKey(req: Request): string {
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    try {
+      const { userId } = verifyAccessToken(authHeader.slice(7));
+      if (userId) return `user:${userId}`;
+    } catch {
+      // invalid/expired token — fall through to IP
+    }
+  }
+  return `ip:${ipKeyGenerator(req.ip ?? '')}`;
+}
 
 // Stricter limits on auth endpoints — prevents brute force
 export const authLimiter = rateLimit({
@@ -23,9 +44,12 @@ export const otpLimiter = rateLimit({
 });
 
 // General API limiter — looser. Disabled under test (supertest hammers from one IP).
+// Keyed per user (or per IP when not logged in) so a whole campus behind one
+// shared public IP isn't throttled as if it were a single client.
 export const generalLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 min
-  max: 120, // 120 req / IP / min
+  max: 300, // 300 req / user / min
+  keyGenerator: userOrIpKey,
   standardHeaders: true,
   legacyHeaders: false,
   skip: () => process.env.NODE_ENV === 'test',
