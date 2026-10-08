@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import { Quarter } from '@prisma/client';
+import { Quarter, FeedbackPeriod } from '@prisma/client';
 import prisma from '../utils/prismaClient';
 import { enqueueEmail } from '../services/emailService';
 import { renderTemplate, TEMPLATE_SUBJECTS } from '../services/emailTemplates';
@@ -9,6 +9,14 @@ import { categoryRemarks } from '../services/categoryRemarks';
 import { targetStatus, targetEvidence } from '../services/targetStatus';
 import { countedItems } from '../services/trackingEngine';
 import { voidExpiredProofs } from './proofDeadline';
+import { sameIndiaDay, dayAfterInIndia } from '../services/deptReviewWindow';
+import { generateNarrative } from '../services/feedbackNarrative';
+import { feedbackIssuedKey } from '../services/emailKeys';
+
+// Faculty-facing period label for the HoD feedback mail subject.
+const PERIOD_LABEL: Record<FeedbackPeriod, string> = {
+  Q1: 'Quarter 1 (Jul-Sep)', Q2: 'Quarter 2 (Oct-Dec)', Q3: 'Quarter 3 (Jan-Mar)', Q4: 'Quarter 4 (Apr-Jun)', ANNUAL: 'Annual',
+};
 
 /**
  * Quarterly criteria-tracking scheduler. On the last day of each fixed calendar
@@ -355,15 +363,123 @@ export async function runDueReviewWindows(
   return { windows: due.length, faculty, held };
 }
 
+// The department of a loaded item (TRACKING_INCLUDE carries user.departmentId).
+function itemDept(item: YearItem): string | null {
+  return (item.sub as any)?.user?.departmentId ?? null;
+}
+
+// HoD feedback mail (feedback_issued) for one department's faculty. If the HoD
+// already issued the quarter's feedback it mails that; if not, it auto-issues a
+// draft generated from the faculty's own standing so every faculty still gets
+// their qualitative feedback the day after the window. The dedupe key is keyed
+// on the feedback id + text, so a later re-issue with the same text is a no-op.
+async function enqueueDeptHodFeedback(items: YearItem[], yearLabel: string, quarter: Quarter): Promise<number> {
+  const period = quarter as unknown as FeedbackPeriod; // Q1-Q4 share enum values
+  let queued = 0;
+  for (const { sub, row } of items) {
+    try {
+      const existing = await prisma.feedback.findUnique({
+        where: { submissionId_period: { submissionId: sub.id, period } },
+      });
+      let fb = existing;
+      if (!fb || fb.status !== 'ISSUED') {
+        const narrative = generateNarrative({ requirements: row.eligibility?.requirements ?? [] });
+        fb = await prisma.feedback.upsert({
+          where: { submissionId_period: { submissionId: sub.id, period } },
+          create: {
+            submissionId: sub.id, period, userId: row.faculty.id, academicYearId: sub.academicYearId,
+            snapshot: { auto: true } as any, ...narrative, status: 'ISSUED', issuedAt: new Date(),
+          },
+          update: { ...narrative, status: 'ISSUED', issuedAt: new Date() },
+        });
+      }
+      const id = await enqueueEmail({
+        toUserId: row.faculty.id,
+        template: 'feedback_issued',
+        payload: { name: row.faculty.name, year: yearLabel, submissionId: sub.id, period, periodLabel: PERIOD_LABEL[period] },
+        dedupeKey: feedbackIssuedKey(fb.id, [fb.strengths, fb.improvements, fb.growthTargets]),
+        honorOptIn: true,
+      });
+      if (id) queued++;
+    } catch (e) {
+      console.error('[email] enqueue feedback_issued (dept window) failed:', e);
+    }
+  }
+  return queued;
+}
+
+/**
+ * Per-department quarterly mails (2026-10-08). The day AFTER a department's
+ * review window ends, this fires that department's two mails — the automated
+ * Cat 1-5 snapshot feedback and the HoD feedback — to that department only, so
+ * departments with different windows never mail campus-wide at once. Auto-fires
+ * with no arming (owner decision 2026-10-08); the kill switch still applies.
+ */
+export async function runDueDeptReviewWindows(
+  at: Date = new Date(),
+  scope?: { academicYearIds?: string[] },
+) {
+  if ((process.env.QUARTERLY_AUTOSEND ?? 'true').toLowerCase() === 'false') {
+    console.log('[cron] Dept review windows skipped — QUARTERLY_AUTOSEND=false');
+    return { windows: 0, faculty: 0, skipped: true as const };
+  }
+
+  const windows = await prisma.deptReviewWindow.findMany({
+    where: { enabled: true, ...(scope?.academicYearIds ? { academicYearId: { in: scope.academicYearIds } } : {}) },
+  });
+  // Due the day AFTER the window ends, once.
+  const due = windows.filter(
+    (w) => sameIndiaDay(dayAfterInIndia(new Date(w.endDate)), at) && (!w.lastMailAt || !sameIndiaDay(new Date(w.lastMailAt), at))
+  );
+  if (!due.length) return { windows: 0, faculty: 0 };
+
+  // Load each academic year's faculty once, then slice per department.
+  const byYear = new Map<string, Awaited<ReturnType<typeof loadYearItems>>>();
+  let faculty = 0;
+  for (const w of due) {
+    if (!byYear.has(w.academicYearId)) byYear.set(w.academicYearId, await loadYearItems(w.academicYearId));
+    const loaded = byYear.get(w.academicYearId);
+    if (!loaded) { await prisma.deptReviewWindow.update({ where: { id: w.id }, data: { lastMailAt: at } }); continue; }
+
+    const deptItems = loaded.items.filter((i) => itemDept(i) === w.departmentId);
+    // Snapshot this department's standing for the quarter.
+    for (const { row } of deptItems) {
+      await prisma.trackingSnapshot.upsert({
+        where: { userId_academicYearId_quarter: { userId: row.faculty.id, academicYearId: w.academicYearId, quarter: w.quarter } },
+        create: {
+          userId: row.faculty.id, academicYearId: w.academicYearId, quarter: w.quarter,
+          cadre: row.cadre ?? null, expYears: row.expYears, actuals: row.actuals as any,
+          eligible: row.eligibility.eligible, tier: row.tier ?? null,
+        },
+        update: {
+          cadre: row.cadre ?? null, expYears: row.expYears, actuals: row.actuals as any,
+          eligible: row.eligibility.eligible, tier: row.tier ?? null,
+        },
+      });
+    }
+    // Mail 1: automated Cat 1-5 snapshot feedback (+ any HoD review comments).
+    await enqueueQuarterly(await selectMailable(deptItems, w.academicYearId, w.quarter), w.academicYearId, loaded.year.label, w.quarter);
+    // Mail 2: HoD per-period feedback.
+    await enqueueDeptHodFeedback(deptItems, loaded.year.label, w.quarter);
+
+    await prisma.deptReviewWindow.update({ where: { id: w.id }, data: { lastMailAt: at } });
+    faculty += deptItems.length;
+    console.log(`[cron] Dept window ${w.quarter} dept ${w.departmentId} fired — ${deptItems.length} faculty (2 mails each)`);
+  }
+  console.log(`[cron] Dept review windows fired: ${due.length} window(s), ${faculty} faculty`);
+  return { windows: due.length, faculty };
+}
+
 export function startQuarterlySnapshotCron() {
-  // Daily 09:00 — fire any enabled review window ending today. Dean-set
-  // windows take effect without a restart (the checker reads them each run).
+  // Daily 09:00 — fire any department review window whose end was yesterday.
+  // Per-department, auto-fires without arming (2026-10-08). HoD-set windows take
+  // effect without a restart (the checker reads them each run).
   cron.schedule('0 9 * * *', async () => {
-    try { await runDueReviewWindows(); } catch (e) { console.error('[cron] Review window error:', e); }
+    try { await runDueDeptReviewWindows(); } catch (e) { console.error('[cron] Dept review window error:', e); }
     // Unblock appraisals stalled on a rejected proof nobody fixed.
     try { await voidExpiredProofs(); } catch (e) { console.error('[cron] Proof deadline error:', e); }
   });
-  console.log('[cron] Review-window checker scheduled (daily 09:00)');
+  console.log('[cron] Dept review-window checker scheduled (daily 09:00)');
 }
 
 // Manual trigger (dean/principal "Run snapshot now").

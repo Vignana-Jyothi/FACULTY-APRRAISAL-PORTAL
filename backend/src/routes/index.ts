@@ -30,6 +30,7 @@ import * as audit from '../controllers/auditController';
 import * as upload from '../controllers/uploadController';
 import * as cadreTarget from '../controllers/cadreTargetController';
 import * as reviewWindow from '../controllers/reviewWindowController';
+import * as deptReviewWindow from '../controllers/deptReviewWindowController';
 import * as verification from '../controllers/verificationController';
 import * as draftReview from '../controllers/draftReviewController';
 import * as tracking from '../controllers/trackingController';
@@ -201,6 +202,12 @@ router.get('/admin/review-windows/:id/preview', authenticate, roleGuard(CONFIG),
 router.post('/admin/review-windows/:id/arm', authenticate, roleGuard(CONFIG), reviewWindow.armReviewWindow);
 router.post('/admin/review-windows/:id/disarm', authenticate, roleGuard(CONFIG), reviewWindow.disarmReviewWindow);
 router.post('/admin/review-windows/:id/release', authenticate, roleGuard(CONFIG), reviewWindow.releaseReviewWindow);
+
+// W8b — per-department review windows, set by the department's HoD inside the
+// dean's quarter bounds (dean/principal may set any department's too).
+router.get('/dept-review-windows', authenticate, roleGuard([RoleType.HOD, ...CONFIG, ...SEES_ALL]), deptReviewWindow.listDeptReviewWindows);
+router.put('/dept-review-windows', authenticate, roleGuard([RoleType.HOD, ...CONFIG, ...SEES_ALL]), deptReviewWindow.upsertDeptReviewWindow);
+router.delete('/dept-review-windows/:id', authenticate, roleGuard([RoleType.HOD, ...CONFIG, ...SEES_ALL]), deptReviewWindow.deleteDeptReviewWindow);
 
 // W6 — HoD feedback, per period (four quarters + the final annual).
 router.get('/appraisals/:id/feedbacks', authenticate, feedback.listFeedbacks);

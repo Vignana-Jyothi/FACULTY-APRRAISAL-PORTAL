@@ -19,6 +19,7 @@ import AdminAcademicYearsPage from './pages/admin/AdminAcademicYearsPage';
 import AdminCadreTargetsPage from './pages/admin/AdminCadreTargetsPage';
 import AdminInchargesPage from './pages/admin/AdminInchargesPage';
 import AdminReviewWindowsPage from './pages/admin/AdminReviewWindowsPage';
+import DeptReviewWindowsPage from './pages/hod/DeptReviewWindowsPage';
 import AdminAppraisalsPage from './pages/admin/AdminAppraisalsPage';
 import AdminDepartmentsPage from './pages/admin/AdminDepartmentsPage';
 import AdminReportsPage from './pages/admin/AdminReportsPage';
@@ -88,6 +89,10 @@ export default function App() {
         {/* HoD-only: appoint department reviewers (incharges) in their own dept. */}
         <Route path="/department/reviewers" element={
           <ProtectedRoute roles={['HOD']}><DeptReviewersPage /></ProtectedRoute>
+        } />
+        {/* HoD (dean/principal too): set the department's review week per quarter. */}
+        <Route path="/department/review-windows" element={
+          <ProtectedRoute roles={['HOD', 'DEAN', 'PRINCIPAL']}><DeptReviewWindowsPage /></ProtectedRoute>
         } />
         {/* Drafts in progress: the department checks proofs on a draft during
             the year and the HoD notes a provisional draft review. Its own path, so

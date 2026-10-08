@@ -178,6 +178,9 @@ export default function AppraisalEditPage() {
   const [submission, setSubmission] = useState<any>(null);
   const [hodNote, setHodNote] = useState<SharedDraftNote | null>(null);
   const [saving, setSaving] = useState(false);
+  // Set when a save is rejected because the department's review week froze the
+  // draft (HTTP 423). Shown as a banner; it clears on the next successful save.
+  const [frozen, setFrozen] = useState<string | null>(null);
   const [score, setScore] = useState<any>(null);
   const [scoreLoading, setScoreLoading] = useState(false);
   // Each proof's verification state, keyed by its URL, so the status sits next
@@ -355,7 +358,16 @@ export default function AppraisalEditPage() {
         categories: stripBlankRows(categories),
       });
       if (!silent) toast.success('Saved');
+      setFrozen(null);
     } catch (e: any) {
+      // Review-week freeze: the department's window has locked the draft. Show a
+      // persistent banner (even on a silent autosave) so the faculty knows why.
+      if (e?.response?.status === 423) {
+        const msg = e.response.data?.error ?? 'Your appraisal is locked for the review week.';
+        setFrozen(msg);
+        if (!silent) toast.error(msg);
+        throw e;
+      }
       // Only show toast for manual saves; silent autosave errors logged to console.
       if (!silent && !e?.shown) toast.error(e?.response?.data?.error ?? 'Save failed');
       else console.warn('Autosave failed', e);
@@ -697,6 +709,11 @@ export default function AppraisalEditPage() {
 
   return (
     <div className="max-w-4xl">
+      {frozen && (
+        <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <span className="font-semibold">Locked for the review week.</span> {frozen}
+        </div>
+      )}
       <div className="flex items-center gap-2 mb-4">
         <button onClick={() => navigate(-1)} className="text-ink-subtle hover:text-ink-secondary">
           <ArrowLeft size={16} />

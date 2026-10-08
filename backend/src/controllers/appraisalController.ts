@@ -16,6 +16,7 @@ import { dropBlankRows } from '../utils/blankRows';
 import { normalizePublicationAuthors } from '../utils/publicationAuthors';
 import { wouldWipeDraft } from '../utils/wipeGuard';
 import { submitOpensAt, formatOpensAt } from '../services/submitGate';
+import { activeDeptWindow } from '../services/deptReviewWindow';
 
 const FULL_INCLUDE = {
   cat1Courses: true,
@@ -237,6 +238,18 @@ export async function updateAppraisal(req: Request, res: Response) {
   if (sub.userId !== req.user!.id) return res.status(403).json({ error: 'Forbidden' });
   if (sub.status !== SubmissionStatus.DRAFT) {
     return res.status(400).json({ error: 'Only DRAFT submissions can be edited' });
+  }
+
+  // Review-week freeze: while the owner's department has an active review
+  // window, its drafts are read-only (auto-unlocks when the window ends).
+  const owner = await prisma.user.findUnique({ where: { id: sub.userId }, select: { departmentId: true } });
+  const frozen = await activeDeptWindow(owner?.departmentId, sub.academicYearId);
+  if (frozen) {
+    return res.status(423).json({
+      error: `Your appraisal is locked for the ${frozen.quarter} review week `
+        + `(until ${frozen.endDate.toISOString().slice(0, 10)}). It unlocks automatically when the review window ends.`,
+      code: 'REVIEW_WINDOW_FROZEN',
+    });
   }
 
   const { categories, leaveData } = req.body;
