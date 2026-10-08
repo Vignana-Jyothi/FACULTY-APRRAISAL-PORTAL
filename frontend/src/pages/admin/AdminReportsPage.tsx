@@ -132,7 +132,7 @@ export default function AdminReportsPage() {
             <StatTile icon={<CheckCircle2 size={18} />} label="Approved" value={stats.approved} hint={`${stats.total ? ((stats.approved / stats.total) * 100).toFixed(0) : 0}%`} color="success" />
             <StatTile icon={<Users size={18} />} label="Pending Review" value={stats.submitted} color="warning" />
             <StatTile icon={<XCircle size={18} />} label="Rejected" value={stats.rejected} color="danger" />
-            <StatTile icon={<TrendingUp size={18} />} label="Avg Grand Total" value={stats.avgScore.toFixed(1)} hint="/ 550" color="accent" />
+            <StatTile icon={<TrendingUp size={18} />} label="Avg Grand Total" value={stats.avgScore.toFixed(2)} hint="/ 550" color="accent" />
           </div>
 
           {/* Recent submissions */}
@@ -195,7 +195,7 @@ export default function AdminReportsPage() {
                     <td className="px-5 py-2.5 text-success-500 font-medium">{d.approved}</td>
                     <td className="px-5 py-2.5 text-danger-500 font-medium">{d.rejected}</td>
                     <td className="px-5 py-2.5 text-ink-secondary">{d.total ? ((d.approved / d.total) * 100).toFixed(0) : 0}%</td>
-                    <td className="px-5 py-2.5 text-primary-700 font-semibold">{d.avgScore.toFixed(1)}</td>
+                    <td className="px-5 py-2.5 text-primary-700 font-semibold">{d.avgScore.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>

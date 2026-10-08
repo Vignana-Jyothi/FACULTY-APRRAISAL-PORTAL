@@ -155,7 +155,7 @@ export default function CriteriaCompare({ academicYearId, dept }: { academicYear
                 <td className="px-4 py-2.5 font-mono text-xs text-ink-secondary">{r.faculty.employeeCode}</td>
                 <td className="px-4 py-2.5 text-ink-secondary">{r.faculty.department?.name ?? '—'}</td>
                 <td className="px-4 py-2.5 text-primary-700 font-semibold">
-                  {typeof v === 'number' ? v.toFixed(1) : '—'}{crit.max ? <span className="text-ink-subtle font-normal"> / {crit.max}</span> : null}
+                  {typeof v === 'number' ? v.toFixed(2) : '—'}{crit.max ? <span className="text-ink-subtle font-normal"> / {crit.max}</span> : null}
                 </td>
                 <td className="px-4 py-2.5">
                   <FacultyUploadsButton submissionId={r.submissionId} facultyName={r.faculty.name} />

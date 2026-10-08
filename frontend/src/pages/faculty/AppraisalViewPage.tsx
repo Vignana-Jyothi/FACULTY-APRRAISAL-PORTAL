@@ -130,7 +130,7 @@ export default function AppraisalViewPage() {
               { label: 'Supplementary', val: score.cat5.total, max: 50 },
             ].map(({ label, val, max }) => (
               <div key={label} className="bg-surface-muted rounded p-3 text-center">
-                <div className="text-lg font-bold text-primary-700">{val.toFixed(1)}</div>
+                <div className="text-lg font-bold text-primary-700">{val.toFixed(2)}</div>
                 <div className="text-xs text-ink-muted">{label}</div>
                 <div className="text-xs text-ink-subtle">/ {max}</div>
               </div>
@@ -138,7 +138,7 @@ export default function AppraisalViewPage() {
           </div>
           <div className="mt-3 text-center">
             <span className="text-sm font-medium text-ink-secondary">Total: </span>
-            <span className="text-lg font-bold text-primary-600">{score.selfTotal.toFixed(1)}</span>
+            <span className="text-lg font-bold text-primary-600">{score.selfTotal.toFixed(2)}</span>
             <span className="text-sm text-ink-subtle"> / 500</span>
           </div>
         </Card>
@@ -171,14 +171,14 @@ export default function AppraisalViewPage() {
                     {label}
                     {changed && (
                       <span className="ml-1 text-[10px] text-accent-600">
-                        ({rev > self ? '+' : ''}{(rev - self).toFixed(1)})
+                        ({rev > self ? '+' : ''}{(rev - self).toFixed(2)})
                       </span>
                     )}
                   </span>
                   <span className="flex gap-4 text-xs">
-                    <span className="w-24 text-right text-ink-secondary">{self.toFixed(1)} / {max}</span>
+                    <span className="w-24 text-right text-ink-secondary">{self.toFixed(2)} / {max}</span>
                     <span className={`w-24 text-right font-medium ${changed ? 'text-accent-600' : 'text-ink-primary'}`}>
-                      {(rev ?? self).toFixed(1)} / {max}
+                      {(rev ?? self).toFixed(2)} / {max}
                     </span>
                   </span>
                 </div>
@@ -191,9 +191,9 @@ export default function AppraisalViewPage() {
                     actually judged. Falls back to the live figure for reviews
                     written before that was stored. */}
                 <span className="w-24 text-right text-ink-secondary">
-                  {(review.selfTotalScore ?? score.selfTotal).toFixed(1)} / 500
+                  {(review.selfTotalScore ?? score.selfTotal).toFixed(2)} / 500
                 </span>
-                <span className="w-24 text-right text-primary-700">{review.totalScore.toFixed(1)} / 500</span>
+                <span className="w-24 text-right text-primary-700">{review.totalScore.toFixed(2)} / 500</span>
               </span>
             </div>
           </div>
@@ -213,12 +213,12 @@ export default function AppraisalViewPage() {
             {CAT6_FIELDS.map(([key, label]) => (
               <div key={key} className="flex items-center justify-between text-xs">
                 <span className="text-ink-secondary">{label}</span>
-                <span className="text-ink-primary font-medium">{(review[key] ?? 0).toFixed(1)} / 10</span>
+                <span className="text-ink-primary font-medium">{(review[key] ?? 0).toFixed(2)} / 10</span>
               </div>
             ))}
             <div className="border-t border-surface-border pt-2 mt-2 flex items-center justify-between font-medium">
               <span className="text-sm text-ink-secondary">Grand Total</span>
-              <span className="text-sm text-primary-700">{review.grandTotal.toFixed(1)} / 550</span>
+              <span className="text-sm text-primary-700">{review.grandTotal.toFixed(2)} / 550</span>
             </div>
           </div>
           <p className="text-[10px] text-ink-muted mt-3">

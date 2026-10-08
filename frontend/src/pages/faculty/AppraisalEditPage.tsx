@@ -107,6 +107,27 @@ const ROW_CONTENT_FIELDS: Record<string, string[]> = {
 const hasText = (row: any, fields: string[]) =>
   fields.some((f) => typeof row?.[f] === 'string' && /[a-z0-9]/i.test(row[f]));
 
+// ─── Period from start + end dates ───────────────────────────────────────
+// Wherever the form asks for a "period", the faculty pick a start and an end
+// date and the period text (and, for training, the day count) is computed for
+// them. Inclusive day count.
+export function periodDays(s?: string | null, e?: string | null): number | null {
+  if (!s || !e) return null;
+  const sd = new Date(s).getTime();
+  const ed = new Date(e).getTime();
+  if (!Number.isFinite(sd) || !Number.isFinite(ed) || ed < sd) return null;
+  return Math.round((ed - sd) / 86400000) + 1;
+}
+export function periodLabel(s?: string | null, e?: string | null): string {
+  const days = periodDays(s, e);
+  if (days == null) return '';
+  const fmt = (x: string) => new Date(x).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  let dur: string;
+  if (days >= 28) { const m = Math.round((days / 30.44) * 10) / 10; dur = `${m} month${m === 1 ? '' : 's'}`; }
+  else { dur = `${days} day${days === 1 ? '' : 's'}`; }
+  return `${fmt(s!)} – ${fmt(e!)} (${dur})`;
+}
+
 // Remove blank auto-rows from a categories payload (returns a shallow copy).
 function stripBlankRows(categories: any): any {
   const out = { ...categories };
@@ -115,6 +136,18 @@ function stripBlankRows(categories: any): any {
   }
   // Projects have no free-text field — keep only rows with a positive count.
   if (Array.isArray(out.cat1Projects)) out.cat1Projects = out.cat1Projects.filter((p: any) => Number(p?.count) > 0);
+  // Drop transient UI-only keys (the period pickers' _startDate/_endDate) so
+  // they never reach the backend, which would reject unknown columns. Only the
+  // computed period text (and day count) persist.
+  for (const k of Object.keys(out)) {
+    if (!Array.isArray(out[k])) continue;
+    out[k] = out[k].map((r: any) => {
+      if (!r || typeof r !== 'object') return r;
+      const c: any = {};
+      for (const f of Object.keys(r)) if (!f.startsWith('_')) c[f] = r[f];
+      return c;
+    });
+  }
   return out;
 }
 
@@ -124,7 +157,9 @@ function stripBlankRows(categories: any): any {
 // rounded (float artifacts like 15.700000000000001 → 15.7); the underlying
 // `live` value used for logic is never mutated.
 const ScoreBadge = ({ value, max }: { value: number; max: number }) => {
-  const shown = Number.isInteger(value) ? value : Math.round(value * 100) / 100;
+  // Marks are always shown to two decimals (float artifacts like
+  // 15.700000000000001 → 15.70). The underlying value is never mutated.
+  const shown = (Number.isFinite(value) ? value : 0).toFixed(2);
   return (
     <span
       aria-label={`score ${shown} of ${max}`}
@@ -529,6 +564,36 @@ export default function AppraisalEditPage() {
       }}
     />
   );
+
+  // Start + end date pickers that auto-fill a row's "period" text (and, when
+  // given, a day-count field). The dates live in transient _startDate/_endDate
+  // keys that stripBlankRows removes before save — only the computed values
+  // persist, so no schema change. On reload the pickers start empty but the
+  // computed period text is shown (read-only below).
+  const periodDates = (prefix: string, outField: string, daysField?: string) => {
+    const recompute = () => {
+      const s = getValues(`${prefix}._startDate` as any) as string | undefined;
+      const e = getValues(`${prefix}._endDate` as any) as string | undefined;
+      setValue(`${prefix}.${outField}` as any, periodLabel(s, e) as any, { shouldDirty: true });
+      if (daysField) setValue(`${prefix}.${daysField}` as any, (periodDays(s, e) ?? 0) as any, { shouldDirty: true });
+    };
+    return (
+      <>
+        <div>
+          <label className={labelCls}>Start Date</label>
+          <input type="date" readOnly={readOnly} {...register(`${prefix}._startDate` as any, { onChange: recompute })} className={inputCls} />
+        </div>
+        <div>
+          <label className={labelCls}>End Date</label>
+          <input type="date" readOnly={readOnly} {...register(`${prefix}._endDate` as any, { onChange: recompute })} className={inputCls} />
+        </div>
+        <div>
+          <label className={labelCls}>Period (auto)</label>
+          <input readOnly {...register(`${prefix}.${outField}` as any)} className={`${inputCls} bg-surface-muted`} placeholder="set the dates" />
+        </div>
+      </>
+    );
+  };
 
   // 2.1 controls shared by journals (A), conference proceedings (B) and
   // conference book chapters (C).
@@ -1388,7 +1453,7 @@ export default function AppraisalEditPage() {
                       <div><label className={labelCls}>Date of Application</label><input type="date" {...register(`cat2Projects.${i}.dateOfApplication`)} className={inputCls} /></div>
                     ) : (
                       <>
-                        <div><label className={labelCls}>Project Duration &amp; Period</label><input {...register(`cat2Projects.${i}.durationPeriod`)} className={inputCls} placeholder="e.g. 3 years, Apr 2024 – Mar 2027" /></div>
+                        {periodDates(`cat2Projects.${i}`, 'durationPeriod')}
                         <div><label className={labelCls}>Date of Grant / Sanction</label><input type="date" {...register(`cat2Projects.${i}.dateOfGrant`)} className={inputCls} /></div>
                       </>
                     )}
@@ -1496,7 +1561,11 @@ export default function AppraisalEditPage() {
             <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
               <summary className="flex items-center justify-between cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
                 <h2 className="font-semibold text-ink-primary before:content-['▸'] before:mr-2 before:inline-block before:text-ink-muted before:transition-transform group-open:before:rotate-90">2.9 Industry Linkages (contd.)</h2>
-                <ScoreBadge value={live.cat2.linkages} max={10} />
+                {/* No separate badge here — 2.9 is one subsection; the combined
+                    /10 is shown on the "2.9 Academic / Research Institution
+                    Collaborations" header above, so a second badge misled people
+                    into thinking industry linkages add another 10. */}
+                <span className="text-xs text-ink-muted whitespace-nowrap">counted in 2.9 above</span>
               </summary>
               <p className="text-xs text-ink-muted mb-3">Collaborations with a company or industry body. Scored together with the institution collaborations above — 5 per linkage with an outcome, 10 max across both.</p>
               {industryLinkages.fields.map((field, i) => {
@@ -1579,7 +1648,7 @@ export default function AppraisalEditPage() {
                   <div><label className={labelCls}>Paper Title</label><input {...register(`cat3ConferencesAttended.${i}.paperTitle`)} className={inputCls} /></div>
                   <div><label className={labelCls}>Authors</label><input {...register(`cat3ConferencesAttended.${i}.authors`)} className={inputCls} /></div>
                   <div><label className={labelCls}>Conference / Seminar / Workshop</label><input {...register(`cat3ConferencesAttended.${i}.conferenceName`)} className={inputCls} /></div>
-                  <div><label className={labelCls}>Period</label><input {...register(`cat3ConferencesAttended.${i}.period`)} className={inputCls} /></div>
+                  {periodDates(`cat3ConferencesAttended.${i}`, 'period')}
                   {proofField(`cat3ConferencesAttended.${i}.proofFile`, 'Certificate')}
                   <button type="button" onClick={() => conferencesAttended.remove(i)} className="text-red-400 text-xs">Remove</button>
                 </div>
@@ -1595,7 +1664,7 @@ export default function AppraisalEditPage() {
               {organised.fields.map((field, i) => (
                 <div key={field.id} className="grid grid-cols-2 gap-3 mb-2">
                   <div><label className={labelCls}>Title</label><input {...register(`cat3Organised.${i}.title`)} className={inputCls} /></div>
-                  <div><label className={labelCls}>Period</label><input {...register(`cat3Organised.${i}.period`)} className={inputCls} /></div>
+                  {periodDates(`cat3Organised.${i}`, 'period')}
                   <div><label className={labelCls}>Sponsor</label><input {...register(`cat3Organised.${i}.sponsor`)} className={inputCls} /></div>
                   <div><label className={labelCls}>Scope</label>
                     <select {...register(`cat3Organised.${i}.scope`)} className={inputCls}>
@@ -1628,7 +1697,7 @@ export default function AppraisalEditPage() {
                     </div>
                     <div><label className={labelCls}>Program Name</label><input {...register(`cat3ResourcePerson.${i}.programName`)} className={inputCls} /></div>
                     <div><label className={labelCls}>Topic</label><input {...register(`cat3ResourcePerson.${i}.topic`)} className={inputCls} /></div>
-                    <div><label className={labelCls}>Duration</label><input {...register(`cat3ResourcePerson.${i}.duration`)} className={inputCls} /></div>
+                    {periodDates(`cat3ResourcePerson.${i}`, 'duration')}
                     <div><label className={labelCls}>Venue</label><input {...register(`cat3ResourcePerson.${i}.venue`)} className={inputCls} /></div>
                     <div><label className={labelCls}>Organised By</label><input {...register(`cat3ResourcePerson.${i}.organisedBy`)} className={inputCls} /></div>
                     {proofField(`cat3ResourcePerson.${i}.proofFile`, 'Certificate')}
@@ -1658,7 +1727,7 @@ export default function AppraisalEditPage() {
                         <option value="NATIONAL">National</option><option value="INTERNATIONAL">International</option>
                       </select>
                     </div>
-                    <div><label className={labelCls}>Date / Duration</label><input {...register(`cat3Editorial.${i}.dateDuration`)} className={inputCls} /></div>
+                    {periodDates(`cat3Editorial.${i}`, 'dateDuration')}
                     {proofField(`cat3Editorial.${i}.proofFile`)}
                   </div>
                   <button type="button" onClick={() => editorial.remove(i)} className="text-red-400 text-xs mt-2">Remove</button>
@@ -1677,14 +1746,14 @@ export default function AppraisalEditPage() {
               {training.fields.map((field, i) => (
                 <div key={field.id} className="grid grid-cols-3 gap-3 mb-2">
                   <div><label className={labelCls}>Name</label><input {...register(`cat3Training.${i}.name`)} className={inputCls} /></div>
-                  <div><label className={labelCls}>Period</label><input {...register(`cat3Training.${i}.period`)} className={inputCls} /></div>
-                  <div><label className={labelCls}>Duration (Days)</label><input type="number" min={0} {...register(`cat3Training.${i}.durationDays`, { valueAsNumber: true })} className={inputCls} /></div>
+                  {periodDates(`cat3Training.${i}`, 'period', 'durationDays')}
+                  <div><label className={labelCls}>Duration (Days, auto)</label><input type="number" readOnly {...register(`cat3Training.${i}.durationDays`, { valueAsNumber: true })} className={`${inputCls} bg-surface-muted`} /></div>
                   {proofField(`cat3Training.${i}.proofFile`, 'Certificate')}
                   <button type="button" onClick={() => training.remove(i)} className="text-red-400 text-xs">Remove</button>
                   <RowNote r={trainingRowScore((watchedValues as any)?.cat3Training?.[i])} />
                 </div>
               ))}
-              {addRowBtn('Add Training', () => training.append({ name: '', period: '', durationDays: 5 }))}
+              {addRowBtn('Add Training', () => training.append({ name: '', period: '', durationDays: 0 }))}
             </details>
 
             <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
@@ -1736,7 +1805,7 @@ export default function AppraisalEditPage() {
                     </select>
                   </div>
                   <div><label className={labelCls}>Work Involved</label><input {...register(`cat4AdminResp.${i}.workInvolved`)} className={inputCls} /></div>
-                  <div><label className={labelCls}>Period</label><input {...register(`cat4AdminResp.${i}.period`)} className={inputCls} /></div>
+                  {periodDates(`cat4AdminResp.${i}`, 'period')}
                   <button type="button" onClick={() => adminResp.remove(i)} className="text-red-400 text-xs">Remove</button>
                 </div>
               ))}
@@ -1751,7 +1820,7 @@ export default function AppraisalEditPage() {
               {studentAct.fields.map((field, i) => (
                 <div key={field.id} className="grid grid-cols-2 gap-3 mb-2">
                   <div><label className={labelCls}>Activity</label><input {...register(`cat4StudentAct.${i}.activityName`)} className={inputCls} /></div>
-                  <div><label className={labelCls}>Period</label><input {...register(`cat4StudentAct.${i}.period`)} className={inputCls} /></div>
+                  {periodDates(`cat4StudentAct.${i}`, 'period')}
                   <button type="button" onClick={() => studentAct.remove(i)} className="text-red-400 text-xs">Remove</button>
                 </div>
               ))}
@@ -1845,7 +1914,7 @@ export default function AppraisalEditPage() {
                     <div><label className={labelCls}>Industry / Institute</label><input {...register(`cat5Internships.${i}.industryOrInst`)} className={inputCls} /></div>
                     <div><label className={labelCls}>Student Batch</label><input {...register(`cat5Internships.${i}.studentBatch`)} className={inputCls} /></div>
                     <div><label className={labelCls}>Internship Details</label><input {...register(`cat5Internships.${i}.internshipDetails`)} className={inputCls} /></div>
-                    <div><label className={labelCls}>Period</label><input {...register(`cat5Internships.${i}.period`)} className={inputCls} /></div>
+                    {periodDates(`cat5Internships.${i}`, 'period')}
                   </div>
                   <button type="button" onClick={() => internships.remove(i)} className="text-red-400 text-xs mt-2">Remove</button>
                 </div>

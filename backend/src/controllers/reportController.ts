@@ -188,8 +188,9 @@ export async function exportReport(req: Request, res: Response) {
     else if (cur.status !== SubmissionStatus.APPROVED && s.status === SubmissionStatus.APPROVED) picked.set(s.userId, s);
   }
 
+  // Marks are shown to two decimals everywhere.
   const round1 = (n: number | null | undefined) =>
-    typeof n === 'number' && Number.isFinite(n) ? Math.round(n * 10) / 10 : '';
+    typeof n === 'number' && Number.isFinite(n) ? Math.round(n * 100) / 100 : '';
 
   const rows = [...picked.values()]
     .sort((a, b) => (((a as any).user.name ?? '') as string).localeCompare((b as any).user.name ?? ''))

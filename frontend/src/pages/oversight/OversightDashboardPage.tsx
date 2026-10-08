@@ -112,7 +112,7 @@ export default function OversightDashboardPage() {
             <StatTile
               icon={<TrendingUp size={18} />}
               label={data.averageScore.outOf === 550 ? 'Avg grand total' : 'Avg reviewed total'}
-              value={data.averageScore.value != null ? data.averageScore.value.toFixed(1) : '—'}
+              value={data.averageScore.value != null ? data.averageScore.value.toFixed(2) : '—'}
               hint={`/ ${data.averageScore.outOf} · ${data.averageScore.reviewed} reviewed`}
               color="primary"
             />

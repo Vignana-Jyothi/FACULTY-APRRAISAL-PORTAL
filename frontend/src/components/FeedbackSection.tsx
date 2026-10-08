@@ -25,8 +25,8 @@ function SnapshotSummary({ s }: { s: FeedbackSnapshot }) {
       </div>
       {s.scores && (
         <div className="text-ink-secondary">
-          <span className="text-ink-muted">Self-appraisal:</span> C1 {s.scores.cat1.toFixed(1)} · C2 {s.scores.cat2.toFixed(1)} · C3 {s.scores.cat3.toFixed(1)} · C4 {s.scores.cat4.toFixed(1)} · C5 {s.scores.cat5.toFixed(1)} ·
-          <span className="font-semibold text-primary-700"> Total {s.scores.total.toFixed(1)} / 500</span>
+          <span className="text-ink-muted">Self-appraisal:</span> C1 {s.scores.cat1.toFixed(2)} · C2 {s.scores.cat2.toFixed(2)} · C3 {s.scores.cat3.toFixed(2)} · C4 {s.scores.cat4.toFixed(2)} · C5 {s.scores.cat5.toFixed(2)} ·
+          <span className="font-semibold text-primary-700"> Total {s.scores.total.toFixed(2)} / 500</span>
         </div>
       )}
       {s.requirements?.length > 0 && (

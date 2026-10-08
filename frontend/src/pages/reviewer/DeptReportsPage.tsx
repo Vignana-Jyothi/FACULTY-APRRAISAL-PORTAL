@@ -223,7 +223,7 @@ export default function DeptReportsPage() {
         <StatTile
           icon={<TrendingUp size={18} />}
           label={showGrand ? 'Avg Grand Total' : 'Avg Reviewed Total'}
-          value={stats.avgScore.toFixed(1)}
+          value={stats.avgScore.toFixed(2)}
           hint={showGrand ? '/ 550' : '/ 500'}
           color="accent"
         />
@@ -261,7 +261,7 @@ export default function DeptReportsPage() {
               <tbody className="divide-y divide-surface-border">
                 {reviews.map((r, i) => {
                   const cat6 = (r.cat6Punctuality ?? 0) + (r.cat6Professionalism ?? 0) + (r.cat6Willingness ?? 0) + (r.cat6Cordiality ?? 0) + (r.cat6Classroom ?? 0);
-                  const fmt = (n: any) => (typeof n === 'number' ? n.toFixed(1) : '—');
+                  const fmt = (n: any) => (typeof n === 'number' ? n.toFixed(2) : '—');
                   return (
                     <tr key={r.id} className={i % 2 === 1 ? 'bg-surface-muted/50' : ''}>
                       <td className="px-4 py-2.5">
@@ -278,7 +278,7 @@ export default function DeptReportsPage() {
                       <td className="px-3 py-2.5 text-ink-secondary">{fmt(r.cat4Score)}</td>
                       <td className="px-3 py-2.5 text-ink-secondary">{fmt(r.cat5Score)}</td>
                       <td className="px-3 py-2.5 font-medium text-ink-primary">{fmt(r.totalScore)}</td>
-                      {showGrand && <td className="px-3 py-2.5 text-ink-secondary">{cat6.toFixed(1)}</td>}
+                      {showGrand && <td className="px-3 py-2.5 text-ink-secondary">{cat6.toFixed(2)}</td>}
                       {showGrand && <td className="px-3 py-2.5 text-primary-700 font-semibold">{fmt(r.grandTotal)}</td>}
                       <td className="px-4 py-2.5">
                         <FacultyUploadsButton submissionId={r.submissionId} facultyName={r.submission?.user?.name ?? 'Faculty'} />

@@ -164,8 +164,8 @@ export default function ReviewAppraisalPage({ mode = 'review' }: { mode?: 'revie
     // the reviewer confirm the marks they are locking in.
     if (data.status === 'APPROVED') {
       const total = showCoreValues
-        ? `${(awardedTotal + cat6Total).toFixed(1)} / 550`
-        : `${awardedTotal.toFixed(1)} / 500`;
+        ? `${(awardedTotal + cat6Total).toFixed(2)} / 550`
+        : `${awardedTotal.toFixed(2)} / 500`;
       const ok = window.confirm(
         `Approve this appraisal with a reviewed total of ${total}?
 
@@ -261,12 +261,12 @@ export default function ReviewAppraisalPage({ mode = 'review' }: { mode?: 'revie
                         {label}
                         {changed && (
                           <span className="ml-1 text-[10px] text-accent-600">
-                            ({mark > val ? '+' : ''}{(mark - val).toFixed(1)})
+                            ({mark > val ? '+' : ''}{(mark - val).toFixed(2)})
                           </span>
                         )}
                       </span>
                       <span className="flex gap-4 items-center text-xs">
-                        <span className="w-20 text-right font-medium text-ink-primary">{val.toFixed(1)} / {max}</span>
+                        <span className="w-20 text-right font-medium text-ink-primary">{val.toFixed(2)} / {max}</span>
                         <span className="w-20 flex items-center justify-end gap-1">
                           <input
                             type="number" min="0" max={max} step="0.5"
@@ -285,18 +285,18 @@ export default function ReviewAppraisalPage({ mode = 'review' }: { mode?: 'revie
                     <span className="text-xs text-ink-secondary">Cat 6 — Core Values</span>
                     <span className="flex gap-4 text-xs">
                       <span className="w-20 text-right text-ink-subtle">—</span>
-                      <span className="w-20 text-right font-medium text-ink-primary pr-6">{cat6Total.toFixed(1)} / 50</span>
+                      <span className="w-20 text-right font-medium text-ink-primary pr-6">{cat6Total.toFixed(2)} / 50</span>
                     </span>
                   </div>
                 )}
                 <div className="border-t border-surface-border pt-2 flex items-center justify-between font-medium">
                   <span className="text-sm text-ink-secondary">Total</span>
                   <span className="flex gap-4 text-sm">
-                    <span className="w-20 text-right text-primary-700">{score.selfTotal.toFixed(1)} / 500</span>
+                    <span className="w-20 text-right text-primary-700">{score.selfTotal.toFixed(2)} / 500</span>
                     <span className="w-20 text-right text-primary-700 pr-6">
                       {showCoreValues
-                        ? `${(awardedTotal + cat6Total).toFixed(1)} / 550`
-                        : `${awardedTotal.toFixed(1)} / 500`}
+                        ? `${(awardedTotal + cat6Total).toFixed(2)} / 550`
+                        : `${awardedTotal.toFixed(2)} / 500`}
                     </span>
                   </span>
                 </div>
