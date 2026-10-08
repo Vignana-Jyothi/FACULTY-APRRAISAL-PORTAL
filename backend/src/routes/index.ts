@@ -207,6 +207,9 @@ router.post('/admin/review-windows/:id/release', authenticate, roleGuard(CONFIG)
 // dean's quarter bounds (dean/principal may set any department's too).
 router.get('/dept-review-windows', authenticate, roleGuard([RoleType.HOD, ...CONFIG, ...SEES_ALL]), deptReviewWindow.listDeptReviewWindows);
 router.put('/dept-review-windows', authenticate, roleGuard([RoleType.HOD, ...CONFIG, ...SEES_ALL]), deptReviewWindow.upsertDeptReviewWindow);
+// Phase 2 — HoD inactivity list + manual reminder (before :id so they don't match it).
+router.get('/dept-review-windows/activity', authenticate, roleGuard([RoleType.HOD, ...CONFIG, ...SEES_ALL]), deptReviewWindow.getDeptActivity);
+router.post('/dept-review-windows/remind', authenticate, roleGuard([RoleType.HOD, ...CONFIG, ...SEES_ALL]), deptReviewWindow.remindDeptFaculty);
 router.delete('/dept-review-windows/:id', authenticate, roleGuard([RoleType.HOD, ...CONFIG, ...SEES_ALL]), deptReviewWindow.deleteDeptReviewWindow);
 
 // W6 — HoD feedback, per period (four quarters + the final annual).

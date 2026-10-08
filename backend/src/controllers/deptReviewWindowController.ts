@@ -3,6 +3,7 @@ import { Quarter, RoleType } from '@prisma/client';
 import { z } from 'zod';
 import prisma from '../utils/prismaClient';
 import { CONFIG, SEES_ALL, deptIdsFor, hasAnyRole } from '../utils/roles';
+import { enqueueEmail } from '../services/emailService';
 
 // Per-department review windows (W8, 2026-10-08). The dean defines each
 // quarter's bounds + hard deadline on ReviewWindow; a department's HoD sets
@@ -96,6 +97,102 @@ export async function upsertDeptReviewWindow(req: Request, res: Response) {
     update: { startDate, endDate, ...(enabled === undefined ? {} : { enabled }), setById: req.user!.id, lastMailAt: null },
   });
   return res.json(row);
+}
+
+// A draft is "stale" after this many days without an edit (matches the weekly
+// draft-reminder threshold).
+const STALE_DAYS = 7;
+
+// GET /dept-review-windows/activity?academicYearId=...&departmentId=...
+// The HoD's inactivity list: every faculty in the department with their latest
+// draft's last-edit time and a status, so the HoD can see who has gone quiet
+// and nudge them (Phase 2).
+export async function getDeptActivity(req: Request, res: Response) {
+  const academicYearId = typeof req.query.academicYearId === 'string' ? req.query.academicYearId : undefined;
+  if (!academicYearId) return res.status(400).json({ error: 'academicYearId is required' });
+
+  const allowed = allowedDeptIds(req);
+  const filterDept = typeof req.query.departmentId === 'string' ? req.query.departmentId : undefined;
+  if (allowed && filterDept && !allowed.includes(filterDept)) {
+    return res.status(403).json({ error: 'Not your department' });
+  }
+  const deptIds = filterDept ? [filterDept] : allowed; // null => all departments
+
+  const faculty = await prisma.user.findMany({
+    where: {
+      isActive: true,
+      ...(deptIds ? { departmentId: { in: deptIds } } : {}),
+      userRoles: { some: { role: RoleType.FACULTY } },
+    },
+    select: {
+      id: true, name: true, employeeCode: true, email: true, emailOptIn: true, departmentId: true,
+      appraisals: {
+        where: { academicYearId },
+        orderBy: { submissionNumber: 'desc' },
+        take: 1,
+        select: { id: true, status: true, updatedAt: true },
+      },
+    },
+    orderBy: { name: 'asc' },
+  });
+
+  const now = Date.now();
+  const rows = faculty.map((f) => {
+    const sub = f.appraisals[0] ?? null;
+    const daysSinceEdit = sub ? Math.floor((now - new Date(sub.updatedAt).getTime()) / 86400000) : null;
+    const status = !sub ? 'no-submission'
+      : sub.status !== 'DRAFT' ? sub.status.toLowerCase()
+      : (daysSinceEdit ?? 0) >= STALE_DAYS ? 'stale'
+      : 'active';
+    return {
+      userId: f.id, name: f.name, employeeCode: f.employeeCode, email: f.email,
+      optedOut: !f.emailOptIn, hasSubmission: !!sub,
+      lastEditedAt: sub?.updatedAt ?? null, daysSinceEdit, status,
+    };
+  });
+  return res.json({ rows });
+}
+
+const remindSchema = z.object({ userId: z.string().min(1), academicYearId: z.string().min(1) });
+
+// POST /dept-review-windows/remind  { userId, academicYearId }
+// Manual nudge from the HoD to one faculty in their department (alongside the
+// automatic weekly reminder). Deduped to at most one per faculty per day.
+export async function remindDeptFaculty(req: Request, res: Response) {
+  const { userId, academicYearId } = remindSchema.parse(req.body);
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { name: true, departmentId: true, email: true, emailOptIn: true },
+  });
+  if (!target) return res.status(404).json({ error: 'Faculty not found' });
+
+  const allowed = allowedDeptIds(req);
+  if (allowed && (!target.departmentId || !allowed.includes(target.departmentId))) {
+    return res.status(403).json({ error: 'That faculty is not in your department' });
+  }
+  if (!target.email) return res.status(400).json({ error: 'That faculty has no email address on file' });
+
+  if (!target.emailOptIn) {
+    return res.json({ queued: false, message: 'Faculty has opted out of emails' });
+  }
+
+  // At most one manual reminder per faculty per day. enqueueEmail returns the
+  // existing row's id on a dedupe hit, so check for the key ourselves first.
+  const dayStamp = new Date().toISOString().slice(0, 10);
+  const dedupeKey = `manual_draft_reminder:${userId}:${academicYearId}:${dayStamp}`;
+  if (await prisma.emailNotification.findUnique({ where: { dedupeKey }, select: { id: true } })) {
+    return res.json({ queued: false, message: 'Already reminded today' });
+  }
+
+  const year = await prisma.academicYear.findUnique({ where: { id: academicYearId }, select: { label: true } });
+  await enqueueEmail({
+    toUserId: userId,
+    template: 'draft_reminder',
+    payload: { name: target.name, year: year?.label ?? 'the current year' },
+    dedupeKey,
+    honorOptIn: true,
+  });
+  return res.json({ queued: true, message: 'Reminder sent' });
 }
 
 // DELETE /dept-review-windows/:id  (HoD own dept, or dean/principal)

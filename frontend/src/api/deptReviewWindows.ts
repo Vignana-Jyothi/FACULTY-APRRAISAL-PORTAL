@@ -34,6 +34,18 @@ export interface DeptReviewWindowList {
   deanBounds: Partial<Record<Quarter, DeanBound>>;
 }
 
+export interface ActivityRow {
+  userId: string;
+  name: string;
+  employeeCode: string;
+  email: string | null;
+  optedOut: boolean;
+  hasSubmission: boolean;
+  lastEditedAt: string | null;
+  daysSinceEdit: number | null;
+  status: string; // 'no-submission' | 'stale' | 'active' | 'submitted' | 'under_review' | ...
+}
+
 export const deptReviewWindowApi = {
   list: (academicYearId: string, departmentId?: string): Promise<DeptReviewWindowList> =>
     api.get('/dept-review-windows', { params: { academicYearId, departmentId } }).then((r) => r.data),
@@ -41,4 +53,8 @@ export const deptReviewWindowApi = {
     api.put('/dept-review-windows', body).then((r) => r.data),
   remove: (id: string): Promise<void> =>
     api.delete(`/dept-review-windows/${id}`).then(() => undefined),
+  activity: (academicYearId: string, departmentId?: string): Promise<{ rows: ActivityRow[] }> =>
+    api.get('/dept-review-windows/activity', { params: { academicYearId, departmentId } }).then((r) => r.data),
+  remind: (userId: string, academicYearId: string): Promise<{ queued: boolean; message: string }> =>
+    api.post('/dept-review-windows/remind', { userId, academicYearId }).then((r) => r.data),
 };

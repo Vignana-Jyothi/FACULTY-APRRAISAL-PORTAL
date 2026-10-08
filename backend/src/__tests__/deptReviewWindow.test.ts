@@ -4,6 +4,7 @@ import { Quarter, RoleType } from '@prisma/client';
 import app from '../app';
 import prisma from '../utils/prismaClient';
 import { runDueDeptReviewWindows } from '../cron/quarterlySnapshot';
+import { triggerReviewWeekReminders } from '../cron/reminders';
 import { createFixture, type Fixture } from './helpers/fixtures';
 
 // W8b — per-department review windows: HoD sets a week inside the dean's quarter
@@ -18,24 +19,29 @@ let fixture: Fixture | null = null;
 let hodTok = '';
 let facTok = '';
 let facId = '';
+let fac2Id = '';
 let otherDeptId = '';
 let yearId = '';
 let subId = '';
+const cleanupUserIds: string[] = [];
 const deanWindowIds: string[] = [];
 
 beforeAll(async () => {
   try {
     fixture = await createFixture('DRW');
     const hod = await fixture.addUser({ name: 'HOD', role: RoleType.HOD });
-    const fac = await fixture.addUser({ name: 'FAC' });
-    hodTok = hod.token; facTok = fac.token; facId = fac.id;
+    const fac = await fixture.addUser({ name: 'FAC', role: RoleType.FACULTY });
+    const fac2 = await fixture.addUser({ name: 'FACB', role: RoleType.FACULTY });
+    hodTok = hod.token; facTok = fac.token; facId = fac.id; fac2Id = fac2.id;
+    cleanupUserIds.push(fac.id, fac2.id);
     otherDeptId = await fixture.addDepartment('OTH');
     const year = await prisma.academicYear.findFirstOrThrow({ where: { submissionOpen: true } });
     yearId = year.id;
-    subId = await fixture.createSubmission(fac);
+    subId = await fixture.createSubmission(fac); // fac2 deliberately has no submission
 
-    // Dean bounds: Q1 wide-and-active (covers now), Q2 wide (covers yesterday).
-    for (const quarter of [Quarter.Q1, Quarter.Q2]) {
+    // Dean bounds: Q1 wide-and-active (covers now), Q2 wide (covers yesterday),
+    // Q3 wide (covers a start three days out, for the approaching reminder).
+    for (const quarter of [Quarter.Q1, Quarter.Q2, Quarter.Q3]) {
       const w = await prisma.reviewWindow.upsert({
         where: { academicYearId_quarter: { academicYearId: yearId, quarter } },
         create: { academicYearId: yearId, quarter, startDate: new Date(Date.now() - 30 * dayMs), endDate: new Date(Date.now() + 30 * dayMs), enabled: true },
@@ -51,9 +57,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (facId) {
-    await prisma.emailNotification.deleteMany({ where: { toUserId: facId } }).catch(() => {});
-    await prisma.trackingSnapshot.deleteMany({ where: { userId: facId } }).catch(() => {});
+  if (cleanupUserIds.length) {
+    await prisma.emailNotification.deleteMany({ where: { toUserId: { in: cleanupUserIds } } }).catch(() => {});
+    await prisma.trackingSnapshot.deleteMany({ where: { userId: { in: cleanupUserIds } } }).catch(() => {});
   }
   // Dean windows hang off the real AY (not the fixture dept), so remove by id.
   for (const id of deanWindowIds) await prisma.reviewWindow.delete({ where: { id } }).catch(() => {});
@@ -141,5 +147,55 @@ describe('W8b day-after mail (per department)', () => {
     expect(r2.windows).toBe(0);
     const after = await prisma.emailNotification.count({ where: { toUserId: facId } });
     expect(after).toBe(before);
+  });
+});
+
+describe('W8b inactivity list + manual reminder (Phase 2)', () => {
+  it('HoD sees the department faculty with a status', async () => {
+    if (!ready) return;
+    const res = await request(app).get('/api/dept-review-windows/activity?academicYearId=' + yearId).set(bearer(hodTok));
+    expect(res.status).toBe(200);
+    const rows: any[] = res.body.rows;
+    expect(rows.find((r) => r.userId === facId)?.hasSubmission).toBe(true);
+    // fac2 never created a submission → flagged not-started.
+    expect(rows.find((r) => r.userId === fac2Id)?.status).toBe('no-submission');
+  });
+
+  it('HoD can send a manual reminder, deduped to once a day', async () => {
+    if (!ready) return;
+    const first = await request(app).post('/api/dept-review-windows/remind').set(bearer(hodTok))
+      .send({ userId: fac2Id, academicYearId: yearId });
+    expect(first.status).toBe(200);
+    expect(first.body.queued).toBe(true);
+    const mail = await prisma.emailNotification.findFirst({ where: { toUserId: fac2Id, template: 'draft_reminder' } });
+    expect(mail).toBeTruthy();
+
+    const second = await request(app).post('/api/dept-review-windows/remind').set(bearer(hodTok))
+      .send({ userId: fac2Id, academicYearId: yearId });
+    expect(second.body.queued).toBe(false); // same day → deduped
+  });
+
+  it("rejects reminding a faculty outside the HoD's department", async () => {
+    if (!ready) return;
+    const outsider = await prisma.user.findFirst({ where: { departmentId: otherDeptId } });
+    // No such user exists (empty dept) → use a clearly foreign id: expect 404/403.
+    const res = await request(app).post('/api/dept-review-windows/remind').set(bearer(hodTok))
+      .send({ userId: outsider?.id ?? '00000000-0000-0000-0000-000000000000', academicYearId: yearId });
+    expect([403, 404]).toContain(res.status);
+  });
+});
+
+describe('W8b review-week-approaching reminder (Phase 2)', () => {
+  it('mails the department faculty when the window starts in 3 days', async () => {
+    if (!ready) return;
+    const start = new Date(Date.now() + 3 * dayMs);
+    await prisma.deptReviewWindow.upsert({
+      where: { academicYearId_departmentId_quarter: { academicYearId: yearId, departmentId: fixture!.deptId, quarter: Quarter.Q3 } },
+      create: { academicYearId: yearId, departmentId: fixture!.deptId, quarter: Quarter.Q3, startDate: start, endDate: new Date(Date.now() + 5 * dayMs), enabled: true },
+      update: { startDate: start, endDate: new Date(Date.now() + 5 * dayMs), enabled: true },
+    });
+    await triggerReviewWeekReminders(new Date());
+    const mail = await prisma.emailNotification.findFirst({ where: { toUserId: facId, template: 'review_week_approaching' } });
+    expect(mail).toBeTruthy();
   });
 });

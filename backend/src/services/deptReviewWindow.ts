@@ -26,6 +26,11 @@ export function windowCoversDay(startDate: Date, endDate: Date, at: Date): boole
   return at >= istStartOfDay(startDate) && at < dayAfterInIndia(endDate);
 }
 
+// Whole IST calendar days from `a` to `b` (b - a). Negative if b is before a.
+export function istDaysBetween(a: Date, b: Date): number {
+  return Math.round((istStartOfDay(b).getTime() - istStartOfDay(a).getTime()) / (24 * 60 * 60 * 1000));
+}
+
 // Do `at` and `other` fall on the same IST calendar day?
 export function sameIndiaDay(a: Date, b: Date): boolean {
   const wa = new Date(a.getTime() + IST_OFFSET_MS);

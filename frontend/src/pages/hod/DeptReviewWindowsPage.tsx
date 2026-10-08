@@ -5,8 +5,20 @@ import PageHeader from '../../components/PageHeader';
 import Card from '../../components/Card';
 import { userApi } from '../../api/users';
 import { useAuthStore } from '../../store/authStore';
-import { deptReviewWindowApi, type DeptReviewWindow, type DeanBound } from '../../api/deptReviewWindows';
+import { deptReviewWindowApi, type DeptReviewWindow, type DeanBound, type ActivityRow } from '../../api/deptReviewWindows';
 import type { Quarter } from '../../api/reviewWindows';
+
+const STATUS_STYLE: Record<string, string> = {
+  'no-submission': 'bg-red-100 text-red-800',
+  stale: 'bg-amber-100 text-amber-800',
+  active: 'bg-green-100 text-green-800',
+  submitted: 'bg-primary-100 text-primary-800',
+};
+const STATUS_LABEL: Record<string, string> = {
+  'no-submission': 'Not started', stale: 'Inactive', active: 'Active', submitted: 'Submitted',
+};
+const statusStyle = (s: string) => STATUS_STYLE[s] ?? 'bg-surface-muted text-ink-secondary';
+const statusLabel = (s: string) => STATUS_LABEL[s] ?? s.replace(/_/g, ' ');
 
 const QUARTERS: { q: Quarter; label: string }[] = [
   { q: 'Q1', label: 'Q1 · Jul–Sep' },
@@ -29,6 +41,8 @@ export default function DeptReviewWindowsPage() {
   const [rows, setRows] = useState<Record<Quarter, Row>>({ Q1: blank(), Q2: blank(), Q3: blank(), Q4: blank() });
   const [bounds, setBounds] = useState<Partial<Record<Quarter, DeanBound>>>({});
   const [busy, setBusy] = useState<Quarter | null>(null);
+  const [activity, setActivity] = useState<ActivityRow[]>([]);
+  const [reminding, setReminding] = useState<string | null>(null);
 
   useEffect(() => {
     userApi
@@ -51,9 +65,22 @@ export default function DeptReviewWindowsPage() {
         setBounds(deanBounds);
       })
       .catch(() => toast.error('Failed to load review windows'));
+    deptReviewWindowApi.activity(ayId, deptId).then(({ rows }) => setActivity(rows)).catch(() => setActivity([]));
   };
 
   useEffect(() => { load(yearId); }, [yearId, deptId]);
+
+  const remind = async (userId: string) => {
+    setReminding(userId);
+    try {
+      const r = await deptReviewWindowApi.remind(userId, yearId);
+      r.queued ? toast.success(r.message) : toast(r.message);
+    } catch (e: any) {
+      toast.error(e.response?.data?.error ?? 'Could not send reminder');
+    } finally {
+      setReminding(null);
+    }
+  };
 
   const setRow = (q: Quarter, patch: Partial<Row>) => setRows((r) => ({ ...r, [q]: { ...r[q], ...patch } }));
 
@@ -137,6 +164,51 @@ export default function DeptReviewWindowsPage() {
           );
         })}
       </div>
+
+      <Card className="mt-6">
+        <h2 className="font-semibold text-ink mb-1">Faculty activity</h2>
+        <p className="mb-3 text-xs text-ink-muted">Who in your department has gone quiet on their draft. Inactive = no edit in 7+ days. A weekly reminder is automatic; use “Remind” to nudge now.</p>
+        {activity.length === 0 ? (
+          <p className="text-sm text-ink-secondary">No faculty found for this department.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-ink-muted border-b border-border">
+                  <th className="py-2 pr-3">Faculty</th>
+                  <th className="py-2 pr-3">Status</th>
+                  <th className="py-2 pr-3">Last edit</th>
+                  <th className="py-2 pr-3"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {activity.map((r) => {
+                  const needsNudge = r.status === 'stale' || r.status === 'no-submission';
+                  return (
+                    <tr key={r.userId} className="border-b border-border/60">
+                      <td className="py-2 pr-3">
+                        <div className="font-medium text-ink">{r.name}</div>
+                        <div className="text-xs text-ink-muted">{r.employeeCode}{r.optedOut ? ' · opted out of email' : ''}</div>
+                      </td>
+                      <td className="py-2 pr-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusStyle(r.status)}`}>{statusLabel(r.status)}</span></td>
+                      <td className="py-2 pr-3 text-ink-secondary">
+                        {r.lastEditedAt ? `${new Date(r.lastEditedAt).toLocaleDateString()}${r.daysSinceEdit != null ? ` (${r.daysSinceEdit}d ago)` : ''}` : '—'}
+                      </td>
+                      <td className="py-2 pr-3 text-right">
+                        {needsNudge && (
+                          <button className="btn-secondary text-xs" disabled={reminding === r.userId} onClick={() => remind(r.userId)}>
+                            {reminding === r.userId ? 'Sending…' : 'Remind'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

@@ -31,6 +31,7 @@ export const TEMPLATE_SUBJECTS: Record<EmailTemplateKey, (p: any) => string> = {
   hold_cleared: (p) => `Hold cleared — Appraisal ${p.year} back under review`,
   quarterly_feedback: (p) => `${quarterLabel(p.quarter)} feedback — Appraisal ${p.year} (provisional)`,
   feedback_issued: (p) => `${p.periodLabel ? `${p.periodLabel} — ` : ''}Your ${p.year} appraisal feedback is ready`,
+  review_week_approaching: (p) => `${quarterLabel(p.quarter)} review week starts ${p.startsOn} — finalise your appraisal`,
 };
 
 function layout(title: string, body: string): string {
@@ -235,6 +236,15 @@ const TEMPLATES: Record<EmailTemplateKey, (p: any) => string> = {
     <p>Your draft carries across the whole year — keep it up to date as you go. It can be submitted once the Q4 review window ends.</p>
     <p style="margin-top:16px"><a href="${FRONTEND_URL}/dashboard" style="background:#1e3a5f;color:#fff;padding:10px 18px;border-radius:4px;text-decoration:none;font-size:14px;font-weight:600">Continue Appraisal</a></p>
     <p style="margin-top:24px;color:#94a3b8;font-size:11px">You're receiving this reminder based on your email preferences. <a href="${FRONTEND_URL}/profile" style="color:#94a3b8">Manage preferences</a>.</p>
+  `),
+
+  review_week_approaching: (p) => layout('Review Week Approaching', `
+    <h2 style="margin:0 0 8px;color:#1e3a5f">${quarterLabel(p.quarter)} review week is approaching</h2>
+    <p>Dear <strong>${esc(p.name)}</strong>,</p>
+    <p>Your department's review week for <strong>${p.year}</strong> starts on <strong>${p.startsOn}</strong>${p.daysUntil != null ? ` (<strong>in ${p.daysUntil} day(s)</strong>)` : ''} and runs to <strong>${p.endsOn}</strong>.</p>
+    <p>During that week your appraisal will be <strong>locked for review</strong>, so please make sure every section and proof is up to date before it begins.</p>
+    <p style="margin-top:16px"><a href="${FRONTEND_URL}/dashboard" style="background:#1e3a5f;color:#fff;padding:10px 18px;border-radius:4px;text-decoration:none;font-size:14px;font-weight:600">Review my appraisal</a></p>
+    <p style="margin-top:24px;color:#94a3b8;font-size:11px">You're receiving this based on your email preferences. <a href="${FRONTEND_URL}/profile" style="color:#94a3b8">Manage preferences</a>.</p>
   `),
 
   password_otp: (p) => layout('Password OTP', `

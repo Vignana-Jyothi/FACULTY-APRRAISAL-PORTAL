@@ -1,6 +1,13 @@
 import cron from 'node-cron';
 import prisma from '../utils/prismaClient';
 import { enqueueEmail } from '../services/emailService';
+import { istDaysBetween } from '../services/deptReviewWindow';
+
+// Faculty are reminded this many days before their department's review week
+// starts, so they can finalise before the draft freezes.
+const REVIEW_WEEK_REMINDER_OFFSETS = [3, 1];
+
+const fmtDay = (d: Date) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
 
 /**
  * Daily 9 AM: draft reminders (at most weekly per faculty) + reviewer digest (daily).
@@ -125,11 +132,50 @@ async function sendReviewerDigest() {
   }
 }
 
+/**
+ * Daily: remind each department's faculty that their review week is coming up
+ * (so they finalise before the draft freezes). Fires at the fixed offsets
+ * before the window's start date, deduped per faculty + window + offset.
+ */
+async function sendReviewWeekReminders(at: Date = new Date()) {
+  const windows = await prisma.deptReviewWindow.findMany({
+    where: { enabled: true, startDate: { gte: at } },
+    include: { academicYear: { select: { label: true } } },
+  });
+  for (const w of windows) {
+    const daysUntil = istDaysBetween(at, new Date(w.startDate));
+    if (!REVIEW_WEEK_REMINDER_OFFSETS.includes(daysUntil)) continue;
+
+    const faculty = await prisma.user.findMany({
+      where: {
+        isActive: true,
+        departmentId: w.departmentId,
+        emailOptIn: true,
+        userRoles: { some: { role: 'FACULTY' } },
+      },
+      select: { id: true, name: true },
+    });
+    for (const f of faculty) {
+      await enqueueEmail({
+        toUserId: f.id,
+        template: 'review_week_approaching',
+        payload: {
+          name: f.name, year: w.academicYear.label, quarter: w.quarter,
+          startsOn: fmtDay(w.startDate), endsOn: fmtDay(w.endDate), daysUntil,
+        },
+        dedupeKey: `review_week_approaching:${f.id}:${w.id}:${daysUntil}`,
+        honorOptIn: true,
+      });
+    }
+  }
+}
+
 export function startReminderCrons() {
   // Daily at 9:00 AM server time
   cron.schedule('0 9 * * *', async () => {
     try { await sendDraftReminders(); } catch (e) { console.error('[cron] draft reminders error:', e); }
     try { await sendReviewerDigest(); } catch (e) { console.error('[cron] reviewer digest error:', e); }
+    try { await sendReviewWeekReminders(); } catch (e) { console.error('[cron] review-week reminders error:', e); }
   });
   console.log('[cron] Reminder crons scheduled (daily 09:00)');
 }
@@ -137,3 +183,4 @@ export function startReminderCrons() {
 // Manual trigger (for admin "Send now" button)
 export async function triggerDraftReminders() { return sendDraftReminders(); }
 export async function triggerReviewerDigest() { return sendReviewerDigest(); }
+export async function triggerReviewWeekReminders(at?: Date) { return sendReviewWeekReminders(at); }
