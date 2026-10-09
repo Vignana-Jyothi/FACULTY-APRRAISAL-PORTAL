@@ -207,9 +207,15 @@ export default function FeedbackSection({ submissionId }: { submissionId: string
 
       {/* Cadre / eligibility / target snapshot is for editors (HoD/admin) only —
           faculty must never see the tier/eligibility internals. */}
-      {editable && snapshot && <div className="mb-3"><SnapshotSummary s={snapshot} /></div>}
+      {editable && status !== 'ISSUED' && snapshot && <div className="mb-3"><SnapshotSummary s={snapshot} /></div>}
 
-      {editable ? (
+      {editable && status === 'ISSUED' && (
+        <p className="mb-3 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded px-3 py-2">
+          This quarter's review has been issued and is locked — it can't be changed.
+        </p>
+      )}
+
+      {editable && status !== 'ISSUED' ? (
         <div className="space-y-3">
           {autofilled && (
             <p className="text-xs text-primary-700 bg-primary-50 border border-primary-200 rounded px-3 py-2">

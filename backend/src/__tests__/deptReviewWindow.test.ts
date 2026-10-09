@@ -185,6 +185,30 @@ describe('W8b inactivity list + manual reminder (Phase 2)', () => {
   });
 });
 
+describe('W8b review freeze — once issued, the quarter is locked', () => {
+  it('lets the HoD draft then issue a period once, and locks it after', async () => {
+    if (!ready) return;
+    // Draft saves freely.
+    const draft = await request(app).put(`/api/appraisals/${subId}/feedback`).set(bearer(hodTok))
+      .send({ period: 'ANNUAL', strengths: 'Draft note' });
+    expect(draft.status).toBe(200);
+
+    // Issue once → ok.
+    const issued = await request(app).post(`/api/appraisals/${subId}/feedback/issue`).set(bearer(hodTok))
+      .send({ period: 'ANNUAL', strengths: 'Final note' });
+    expect(issued.status).toBe(200);
+
+    // Any further save or re-issue of that period is frozen (409).
+    const reSave = await request(app).put(`/api/appraisals/${subId}/feedback`).set(bearer(hodTok))
+      .send({ period: 'ANNUAL', strengths: 'Changed my mind' });
+    expect(reSave.status).toBe(409);
+
+    const reIssue = await request(app).post(`/api/appraisals/${subId}/feedback/issue`).set(bearer(hodTok))
+      .send({ period: 'ANNUAL', strengths: 'Changed again' });
+    expect(reIssue.status).toBe(409);
+  });
+});
+
 describe('W8b review-week-approaching reminder (Phase 2)', () => {
   it('mails the department faculty when the window starts in 3 days', async () => {
     if (!ready) return;

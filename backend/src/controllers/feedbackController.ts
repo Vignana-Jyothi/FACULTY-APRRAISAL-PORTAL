@@ -155,6 +155,18 @@ const saveSchema = z.object({
   growthTargets: z.string().optional(),
 });
 
+// Once a period's review is ISSUED it is locked: the HoD reviews a quarter once
+// and cannot edit or re-issue it afterwards (owner decision 2026-10-10).
+const REVIEW_FROZEN =
+  "This quarter's review has already been issued and is locked — it cannot be changed.";
+async function periodIsIssued(submissionId: string, period: FeedbackPeriod): Promise<boolean> {
+  const existing = await prisma.feedback.findUnique({
+    where: whereFeedback(submissionId, period),
+    select: { status: true },
+  });
+  return existing?.status === 'ISSUED';
+}
+
 // PUT /appraisals/:id/feedback — save narrative as DRAFT (HoD/admin).
 export async function saveFeedback(req: Request, res: Response) {
   const sub = await prisma.appraisalSubmission.findUnique({
@@ -168,6 +180,7 @@ export async function saveFeedback(req: Request, res: Response) {
 
   const { period: periodIn, ...data } = saveSchema.parse(req.body);
   const period = parsePeriod(periodIn);
+  if (await periodIsIssued(sub.id, period)) return res.status(409).json({ error: REVIEW_FROZEN });
   const snapshot = await buildSnapshot(sub.id);
 
   const feedback = await prisma.feedback.upsert({
@@ -191,6 +204,7 @@ export async function issueFeedback(req: Request, res: Response) {
 
   const { period: periodIn, ...data } = saveSchema.parse(req.body ?? {});
   const period = parsePeriod(periodIn);
+  if (await periodIsIssued(sub.id, period)) return res.status(409).json({ error: REVIEW_FROZEN });
   const snapshot = await buildSnapshot(sub.id);
 
   const feedback = await prisma.feedback.upsert({
