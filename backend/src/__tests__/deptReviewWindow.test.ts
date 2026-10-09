@@ -238,6 +238,27 @@ describe('W8b drafts list — reviewed-this-quarter stacked last', () => {
   });
 });
 
+describe('W8b both mails fire the moment a faculty is reviewed', () => {
+  it('issuing a quarter review emails the faculty both the HoD feedback and the Cat 1-5 snapshot', async () => {
+    if (!ready || !fac2User) return;
+    // Ensure fac2 has a draft to review (idempotent — the sort test may have made one).
+    await fixture!.createSubmission(fac2User).catch(() => {});
+    const sub = await prisma.appraisalSubmission.findFirst({ where: { userId: fac2Id }, orderBy: { submissionNumber: 'desc' } });
+    expect(sub).toBeTruthy();
+
+    const q = currentQuarter();
+    const res = await request(app).post(`/api/appraisals/${sub!.id}/feedback/issue`).set(bearer(hodTok))
+      .send({ period: q, strengths: 'Reviewed now' });
+    // 200 fresh, or 409 if already issued earlier — either way the mails exist.
+    expect([200, 409]).toContain(res.status);
+
+    const mails = await prisma.emailNotification.findMany({ where: { toUserId: fac2Id } });
+    const templates = new Set(mails.map((m) => m.template));
+    expect(templates.has('feedback_issued')).toBe(true);
+    expect(templates.has('quarterly_feedback')).toBe(true);
+  });
+});
+
 describe('W8b review-week-approaching reminder (Phase 2)', () => {
   it('mails the department faculty when the window starts in 3 days', async () => {
     if (!ready) return;

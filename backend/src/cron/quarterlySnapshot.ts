@@ -72,6 +72,28 @@ export function buildQuarterlyPayload(sub: any, row: TrackingRow, yearLabel: str
 export const quarterlyDedupeKey = (userId: string, academicYearId: string, quarter: Quarter) =>
   `quarterly_feedback:${userId}:${academicYearId}:${quarter}`;
 
+/**
+ * Send the automated Cat 1-5 snapshot feedback mail for ONE submission now —
+ * used the moment a HoD issues that faculty's quarter review, so the faculty
+ * gets both mails right after being reviewed rather than waiting for the
+ * day-after-window job. The shared dedupe key makes a later cron run a no-op.
+ */
+export async function enqueueQuarterlyForSubmission(submissionId: string, quarter: Quarter): Promise<string | null> {
+  const sub = await prisma.appraisalSubmission.findUnique({ where: { id: submissionId }, include: TRACKING_INCLUDE });
+  if (!sub) return null;
+  const year = await prisma.academicYear.findUnique({ where: { id: sub.academicYearId }, select: { label: true, startDate: true } });
+  if (!year) return null;
+  const ctx = await loadTrackingContext(sub.academicYearId);
+  const row = computeRow(sub, ctx, year.startDate);
+  return enqueueEmail({
+    toUserId: sub.userId,
+    template: 'quarterly_feedback',
+    payload: buildQuarterlyPayload(sub, row, year.label, quarter),
+    dedupeKey: quarterlyDedupeKey(sub.userId, sub.academicYearId, quarter),
+    honorOptIn: true,
+  });
+}
+
 interface YearItem { sub: any; row: TrackingRow }
 
 // Every faculty's latest submission in the AY, with its computed tracking row.

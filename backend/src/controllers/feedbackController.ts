@@ -1,11 +1,12 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
-import { RoleType, FeedbackPeriod } from '@prisma/client';
+import { RoleType, FeedbackPeriod, Quarter } from '@prisma/client';
 import prisma from '../utils/prismaClient';
 import { canViewUserResource } from '../utils/access';
 import { SEES_ALL, hasAnyRole } from '../utils/roles';
 import { enqueueEmail } from '../services/emailService';
 import { feedbackIssuedKey } from '../services/emailKeys';
+import { enqueueQuarterlyForSubmission } from '../cron/quarterlySnapshot';
 import { TRACKING_INCLUDE, loadTrackingContext } from '../services/trackingService';
 import { computeScore } from '../services/scoringEngine';
 import { computeActuals } from '../services/trackingEngine';
@@ -228,8 +229,15 @@ export async function issueFeedback(req: Request, res: Response) {
       payload: { name: faculty?.name ?? 'Faculty', year: sub.academicYear.label, submissionId: sub.id, period, periodLabel: PERIOD_LABEL[period] },
       dedupeKey: feedbackIssuedKey(feedback.id, [feedback.strengths, feedback.improvements, feedback.growthTargets]),
     });
+    // Both quarter mails go out the moment the faculty is reviewed: the HoD
+    // feedback (above) and the automated Cat 1-5 snapshot (below). ANNUAL has no
+    // quarterly snapshot mail. The dedupe key keeps the day-after cron from
+    // re-sending to a faculty already reviewed and mailed here.
+    if (period !== FeedbackPeriod.ANNUAL) {
+      await enqueueQuarterlyForSubmission(sub.id, period as unknown as Quarter);
+    }
   } catch (e) {
-    console.error('[email] enqueue feedback_issued failed:', e);
+    console.error('[email] enqueue feedback mails on issue failed:', e);
   }
 
   return res.json(feedback);
