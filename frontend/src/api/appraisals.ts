@@ -89,6 +89,9 @@ export interface DraftInProgressRow {
   academicYear: { id: string; label: string };
   faculty: { id: string; name: string; employeeCode: string; department?: { name: string; code: string } | null };
   draftReviewedAt: string | null;
+  /** True when this quarter's review has been issued — sorted to the bottom. */
+  reviewedThisQuarter: boolean;
+  quarter: 'Q1' | 'Q2' | 'Q3' | 'Q4';
   counts: { total: number; verified: number; rejected: number; pending: number };
 }
 

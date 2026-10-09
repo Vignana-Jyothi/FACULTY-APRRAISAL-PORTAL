@@ -3,9 +3,9 @@ import request from 'supertest';
 import { Quarter, RoleType } from '@prisma/client';
 import app from '../app';
 import prisma from '../utils/prismaClient';
-import { runDueDeptReviewWindows } from '../cron/quarterlySnapshot';
+import { runDueDeptReviewWindows, currentQuarter } from '../cron/quarterlySnapshot';
 import { triggerReviewWeekReminders } from '../cron/reminders';
-import { createFixture, type Fixture } from './helpers/fixtures';
+import { createFixture, type Fixture, type FixtureUser } from './helpers/fixtures';
 
 // W8b — per-department review windows: HoD sets a week inside the dean's quarter
 // bounds, the department's drafts freeze during it, and the day AFTER it ends
@@ -20,6 +20,7 @@ let hodTok = '';
 let facTok = '';
 let facId = '';
 let fac2Id = '';
+let fac2User: FixtureUser | null = null;
 let otherDeptId = '';
 let yearId = '';
 let subId = '';
@@ -32,7 +33,7 @@ beforeAll(async () => {
     const hod = await fixture.addUser({ name: 'HOD', role: RoleType.HOD });
     const fac = await fixture.addUser({ name: 'FAC', role: RoleType.FACULTY });
     const fac2 = await fixture.addUser({ name: 'FACB', role: RoleType.FACULTY });
-    hodTok = hod.token; facTok = fac.token; facId = fac.id; fac2Id = fac2.id;
+    hodTok = hod.token; facTok = fac.token; facId = fac.id; fac2Id = fac2.id; fac2User = fac2;
     cleanupUserIds.push(fac.id, fac2.id);
     otherDeptId = await fixture.addDepartment('OTH');
     const year = await prisma.academicYear.findFirstOrThrow({ where: { submissionOpen: true } });
@@ -206,6 +207,34 @@ describe('W8b review freeze — once issued, the quarter is locked', () => {
     const reIssue = await request(app).post(`/api/appraisals/${subId}/feedback/issue`).set(bearer(hodTok))
       .send({ period: 'ANNUAL', strengths: 'Changed again' });
     expect(reIssue.status).toBe(409);
+  });
+});
+
+describe('W8b drafts list — reviewed-this-quarter stacked last', () => {
+  it('puts a draft reviewed this quarter below the unreviewed ones', async () => {
+    if (!ready || !fac2User) return;
+    const sub2 = await fixture!.createSubmission(fac2User); // fac2 draft, unreviewed
+
+    // Make sure subId is reviewed for the CURRENT quarter (200, or 409 if the
+    // day-after test already issued it — either way it ends ISSUED).
+    const q = currentQuarter();
+    await request(app).post(`/api/appraisals/${subId}/feedback/issue`).set(bearer(hodTok))
+      .send({ period: q, strengths: 'Quarter review done' });
+
+    const res = await request(app).get('/api/reviews/drafts').set(bearer(hodTok));
+    expect(res.status).toBe(200);
+    const rows: any[] = res.body;
+    const idxReviewed = rows.findIndex((r) => r.submissionId === subId);
+    const idxUnreviewed = rows.findIndex((r) => r.submissionId === sub2);
+    expect(rows[idxReviewed]?.reviewedThisQuarter).toBe(true);
+    expect(rows[idxUnreviewed]?.reviewedThisQuarter).toBe(false);
+    expect(idxUnreviewed).toBeLessThan(idxReviewed); // unreviewed comes first
+
+    // Global invariant: no unreviewed row appears after a reviewed one.
+    const firstReviewed = rows.findIndex((r) => r.reviewedThisQuarter);
+    if (firstReviewed >= 0) {
+      expect(rows.slice(firstReviewed).every((r) => r.reviewedThisQuarter)).toBe(true);
+    }
   });
 });
 

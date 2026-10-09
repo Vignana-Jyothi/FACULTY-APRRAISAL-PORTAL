@@ -55,9 +55,14 @@ export default function DraftsPage() {
             </thead>
             <tbody className="divide-y divide-surface-border">
               {rows.map((r, i) => (
-                <tr key={r.submissionId} className={i % 2 === 1 ? 'bg-surface-muted/50' : ''}>
+                <tr key={r.submissionId} className={`${i % 2 === 1 ? 'bg-surface-muted/50' : ''} ${r.reviewedThisQuarter ? 'opacity-60' : ''}`}>
                   <td className="px-5 py-3 font-medium text-ink-primary">
                     {r.faculty.name} <span className="text-ink-muted font-normal">({r.faculty.employeeCode})</span>
+                    {r.reviewedThisQuarter && (
+                      <span className="ml-2 align-middle text-[11px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        {r.quarter} reviewed
+                      </span>
+                    )}
                   </td>
                   <td className="px-5 py-3 text-ink-secondary">{r.academicYear.label}</td>
                   <td className="px-5 py-3 text-ink-muted">{new Date(r.updatedAt).toLocaleDateString()}</td>

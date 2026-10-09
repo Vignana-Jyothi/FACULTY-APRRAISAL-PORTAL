@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
-import { RoleType, SubmissionStatus } from '@prisma/client';
+import { RoleType, SubmissionStatus, FeedbackPeriod } from '@prisma/client';
 import prisma from '../utils/prismaClient';
+import { currentQuarter } from '../cron/quarterlySnapshot';
 import { DEPT_REVIEW, INSTITUTE_READ, SEES_ALL, deptIdsFor, hasAnyRole } from '../utils/roles';
 import { canSeeReviewerAssessment, stripReviewerAssessment } from '../utils/reviewVisibility';
 import { enumerateProofs, PROOF_INCLUDE } from '../services/proofService';
@@ -179,6 +180,16 @@ export async function listDrafts(req: Request, res: Response) {
   });
   const statusByKey = new Map(verifications.map((v) => [`${v.submissionId}::${v.url}`, v.status]));
 
+  // A draft already reviewed for THIS quarter (its quarter feedback is issued)
+  // is sorted to the bottom, so the HoD sees the ones still needing a look first.
+  const quarter = currentQuarter() as unknown as FeedbackPeriod;
+  const reviewedThisQuarter = new Set(
+    (await prisma.feedback.findMany({
+      where: { submissionId: { in: drafts.map((d) => d.id) }, period: quarter, status: 'ISSUED' },
+      select: { submissionId: true },
+    })).map((f) => f.submissionId)
+  );
+
   const rows = drafts.map((sub) => {
     const items = enumerateProofs(sub);
     let verified = 0, rejected = 0, pending = 0;
@@ -195,9 +206,15 @@ export async function listDrafts(req: Request, res: Response) {
       academicYear: sub.academicYear,
       faculty: sub.user,
       draftReviewedAt: sub.draftReview?.updatedAt ?? null,
+      reviewedThisQuarter: reviewedThisQuarter.has(sub.id),
+      quarter,
       counts: { total: items.length, verified, rejected, pending },
     };
   });
+
+  // Stable partition: unreviewed-this-quarter first (keeping the updatedAt-desc
+  // order), reviewed-this-quarter stacked at the bottom.
+  rows.sort((a, b) => Number(a.reviewedThisQuarter) - Number(b.reviewedThisQuarter));
 
   return res.json(rows);
 }
