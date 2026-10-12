@@ -535,7 +535,14 @@ export async function exportIqacQuarterlyExcel(req: Request, res: Response) {
     where: { academicYearId: year.id, user: { departmentId } },
     include: {
       user: { select: { id: true, name: true, employeeCode: true } },
-      feedbacks: { where: { period, status: 'ISSUED' } },
+      review: { select: { overallComment: true } },
+      draftReview: { select: { overallComment: true } },
+      cat2Journals: { select: { title: true, status: true } },
+      cat2Conferences: { select: { title: true, status: true } },
+      cat2Patents: { select: { title: true, status: true } },
+      cat2Projects: { select: { title: true, status: true } },
+      cat1EContent: { select: { contentName: true, courseName: true } },
+      cat2Consultancy: { select: { name: true, amountLakhs: true } },
     },
     orderBy: { submissionNumber: 'desc' },
   });
@@ -547,29 +554,45 @@ export async function exportIqacQuarterlyExcel(req: Request, res: Response) {
     else if (cur.status !== SubmissionStatus.APPROVED && s.status === SubmissionStatus.APPROVED) picked.set(s.userId, s);
   }
 
+  // Humanise an enum value (PUBLISHED -> Published) and tally rows by status.
+  const titleCase = (v: string) => v ? v.charAt(0) + v.slice(1).toLowerCase() : 'Unspecified';
+  const nonEmpty = (list: any[], key: string | string[]) =>
+    (list ?? []).filter((r) => (Array.isArray(key) ? key : [key]).some((k) => String(r[k] ?? '').trim()));
+  const byStatus = (list: any[]) => {
+    const m = new Map<string, number>();
+    for (const r of list) { const k = titleCase(r.status); m.set(k, (m.get(k) ?? 0) + 1); }
+    return [...m.entries()].map(([k, v]) => `${v} ${k}`).join(', ');
+  };
+
   const rows = [...picked.values()]
     .sort((a, b) => ((a as any).user.name ?? '').localeCompare((b as any).user.name ?? ''))
     .map((s) => {
       const a = s as any;
-      const fb = a.feedbacks?.[0] ?? null;
-      const snap = fb?.snapshot ?? null;
-      // Targets met, each with its current value — "Label: actual".
-      const achieved = (snap?.requirements ?? [])
-        .filter((r: any) => r.met)
-        .map((r: any) => `${r.label}: ${r.actual}`)
-        .join('; ');
-      // HoD review = the issued quarterly feedback narrative, combined.
-      const review = fb
-        ? [
-            fb.strengths ? `Strengths: ${fb.strengths}` : '',
-            fb.improvements ? `Areas to improve: ${fb.improvements}` : '',
-            fb.growthTargets ? `Growth targets: ${fb.growthTargets}` : '',
-          ].filter(Boolean).join('\n')
-        : 'Feedback not issued for this quarter';
-      return [a.user.employeeCode ?? '', a.user.name ?? '', achieved, review];
+      const journals = nonEmpty(a.cat2Journals, 'title');
+      const confs = nonEmpty(a.cat2Conferences, 'title');
+      const patents = nonEmpty(a.cat2Patents, 'title');
+      const projects = nonEmpty(a.cat2Projects, 'title');
+      const econtent = nonEmpty(a.cat1EContent, ['contentName', 'courseName']);
+      const consult = nonEmpty(a.cat2Consultancy, 'name');
+      const consultTotal = consult.reduce((t: number, c: any) => t + (Number(c.amountLakhs) || 0), 0);
+
+      // Current targets: counts (with status breakdown where it applies).
+      const targets = [
+        `Journals: ${journals.length}${journals.length ? ` (${byStatus(journals)})` : ''}`,
+        `Conferences: ${confs.length}${confs.length ? ` (${byStatus(confs)})` : ''}`,
+        `Patents: ${patents.length}${patents.length ? ` (${byStatus(patents)})` : ''}`,
+        `Projects applied: ${projects.length}`,
+        `E-contents: ${econtent.length}`,
+        `Consultancy: ${consultTotal.toFixed(2)} Lakhs`,
+      ].join('\n');
+
+      // HoD remarks = the HoD's draft note (overall comment on the draft review),
+      // falling back to the final review comment once the appraisal is reviewed.
+      const review = a.draftReview?.overallComment ?? a.review?.overallComment ?? 'No draft note';
+      return [a.user.employeeCode ?? '', a.user.name ?? '', targets, review];
     });
 
-  const headers = ['Employee ID', 'Employee Name', 'Targets Achieved (name: current value)', 'HoD Review'];
+  const headers = ['Employee ID', 'Employee Name', 'Current Targets', 'HoD Remarks'];
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   ws['!cols'] = [{ wch: 14 }, { wch: 26 }, { wch: 60 }, { wch: 70 }];
   const wb = XLSX.utils.book_new();
