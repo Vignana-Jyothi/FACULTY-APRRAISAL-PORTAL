@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { CheckCircle, XCircle, Eye, ShieldCheck, AlertTriangle, Clock } from 'lucide-react';
+import { CheckCircle, XCircle, Eye, Download, ShieldCheck, AlertTriangle, Clock } from 'lucide-react';
 import Card from './Card';
 import { useAuthStore } from '../store/authStore';
 import { uploadApi } from '../api/uploads';
@@ -27,6 +27,20 @@ async function openProof(url: string) {
       setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
     } catch {
       toast.error('Could not open file');
+    }
+  } else {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+}
+
+// Download a proof to disk. Uploaded files go through the authenticated route;
+// external links (Drive etc.) just open in a new tab to save from there.
+async function downloadProof(url: string) {
+  if (url.includes('/uploads/')) {
+    try {
+      await uploadApi.downloadProof(url);
+    } catch {
+      toast.error('Could not download file');
     }
   } else {
     window.open(url, '_blank', 'noopener,noreferrer');
@@ -117,8 +131,9 @@ export default function ProofVerificationPanel({
 
       {canAct && isDraft && summary.total > 0 && (
         <p className="mb-3 text-xs text-ink-muted">
-          This is a draft in progress. Verified proofs carry into the final submission. Rejecting one emails the
-          faculty to replace it — the draft is not held or red-listed.
+          This is a draft in progress. Verified proofs carry into the final submission. Rejecting one red-lists the
+          faculty and notifies them — the draft stays editable so they can replace it, and the red list clears once
+          every rejected proof is re-verified.
         </p>
       )}
       {canAct && !isDraft && !summary.allVerified && summary.total > 0 && (
@@ -148,6 +163,9 @@ export default function ProofVerificationPanel({
                       <span className="text-ink-muted">· {p.field}</span>
                       <button onClick={() => openProof(p.url)} className="inline-flex items-center gap-1 text-primary-600 hover:underline">
                         <Eye size={12} /> View
+                      </button>
+                      <button onClick={() => downloadProof(p.url)} className="inline-flex items-center gap-1 text-primary-600 hover:underline">
+                        <Download size={12} /> Download
                       </button>
                       <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${STATUS_STYLE[p.status]}`}>
                         {p.status === 'VERIFIED' ? <CheckCircle size={11} /> : p.status === 'REJECTED' ? <XCircle size={11} /> : <Clock size={11} />}

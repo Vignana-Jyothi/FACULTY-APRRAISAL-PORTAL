@@ -7,7 +7,7 @@ import { canViewUserResource } from '../utils/access';
 import { DEPT_REVIEW, SEES_ALL, deptIdsFor, hasAnyRole } from '../utils/roles';
 import { syncProofVerifications, enumerateProofs, PROOF_INCLUDE, PROOF_SOURCES } from '../services/proofService';
 import { enqueueEmail } from '../services/emailService';
-import { proofRejectedKey, holdClearedKey } from '../services/emailKeys';
+import { holdClearedKey, redlistEpisodeKey } from '../services/emailKeys';
 
 // How long a faculty has to replace a rejected proof before the daily job
 // voids the marks for that source and lets the appraisal move on. Calendar
@@ -134,22 +134,31 @@ export async function verifyProof(req: Request, res: Response) {
   });
   if (!pv) return res.status(404).json({ error: 'Proof not found on this submission' });
 
+  // Whether the faculty was already in a red-list episode before this action,
+  // and the episode's stamp — kept stable across every rejection in the episode
+  // so the notice mail and the deadline clock fire/start once (2026-10-12).
+  const wasRedListed = sub.redListed;
+  const now = new Date();
+  const episodeHeldAt = sub.heldAt ?? now;
+  const deadline = sub.proofDeadlineAt ?? proofDeadlineFrom(now);
+
   await prisma.$transaction(async (tx) => {
     await tx.proofVerification.update({
       where: { id: pv.id },
-      data: { status, verifiedById: req.user!.id, verifiedAt: new Date(), comment: comment ?? null },
+      data: { status, verifiedById: req.user!.id, verifiedAt: now, comment: comment ?? null },
     });
-    if (status === 'REJECTED' && !isDraft) {
+    if (status === 'REJECTED') {
+      // Red-list the faculty on every rejection, draft or not, so it shows on
+      // their red list and dashboard. A draft stays editable (DRAFT) so they can
+      // replace the proof; a submitted appraisal goes on HOLD as before.
       await tx.appraisalSubmission.update({
         where: { id: sub.id },
         data: {
-          status: SubmissionStatus.HOLD,
           redListed: true,
-          heldAt: new Date(),
+          heldAt: episodeHeldAt,
           holdReason: `Rejected proof — ${pv.section}: ${pv.item}${comment ? ` (${comment})` : ''}`,
-          // Clock starts on the first rejection and is not reset by later ones,
-          // so a faculty cannot extend their own window by collecting rejections.
-          proofDeadlineAt: sub.proofDeadlineAt ?? proofDeadlineFrom(new Date()),
+          proofDeadlineAt: deadline,
+          ...(isDraft ? {} : { status: SubmissionStatus.HOLD }),
         },
       });
     }
@@ -164,42 +173,64 @@ export async function verifyProof(req: Request, res: Response) {
     });
   });
 
-  // Notify on reject — faculty (must re-upload) + dept HoD(s) (red list). A
-  // draft is not held or red-listed, so only the faculty hears about it.
-  if (status === 'REJECTED') {
-    try {
-      const base = {
-        year: sub.academicYear.label,
-        submissionNumber: sub.submissionNumber,
-        submissionId: sub.id,
-        section: pv.section,
-        item: pv.item,
-        field: pv.field,
-        comment: comment ?? '',
-      };
+  // Auto-clear the red list once the last rejected proof is verified — no
+  // separate clear-hold step needed on a draft.
+  let cleared = false;
+  if (status === 'VERIFIED' && wasRedListed) {
+    const stillRejected = await prisma.proofVerification.count({ where: { submissionId: sub.id, status: 'REJECTED' } });
+    if (stillRejected === 0) {
+      cleared = true;
+      await prisma.appraisalSubmission.update({
+        where: { id: sub.id },
+        data: {
+          redListed: false, heldAt: null, holdReason: null, proofDeadlineAt: null,
+          ...(isDraft ? {} : { status: SubmissionStatus.UNDER_REVIEW }),
+        },
+      });
+      await prisma.auditLog.create({
+        data: { userId: req.user!.id, action: 'HOLD_CLEARED', entityType: 'AppraisalSubmission', entityId: sub.id },
+      });
+    }
+  }
+
+  try {
+    if (status === 'REJECTED' && !wasRedListed) {
+      // First rejection of this episode: ONE notice to the faculty pointing at
+      // their red list (not one mail per proof), and one notice to the dept HoD.
       await enqueueEmail({
         toUserId: sub.userId,
-        template: 'proof_rejected',
-        payload: { name: sub.user.name, ...base, draft: isDraft },
-        dedupeKey: proofRejectedKey(pv.id, url),
+        template: 'proofs_rejected_redlist',
+        payload: { name: sub.user.name, year: sub.academicYear.label, submissionId: sub.id, deadline: deadline.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' }) },
+        dedupeKey: redlistEpisodeKey(sub.id, episodeHeldAt),
       });
-      const hods = isDraft ? [] : await prisma.userRole.findMany({
+      const hods = await prisma.userRole.findMany({
         where: { role: 'HOD', isActive: true, departmentId: sub.user.departmentId ?? undefined },
         select: { userId: true },
       });
       for (const h of hods) {
-        if (h.userId === req.user!.id) continue; // rejecter is the HoD — no self-notice
+        if (h.userId === req.user!.id) continue; // the rejecter needs no self-notice
         const hod = await prisma.user.findUnique({ where: { id: h.userId }, select: { name: true } });
         await enqueueEmail({
           toUserId: h.userId,
           template: 'proof_rejected_hod',
-          payload: { name: hod?.name ?? 'HoD', facultyName: sub.user.name, employeeCode: sub.user.employeeCode, ...base },
-          dedupeKey: proofRejectedKey(pv.id, url, h.userId),
+          payload: {
+            name: hod?.name ?? 'HoD', facultyName: sub.user.name, employeeCode: sub.user.employeeCode,
+            year: sub.academicYear.label, submissionNumber: sub.submissionNumber, submissionId: sub.id,
+            section: pv.section, item: pv.item, field: pv.field, comment: comment ?? '',
+          },
+          dedupeKey: redlistEpisodeKey(sub.id, episodeHeldAt, h.userId),
         });
       }
-    } catch (e) {
-      console.error('[email] enqueue proof reject failed:', e);
+    } else if (cleared) {
+      await enqueueEmail({
+        toUserId: sub.userId,
+        template: 'hold_cleared',
+        payload: { name: sub.user.name, year: sub.academicYear.label, submissionNumber: sub.submissionNumber, submissionId: sub.id },
+        dedupeKey: holdClearedKey(sub.id, episodeHeldAt),
+      });
     }
+  } catch (e) {
+    console.error('[email] enqueue proof verify notice failed:', e);
   }
 
   return res.json({ message: `Proof ${status.toLowerCase()}` });

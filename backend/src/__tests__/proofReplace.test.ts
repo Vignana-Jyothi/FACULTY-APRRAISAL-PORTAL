@@ -109,6 +109,19 @@ describe.skip('replacing a rejected proof', () => {
     expect(after.body.cat2.publications).toBe(before.body.cat2.publications);
   });
 
+  it('auto-clears the red list when the HoD verifies the last corrected proof', async () => {
+    if (!ready) return;
+    // GOOD is PENDING from the previous test; verifying it leaves nothing
+    // rejected, so the red list clears and the appraisal returns to the queue.
+    const res = await request(app).post(`/api/appraisals/${subId}/proofs/verify`).set(bearer(hodTok))
+      .send({ url: GOOD, status: 'VERIFIED' });
+    expect(res.status).toBe(200);
+    const sub = await prisma.appraisalSubmission.findUnique({ where: { id: subId } });
+    expect(sub!.redListed).toBe(false);
+    expect(sub!.heldAt).toBeNull();
+    expect(sub!.status).toBe('UNDER_REVIEW');
+  });
+
   it('refuses a replacement after the deadline, and the deadline cuts the marks', async () => {
     if (!ready) return;
     const past = new Date(Date.now() - 60_000);

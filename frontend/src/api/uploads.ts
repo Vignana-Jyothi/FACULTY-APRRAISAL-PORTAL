@@ -40,4 +40,18 @@ export const uploadApi = {
     const blob = await api.get(`/uploads/file/${encodeURIComponent(filename)}`, { responseType: 'blob' }).then((r) => r.data as Blob);
     return URL.createObjectURL(blob);
   },
+
+  // Download a proof to disk via the authenticated route, keeping its filename.
+  downloadProof: async (url: string) => {
+    const filename = url.split('/').pop() ?? 'proof';
+    const blob = await api.get(`/uploads/file/${encodeURIComponent(filename)}`, { responseType: 'blob' }).then((r) => r.data as Blob);
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000);
+  },
 };

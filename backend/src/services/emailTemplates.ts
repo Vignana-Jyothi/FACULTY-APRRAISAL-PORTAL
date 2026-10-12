@@ -32,6 +32,7 @@ export const TEMPLATE_SUBJECTS: Record<EmailTemplateKey, (p: any) => string> = {
   quarterly_feedback: (p) => `${quarterLabel(p.quarter)} feedback — Appraisal ${p.year} (provisional)`,
   feedback_issued: (p) => `${p.periodLabel ? `${p.periodLabel} — ` : ''}Your ${p.year} appraisal feedback is ready`,
   review_week_approaching: (p) => `${quarterLabel(p.quarter)} review week starts ${p.startsOn} — finalise your appraisal`,
+  proofs_rejected_redlist: (p) => `Action needed — proof(s) rejected on your ${p.year} appraisal`,
 };
 
 function layout(title: string, body: string): string {
@@ -245,6 +246,15 @@ const TEMPLATES: Record<EmailTemplateKey, (p: any) => string> = {
     <p>During that week your appraisal will be <strong>locked for review</strong>, so please make sure every section and proof is up to date before it begins.</p>
     <p style="margin-top:16px"><a href="${FRONTEND_URL}/dashboard" style="background:#1e3a5f;color:#fff;padding:10px 18px;border-radius:4px;text-decoration:none;font-size:14px;font-weight:600">Review my appraisal</a></p>
     <p style="margin-top:24px;color:#94a3b8;font-size:11px">You're receiving this based on your email preferences. <a href="${FRONTEND_URL}/profile" style="color:#94a3b8">Manage preferences</a>.</p>
+  `),
+
+  proofs_rejected_redlist: (p) => layout('Proofs Rejected', `
+    <h2 style="margin:0 0 8px;color:#dc2626">One or more proofs were rejected</h2>
+    <p>Dear <strong>${esc(p.name)}</strong>,</p>
+    <p>During the review of your <strong>${p.year}</strong> appraisal, one or more of your uploaded proofs were rejected. They have been added to your <strong>Red List</strong>.</p>
+    <p>Open your dashboard to see every rejected proof in one place and replace each one from your appraisal${p.deadline ? `, before <strong>${p.deadline}</strong>` : ''}. Uncorrected proofs have their marks voided.</p>
+    <p style="margin-top:16px"><a href="${FRONTEND_URL}/my-red-list" style="background:#dc2626;color:#fff;padding:10px 18px;border-radius:4px;text-decoration:none;font-size:14px;font-weight:600">Open my Red List</a></p>
+    <p style="margin-top:24px;color:#94a3b8;font-size:11px">You're receiving this because a proof on your appraisal needs attention.</p>
   `),
 
   password_otp: (p) => layout('Password OTP', `

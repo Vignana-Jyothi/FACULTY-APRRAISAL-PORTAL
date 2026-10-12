@@ -139,7 +139,7 @@ describe('draft carries over the year', () => {
       expect((await verify(faculty.token, P_INDEX, 'VERIFIED')).status).toBe(403);
     });
 
-    it('the incharge rejects a proof: REJECTED + reason, the faculty is emailed, the draft is not held', async () => {
+    it('the incharge rejects a proof: REJECTED + reason, the faculty is red-listed (draft stays editable) and told once', async () => {
       if (!ready) return;
       const res = await verify(incharge.token, P_INDEX, 'REJECTED', 'index page missing');
       expect(res.status).toBe(200);
@@ -148,17 +148,24 @@ describe('draft carries over the year', () => {
       expect(pv!.status).toBe('REJECTED');
       expect(pv!.comment).toBe('index page missing');
 
+      // Revised 2026-10-12: a draft reject red-lists the faculty too, but keeps
+      // the draft editable (DRAFT, not HOLD) so they can replace the proof.
       const sub = await prisma.appraisalSubmission.findUniqueOrThrow({ where: { id: subId } });
       expect(sub.status).toBe('DRAFT');
-      expect(sub.redListed).toBe(false);
-      expect(sub.heldAt).toBeNull();
-      expect(sub.proofDeadlineAt).toBeNull();
+      expect(sub.redListed).toBe(true);
+      expect(sub.heldAt).not.toBeNull();
+      expect(sub.proofDeadlineAt).not.toBeNull();
 
-      const mail = await prisma.emailNotification.findMany({ where: { toUserId: faculty.id, template: 'proof_rejected' } });
+      // One episode notice to the faculty (not one per proof), pointing at their red list.
+      const mail = await prisma.emailNotification.findMany({ where: { toUserId: faculty.id, template: 'proofs_rejected_redlist' } });
       expect(mail).toHaveLength(1);
-      expect((mail[0].payload as any).draft).toBe(true);
-      // Nothing is red-listed, so no HoD red-list notice.
-      expect(await prisma.emailNotification.count({ where: { toUserId: hod.id, template: 'proof_rejected_hod' } })).toBe(0);
+      // The dept HoD is notified (the rejecter here is the incharge).
+      expect(await prisma.emailNotification.count({ where: { toUserId: hod.id, template: 'proof_rejected_hod' } })).toBe(1);
+
+      // A further rejection in the same episode does NOT send another notice
+      // (same comment, so the next test still reads the original reason).
+      await verify(incharge.token, P_INDEX, 'REJECTED', 'index page missing');
+      expect(await prisma.emailNotification.count({ where: { toUserId: faculty.id, template: 'proofs_rejected_redlist' } })).toBe(1);
     });
 
     it('the owner reads their own proof statuses, reason included', async () => {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { FileText } from 'lucide-react';
+import { FileText, Search } from 'lucide-react';
 import { reviewApi, type DraftInProgressRow } from '../../api/appraisals';
 import PageHeader from '../../components/PageHeader';
 import Card from '../../components/Card';
@@ -15,7 +15,13 @@ import { useAuthStore } from '../../store/authStore';
 export default function DraftsPage() {
   const [rows, setRows] = useState<DraftInProgressRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState('');
   const isHod = useAuthStore((s) => s.hasRole('HOD'));
+
+  const q = query.trim().toLowerCase();
+  const shown = q
+    ? rows.filter((r) => r.faculty.name.toLowerCase().includes(q) || r.faculty.employeeCode.toLowerCase().includes(q))
+    : rows;
 
   useEffect(() => {
     reviewApi.listDrafts()
@@ -41,6 +47,20 @@ export default function DraftsPage() {
           <p className="text-ink-muted text-sm">No drafts in progress.</p>
         </Card>
       ) : (
+        <>
+          <div className="mb-3 relative max-w-xs">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search faculty name or code"
+              className="input w-full pl-9"
+            />
+          </div>
+          {shown.length === 0 ? (
+            <Card className="text-center py-6"><p className="text-ink-muted text-sm">No faculty match “{query}”.</p></Card>
+          ) : (
         <Card padding="none">
           <table className="w-full text-sm">
             <thead>
@@ -54,7 +74,7 @@ export default function DraftsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-border">
-              {rows.map((r, i) => (
+              {shown.map((r, i) => (
                 <tr key={r.submissionId} className={`${i % 2 === 1 ? 'bg-surface-muted/50' : ''} ${r.reviewedThisQuarter ? 'opacity-60' : ''}`}>
                   <td className="px-5 py-3 font-medium text-ink-primary">
                     {r.faculty.name} <span className="text-ink-muted font-normal">({r.faculty.employeeCode})</span>
@@ -93,6 +113,8 @@ export default function DraftsPage() {
             </tbody>
           </table>
         </Card>
+          )}
+        </>
       )}
     </div>
   );

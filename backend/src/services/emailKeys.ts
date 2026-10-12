@@ -24,6 +24,17 @@ export function holdClearedKey(submissionId: string, heldAt: Date | string | nul
   return `hold_cleared:${submissionId}:${iso(heldAt, 'not-held')}`;
 }
 
+/**
+ * One red-list episode: the first rejected proof stamps heldAt and keeps it
+ * until the hold clears, so every rejection in the same episode shares this
+ * key. That makes the "proofs rejected — see your red list" mail fire once per
+ * episode, not once per proof. `recipientId` distinguishes the HoD copy.
+ */
+export function redlistEpisodeKey(submissionId: string, heldAt: Date | string | null | undefined, recipientId?: string): string {
+  const base = `redlist_episode:${submissionId}:${iso(heldAt, 'not-held')}`;
+  return recipientId ? `${base}:${recipientId}` : base;
+}
+
 /** An admin unlock. Resubmitting stamps a fresh submittedAt. */
 export function unlockedKey(submissionId: string, submittedAt: Date | string | null | undefined): string {
   return `unlocked:${submissionId}:${iso(submittedAt, 'never-submitted')}`;

@@ -34,7 +34,8 @@ export type EmailTemplateKey =
   | 'hold_cleared'
   | 'quarterly_feedback'
   | 'feedback_issued'
-  | 'review_week_approaching';
+  | 'review_week_approaching'
+  | 'proofs_rejected_redlist';
 
 interface EnqueueOpts {
   toUserId: string;

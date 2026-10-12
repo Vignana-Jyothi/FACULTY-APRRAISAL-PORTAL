@@ -53,17 +53,17 @@ describe.skip('proof verification runs on the draft and until the decision', () 
     expect(ready).toBe(true);
   });
 
-  it('rejects a proof on a DRAFT without holding it — no hold, no red list, the faculty is told', async () => {
+  it('rejects a proof on a DRAFT: red-listed but kept editable, the faculty is told once', async () => {
     if (!ready) return;
     const res = await verify('REJECTED');
     expect(res.status).toBe(200);
 
     const sub = await prisma.appraisalSubmission.findUniqueOrThrow({ where: { id: subId } });
-    expect(sub.status).toBe('DRAFT');
-    expect(sub.redListed).toBe(false);
-    expect(sub.heldAt).toBeNull();
-    expect(sub.proofDeadlineAt).toBeNull();
-    expect(await prisma.emailNotification.count({ where: { toUserId: faculty.id, template: 'proof_rejected' } })).toBe(1);
+    expect(sub.status).toBe('DRAFT'); // editable — not HOLD
+    expect(sub.redListed).toBe(true);
+    expect(sub.heldAt).not.toBeNull();
+    expect(sub.proofDeadlineAt).not.toBeNull();
+    expect(await prisma.emailNotification.count({ where: { toUserId: faculty.id, template: 'proofs_rejected_redlist' } })).toBe(1);
   });
 
   it('refuses to change a proof on a decided appraisal', async () => {
