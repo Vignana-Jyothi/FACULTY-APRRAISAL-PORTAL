@@ -25,7 +25,6 @@ let otherDeptId = '';
 let yearId = '';
 let subId = '';
 const cleanupUserIds: string[] = [];
-const deanWindowIds: string[] = [];
 
 beforeAll(async () => {
   try {
@@ -36,9 +35,15 @@ beforeAll(async () => {
     hodTok = hod.token; facTok = fac.token; facId = fac.id; fac2Id = fac2.id; fac2User = fac2;
     cleanupUserIds.push(fac.id, fac2.id);
     otherDeptId = await fixture.addDepartment('OTH');
-    const year = await prisma.academicYear.findFirstOrThrow({ where: { submissionOpen: true } });
+    // Own throwaway academic year, so this suite's dean + dept windows and
+    // submissions never collide with another suite running in parallel against
+    // the shared DB (the earlier CI flake). submissionOpen:false keeps it out of
+    // other suites' findFirst({ submissionOpen }) lookups.
+    const year = await prisma.academicYear.create({
+      data: { label: `DRW Year ${Date.now()}`, startDate: new Date(Date.now() - 200 * dayMs), endDate: new Date(Date.now() + 200 * dayMs), submissionOpen: false },
+    });
     yearId = year.id;
-    subId = await fixture.createSubmission(fac); // fac2 deliberately has no submission
+    subId = await fixture.createSubmission(fac, { academicYearId: yearId }); // fac2 deliberately has no submission
 
     // Dean bounds: Q1 wide-and-active (covers now), Q2 wide (covers yesterday),
     // Q3 wide (covers a start three days out, for the approaching reminder).
@@ -48,7 +53,6 @@ beforeAll(async () => {
         create: { academicYearId: yearId, quarter, startDate: new Date(Date.now() - 30 * dayMs), endDate: new Date(Date.now() + 30 * dayMs), enabled: true },
         update: { startDate: new Date(Date.now() - 30 * dayMs), endDate: new Date(Date.now() + 30 * dayMs), enabled: true },
       });
-      deanWindowIds.push(w.id);
     }
     ready = !!hodTok && !!facTok && !!yearId && !!subId;
   } catch (e) {
@@ -62,9 +66,9 @@ afterAll(async () => {
     await prisma.emailNotification.deleteMany({ where: { toUserId: { in: cleanupUserIds } } }).catch(() => {});
     await prisma.trackingSnapshot.deleteMany({ where: { userId: { in: cleanupUserIds } } }).catch(() => {});
   }
-  // Dean windows hang off the real AY (not the fixture dept), so remove by id.
-  for (const id of deanWindowIds) await prisma.reviewWindow.delete({ where: { id } }).catch(() => {});
-  await fixture?.destroy(); // cascades the fixture dept's DeptReviewWindow rows
+  await fixture?.destroy(); // removes the fixture users' submissions first
+  // Deleting the throwaway year cascades its ReviewWindow + DeptReviewWindow rows.
+  if (yearId) await prisma.academicYear.delete({ where: { id: yearId } }).catch(() => {});
 });
 
 describe('W8b fixture', () => {
@@ -213,7 +217,7 @@ describe('W8b review freeze — once issued, the quarter is locked', () => {
 describe('W8b drafts list — reviewed-this-quarter stacked last', () => {
   it('puts a draft reviewed this quarter below the unreviewed ones', async () => {
     if (!ready || !fac2User) return;
-    const sub2 = await fixture!.createSubmission(fac2User); // fac2 draft, unreviewed
+    const sub2 = await fixture!.createSubmission(fac2User, { academicYearId: yearId }); // fac2 draft, unreviewed
 
     // Make sure subId is reviewed for the CURRENT quarter (200, or 409 if the
     // day-after test already issued it — either way it ends ISSUED).
@@ -242,7 +246,7 @@ describe('W8b both mails fire the moment a faculty is reviewed', () => {
   it('issuing a quarter review emails the faculty both the HoD feedback and the Cat 1-5 snapshot', async () => {
     if (!ready || !fac2User) return;
     // Ensure fac2 has a draft to review (idempotent — the sort test may have made one).
-    await fixture!.createSubmission(fac2User).catch(() => {});
+    await fixture!.createSubmission(fac2User, { academicYearId: yearId }).catch(() => {});
     const sub = await prisma.appraisalSubmission.findFirst({ where: { userId: fac2Id }, orderBy: { submissionNumber: 'desc' } });
     expect(sub).toBeTruthy();
 
