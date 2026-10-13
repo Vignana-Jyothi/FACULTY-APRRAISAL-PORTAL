@@ -107,6 +107,13 @@ const ROW_CONTENT_FIELDS: Record<string, string[]> = {
 const hasText = (row: any, fields: string[]) =>
   fields.some((f) => typeof row?.[f] === 'string' && /[a-z0-9]/i.test(row[f]));
 
+// A row with an uploaded proof/evidence file is real even before its identifier
+// text is typed — keep it so the faculty's upload is never stripped on save
+// (must match backend utils/blankRows.rowHasProof).
+const PROOF_FIELDS = ['proofFile', 'evidenceFile', 'indexProofFile'];
+const hasProof = (row: any) =>
+  PROOF_FIELDS.some((f) => typeof row?.[f] === 'string' && row[f].trim().length > 0);
+
 // ─── Period from start + end dates ───────────────────────────────────────
 // Wherever the form asks for a "period", the faculty pick a start and an end
 // date and the period text (and, for training, the day count) is computed for
@@ -132,7 +139,7 @@ export function periodLabel(s?: string | null, e?: string | null): string {
 function stripBlankRows(categories: any): any {
   const out = { ...categories };
   for (const [key, fields] of Object.entries(ROW_CONTENT_FIELDS)) {
-    if (Array.isArray(out[key])) out[key] = out[key].filter((r: any) => hasText(r, fields));
+    if (Array.isArray(out[key])) out[key] = out[key].filter((r: any) => hasText(r, fields) || hasProof(r));
   }
   // Projects have no free-text field — keep only rows with a positive count.
   if (Array.isArray(out.cat1Projects)) out.cat1Projects = out.cat1Projects.filter((p: any) => Number(p?.count) > 0);

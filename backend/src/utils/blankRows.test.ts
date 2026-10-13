@@ -55,6 +55,22 @@ describe('blankRows', () => {
     expect(rowHasContent({ title: '', nature: 'Video', hours: 40 }, ['title'])).toBe(false);
   });
 
+  it('keeps a row that has an uploaded proof even with no identifier text', () => {
+    // The faculty may upload a proof before typing the title — the row (and so
+    // the upload) must survive the save.
+    const categories: any = {
+      cat2Journals: [{ title: '', journalName: '', proofFile: '/uploads/file/abc.pdf' }],
+      cat1EContent: [{ contentName: '', courseName: '', evidenceFile: '/uploads/file/ec.pdf' }],
+      cat2Conferences: [{ title: '', conferenceName: '', indexProofFile: '/uploads/file/idx.pdf' }],
+      cat2Patents: [{ title: '', proofFile: '' }], // no proof, no title -> dropped
+    };
+    dropBlankRows(categories);
+    expect(categories.cat2Journals).toHaveLength(1);
+    expect(categories.cat1EContent).toHaveLength(1);
+    expect(categories.cat2Conferences).toHaveLength(1);
+    expect(categories.cat2Patents).toHaveLength(0);
+  });
+
   it('strips only the blank rows from a payload, in place', () => {
     const categories: any = {
       cat2Journals: [

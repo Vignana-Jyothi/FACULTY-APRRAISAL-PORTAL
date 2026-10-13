@@ -80,12 +80,21 @@ export const ROW_MODELS: Record<string, string> = {
 export const rowHasContent = (row: any, fields: string[]): boolean =>
   fields.some((f) => typeof row?.[f] === 'string' && /[a-z0-9]/i.test(row[f]));
 
+// A row that carries an uploaded proof / evidence file is a real row even
+// before its identifier text is typed, so it must not be stripped — otherwise
+// the faculty's upload would silently disappear (2026-10-13). The scoring
+// engine still ignores it (it keys on the identifier fields, not the proof),
+// so keeping it never inflates a score.
+const PROOF_FIELDS = ['proofFile', 'evidenceFile', 'indexProofFile'];
+export const rowHasProof = (row: any): boolean =>
+  PROOF_FIELDS.some((f) => typeof row?.[f] === 'string' && row[f].trim().length > 0);
+
 // Strip blank auto-rows from an incoming categories payload (in place).
 export function dropBlankRows(categories: any) {
   if (!categories) return;
   for (const [key, fields] of Object.entries(ROW_CONTENT_FIELDS)) {
     if (Array.isArray(categories[key])) {
-      categories[key] = categories[key].filter((r: any) => rowHasContent(r, fields));
+      categories[key] = categories[key].filter((r: any) => rowHasContent(r, fields) || rowHasProof(r));
     }
   }
   // Projects (1.3) have no free-text field — keep only rows with a positive
