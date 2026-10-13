@@ -31,6 +31,10 @@ function deptInScope(scope: string[] | null, departmentId: string | null): boole
   return !!departmentId && scope.includes(departmentId);
 }
 
+// Empty form strings mean "leave unset", not an invalid date/number.
+const optDate = z.preprocess((v) => (v === '' || v == null ? undefined : v), z.coerce.date().optional());
+const optNum = z.preprocess((v) => (v === '' || v == null ? undefined : Number(v)), z.number().optional());
+
 const profileUpdateSchema = z.object({
   name: z.string().optional(),
   email: z.string().email().optional(),
@@ -39,6 +43,19 @@ const profileUpdateSchema = z.object({
   designation: z.string().optional(),
   specialization: z.string().optional(),
   educationalQuals: z.string().optional(),
+  // Faculty-details (official form page 1), self-maintained on the profile page.
+  dob: optDate,
+  dateOfJoining: optDate,
+  ratifiedDesignation: z.string().optional(),
+  lastPromotionDate: optDate,
+  payBand: z.string().optional(),
+  gradePay: z.string().optional(),
+  grossPay: optNum,
+  periodOfServiceYears: optNum,
+  periodOfServiceMonths: optNum,
+  expBeforeTeaching: optNum,
+  expBeforeIndustrial: optNum,
+  expBeforeResearch: optNum,
 });
 
 const createUserSchema = z.object({

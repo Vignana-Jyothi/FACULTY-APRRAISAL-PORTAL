@@ -34,14 +34,27 @@ export default function ProfilePage() {
   useEffect(() => {
     userApi.getMe().then((u) => {
       setMe(u);
+      const day = (d: string | null | undefined) => (d ? String(d).slice(0, 10) : '');
       setForm({
         name: u.name ?? '',
         email: u.email ?? '',
         phone: u.phone ?? '',
         designation: u.designation ?? '',
+        ratifiedDesignation: u.ratifiedDesignation ?? '',
         specialization: u.specialization ?? '',
         educationalQuals: u.educationalQuals ?? '',
         contactAddress: u.contactAddress ?? '',
+        dob: day(u.dob),
+        dateOfJoining: day(u.dateOfJoining),
+        lastPromotionDate: day(u.lastPromotionDate),
+        payBand: u.payBand ?? '',
+        gradePay: u.gradePay ?? '',
+        grossPay: u.grossPay ?? '',
+        periodOfServiceYears: u.periodOfServiceYears ?? '',
+        periodOfServiceMonths: u.periodOfServiceMonths ?? '',
+        expBeforeTeaching: u.expBeforeTeaching ?? '',
+        expBeforeIndustrial: u.expBeforeIndustrial ?? '',
+        expBeforeResearch: u.expBeforeResearch ?? '',
       });
     });
   }, []);
@@ -175,9 +188,21 @@ export default function ProfilePage() {
           {field('name', 'Name')}
           {field('email', 'Email', 'email')}
           {field('phone', 'Phone')}
+          {field('dob', 'Date of Birth', 'date')}
           {field('designation', 'Designation')}
+          {field('ratifiedDesignation', 'Ratified Designation')}
+          {field('dateOfJoining', 'Date of Joining', 'date')}
+          {field('lastPromotionDate', 'Last Promotion Date', 'date')}
           {field('specialization', 'Specialization')}
           {field('educationalQuals', 'Educational Qualifications')}
+          {field('payBand', 'Pay Band')}
+          {field('gradePay', 'Grade Pay')}
+          {field('grossPay', 'Gross Pay', 'number')}
+          {field('periodOfServiceYears', 'Period of Service — Years', 'number')}
+          {field('periodOfServiceMonths', 'Period of Service — Months', 'number')}
+          {field('expBeforeTeaching', 'Experience before Joining — Teaching (yrs)', 'number')}
+          {field('expBeforeIndustrial', 'Experience before Joining — Industry (yrs)', 'number')}
+          {field('expBeforeResearch', 'Experience before Joining — Research (yrs)', 'number')}
         </div>
         <div>
           <label className="block text-xs font-medium text-ink-secondary mb-1">Contact Address</label>
