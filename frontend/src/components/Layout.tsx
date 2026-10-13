@@ -143,11 +143,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // No personal "/dashboard" here — that is the faculty filing page (My
   // Submissions); a HoD/reviewer home is the Review Queue.
   if (isHodOrReviewer()) {
-    add('/reviews', 'Review Queue', FileText);
-    add('/drafts', 'Drafts in progress', FilePen);
+    // One quarterly review workspace (Review Queue + Drafts merged). Final
+    // review stays separate (it appears only when a final-review is assigned).
+    add('/drafts', 'Drafts in Review', FilePen);
     add('/uploads', 'Uploads', UploadCloud);
     if (hasRole('HOD')) add('/department/reviewers', 'Reviewers', ShieldCheck);
-    if (hasRole('HOD')) add('/department/review-windows', 'Review Week', CalendarClock);
+    if (hasRole('HOD')) add('/department/review-windows', 'Fill Windows', CalendarClock);
     // A HoD can add and view faculty accounts in their own department.
     if (hasRole('HOD')) add('/admin/users', 'Users', Users);
     if (hasRole('HOD')) add('/reports/department', 'Reports', BarChart2);
@@ -193,7 +194,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const switchTo = (w: 'faculty' | 'staff') => {
     setWorkspace(w);
-    navigate(w === 'faculty' ? '/dashboard' : '/reviews');
+    navigate(w === 'faculty' ? '/dashboard' : '/drafts');
     setDrawerOpen(false);
   };
   const staffLabel = hasRole('HOD') ? 'HoD' : 'Reviewer';

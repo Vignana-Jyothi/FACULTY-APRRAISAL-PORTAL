@@ -89,9 +89,12 @@ export interface DraftInProgressRow {
   academicYear: { id: string; label: string };
   faculty: { id: string; name: string; employeeCode: string; department?: { name: string; code: string } | null };
   draftReviewedAt: string | null;
-  /** True when this quarter's review has been issued — sorted to the bottom. */
-  reviewedThisQuarter: boolean;
-  quarter: 'Q1' | 'Q2' | 'Q3' | 'Q4';
+  /** Quarters whose feedback the HoD has issued (verified). */
+  issuedQuarters: Array<'Q1' | 'Q2' | 'Q3' | 'Q4'>;
+  /** Earliest quarter whose fill window ended but is not yet reviewed, or null. */
+  currentReviewQuarter: 'Q1' | 'Q2' | 'Q3' | 'Q4' | null;
+  /** True when a quarter is waiting to be verified — sorted to the top. */
+  needsReview: boolean;
   counts: { total: number; verified: number; rejected: number; pending: number };
 }
 

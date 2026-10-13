@@ -96,7 +96,7 @@ export default function DeptReviewWindowsPage() {
     setBusy(q);
     try {
       await deptReviewWindowApi.upsert({ academicYearId: yearId, departmentId: deptId, quarter: q, startDate: row.startDate, endDate: row.endDate });
-      toast.success(`${q} review week saved`);
+      toast.success(`${q} fill window saved`);
       load(yearId);
     } catch (e: any) {
       toast.error(e.response?.data?.error ?? 'Save failed');
@@ -108,7 +108,7 @@ export default function DeptReviewWindowsPage() {
   if (!deptId) {
     return (
       <div>
-        <PageHeader title="Review Week" />
+        <PageHeader title="Fill Windows" />
         <Card><p className="text-sm text-ink-secondary">No department is assigned to your HoD role.</p></Card>
       </div>
     );
@@ -116,7 +116,7 @@ export default function DeptReviewWindowsPage() {
 
   return (
     <div>
-      <PageHeader title="Review Week" subtitle="Set your department's review week inside each quarter. Appraisals freeze during the week; feedback mails go out the day after it ends." />
+      <PageHeader title="Fill Windows" subtitle="Set the window each quarter when your faculty may fill their appraisals, inside the dean's quarter dates. After a window ends the quarter locks for your review; you then open the next quarter's window." />
 
       <Card className="mb-4">
         <label className="block text-sm font-medium text-ink-secondary mb-1">Academic year</label>

@@ -7,7 +7,6 @@ import DashboardPage from './pages/faculty/DashboardPage';
 import MyRedListPage from './pages/faculty/MyRedListPage';
 import AppraisalEditPage from './pages/faculty/AppraisalEditPage';
 import AppraisalViewPage from './pages/faculty/AppraisalViewPage';
-import ReviewQueuePage from './pages/reviewer/ReviewQueuePage';
 import FinalReviewPage from './pages/reviewer/FinalReviewPage';
 import UploadsPage from './pages/reviewer/UploadsPage';
 import FacultyUploadsPage from './pages/reviewer/FacultyUploadsPage';
@@ -82,10 +81,8 @@ export default function App() {
           <ProtectedRoute roles={DEPT_REVIEW}><FacultyUploadsPage /></ProtectedRoute>
         } />
 
-        {/* Reviewer / HoD */}
-        <Route path="/reviews" element={
-          <ProtectedRoute roles={DEPT_REVIEW}><ReviewQueuePage /></ProtectedRoute>
-        } />
+        {/* Reviewer / HoD — Review Queue merged into Drafts in Review. */}
+        <Route path="/reviews" element={<Navigate to="/drafts" replace />} />
         {/* HoD-only: appoint department reviewers (incharges) in their own dept. */}
         <Route path="/department/reviewers" element={
           <ProtectedRoute roles={['HOD']}><DeptReviewersPage /></ProtectedRoute>

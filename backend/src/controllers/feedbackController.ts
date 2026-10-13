@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { RoleType, FeedbackPeriod, Quarter } from '@prisma/client';
+import { endedQuartersFor, deptHasWindows, QUARTER_ORDER } from '../services/deptReviewWindow';
 import prisma from '../utils/prismaClient';
 import { canViewUserResource } from '../utils/access';
 import { SEES_ALL, hasAnyRole } from '../utils/roles';
@@ -146,7 +147,14 @@ export async function getFeedback(req: Request, res: Response) {
   // HoD reviews a ready draft and edits or issues it with one click.
   const autoSnapshot = editable ? await buildSnapshot(sub.id) : null;
   const suggested = autoSnapshot ? generateNarrative(autoSnapshot) : null;
-  return res.json({ feedback, autoSnapshot, suggested, editable });
+  // The quarter the HoD may issue right now (gates the Issue button per
+  // quarter). reviewGated is false for departments not using fill windows, so
+  // the button stays free there (legacy behaviour).
+  const reviewGated = editable && await deptHasWindows((sub as any).user?.departmentId ?? null, sub.academicYearId);
+  const currentQuarter = reviewGated
+    ? await currentReviewQuarter(sub.id, (sub as any).user?.departmentId ?? null, sub.academicYearId)
+    : null;
+  return res.json({ feedback, autoSnapshot, suggested, editable, reviewGated, currentReviewQuarter: currentQuarter });
 }
 
 const saveSchema = z.object({
@@ -166,6 +174,25 @@ async function periodIsIssued(submissionId: string, period: FeedbackPeriod): Pro
     select: { status: true },
   });
   return existing?.status === 'ISSUED';
+}
+
+// The quarter this faculty may be reviewed for now: earliest quarter whose fill
+// window has ended and whose feedback is not yet issued. null when none is due.
+async function currentReviewQuarter(
+  submissionId: string,
+  departmentId: string | null,
+  academicYearId: string,
+): Promise<FeedbackPeriod | null> {
+  const ended = await endedQuartersFor(departmentId, academicYearId);
+  const issued = new Set(
+    (await prisma.feedback.findMany({
+      where: { submissionId, status: 'ISSUED', period: { in: QUARTER_ORDER as unknown as FeedbackPeriod[] } },
+      select: { period: true },
+    })).map((f) => f.period)
+  );
+  return (QUARTER_ORDER as unknown as FeedbackPeriod[]).find(
+    (q) => ended.has(q as unknown as Quarter) && !issued.has(q)
+  ) ?? null;
 }
 
 // PUT /appraisals/:id/feedback — save narrative as DRAFT (HoD/admin).
@@ -206,6 +233,24 @@ export async function issueFeedback(req: Request, res: Response) {
   const { period: periodIn, ...data } = saveSchema.parse(req.body ?? {});
   const period = parsePeriod(periodIn);
   if (await periodIsIssued(sub.id, period)) return res.status(409).json({ error: REVIEW_FROZEN });
+
+  // One quarter reviewed at a time, in order: a quarter may only be issued once
+  // its fill window has ended and every earlier quarter is done. After issuing,
+  // nothing is issuable until the next quarter's window ends — so the button is
+  // effectively frozen until the next quarter's review (owner decision 2026-10-14).
+  if ((QUARTER_ORDER as unknown as FeedbackPeriod[]).includes(period)
+    && await deptHasWindows(sub.user.departmentId, sub.academicYearId)) {
+    const current = await currentReviewQuarter(sub.id, sub.user.departmentId, sub.academicYearId);
+    if (period !== current) {
+      const ended = await endedQuartersFor(sub.user.departmentId, sub.academicYearId);
+      const msg = !ended.has(period as unknown as Quarter)
+        ? `${period}'s fill window has not ended yet — you can review it once it closes.`
+        : current
+          ? `Review ${current} first — quarters are reviewed in order.`
+          : 'There is no quarter awaiting review right now.';
+      return res.status(409).json({ error: msg, code: 'NOT_CURRENT_REVIEW_QUARTER' });
+    }
+  }
   const snapshot = await buildSnapshot(sub.id);
 
   const feedback = await prisma.feedback.upsert({

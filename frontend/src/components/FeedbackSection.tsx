@@ -154,6 +154,10 @@ export default function FeedbackSection({ submissionId }: { submissionId: string
 
   const issuerName = editable ? (data?.feedback as any)?.issuedBy?.name : (selectedRow as any)?.issuedByName;
   const status = feedback?.status ?? 'NONE';
+  // One quarter is issuable at a time: the one whose fill window ended and is
+  // not yet reviewed. ANNUAL is always issuable; departments not using fill
+  // windows (reviewGated=false) keep the button free.
+  const canIssue = !data?.reviewGated || period === 'ANNUAL' || (data?.currentReviewQuarter ?? null) === period;
   // Which period tabs to show: all five for an editor, only issued ones for faculty.
   const tabs = editable ? PERIODS : PERIODS.filter((p) => statusOf(p.v) === 'ISSUED');
 
@@ -228,11 +232,18 @@ export default function FeedbackSection({ submissionId }: { submissionId: string
               <textarea rows={2} value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} className={inputCls} />
             </div>
           ))}
+          {!canIssue && (
+            <p className="text-xs text-ink-muted">
+              {data?.currentReviewQuarter
+                ? `You can issue ${data.currentReviewQuarter} right now (its fill window has ended). ${period} is not due for review yet.`
+                : `No quarter is due for review yet — issuing opens once a quarter's fill window ends.`}
+            </p>
+          )}
           <div className="flex gap-2 justify-end">
             <button onClick={() => save(false)} disabled={busy} className="inline-flex items-center gap-2 text-sm border border-surface-border px-4 py-2 rounded hover:bg-surface-muted disabled:opacity-50">
               <Save size={15} /> Save draft
             </button>
-            <button onClick={() => save(true)} disabled={busy} className="inline-flex items-center gap-2 text-sm bg-primary-600 text-white px-4 py-2 rounded hover:bg-primary-700 disabled:opacity-50">
+            <button onClick={() => save(true)} disabled={busy || !canIssue} title={canIssue ? '' : 'Only the current quarter can be issued'} className="inline-flex items-center gap-2 text-sm bg-primary-600 text-white px-4 py-2 rounded hover:bg-primary-700 disabled:opacity-50">
               <Send size={15} /> Issue to faculty
             </button>
           </div>

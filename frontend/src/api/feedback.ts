@@ -28,6 +28,10 @@ export interface FeedbackResponse {
   // editor when no draft has been written yet.
   suggested?: { strengths: string; improvements: string; growthTargets: string } | null;
   editable: boolean;
+  /** True when the department uses fill windows and the quarterly cadence is enforced. */
+  reviewGated?: boolean;
+  /** The quarter the HoD may issue now (fill window ended, not yet issued); null if none due. */
+  currentReviewQuarter?: 'Q1' | 'Q2' | 'Q3' | 'Q4' | null;
 }
 
 export interface FeedbackInput {

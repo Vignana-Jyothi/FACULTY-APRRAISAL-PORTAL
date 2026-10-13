@@ -116,14 +116,29 @@ describe('W8b bounds', () => {
   });
 });
 
-describe('W8b freeze', () => {
-  it('blocks a faculty edit while the dept window is active → 423', async () => {
+describe('W8b lock-after-window', () => {
+  it('allows editing while the fill window is open, locks it after the window ends', async () => {
     if (!ready) return;
-    // Q1 window from the bounds test is active now (started yesterday, ends tomorrow).
-    const res = await request(app).put(`/api/appraisals/${subId}`).set(bearer(facTok))
-      .send({ categories: { cat1Courses: [] } });
-    expect(res.status).toBe(423);
-    expect(res.body.code).toBe('REVIEW_WINDOW_FROZEN');
+    // Q1 window from the bounds test is open now (ends tomorrow) -> editable.
+    const open = await request(app).put(`/api/appraisals/${subId}`).set(bearer(facTok))
+      .send({ categories: {} });
+    expect(open.status).toBe(200);
+
+    // Move the window's end into the past so the quarter is closed for review.
+    await prisma.deptReviewWindow.update({
+      where: { academicYearId_departmentId_quarter: { academicYearId: yearId, departmentId: fixture!.deptId, quarter: Quarter.Q1 } },
+      data: { endDate: new Date(Date.now() - dayMs) },
+    });
+    const closed = await request(app).put(`/api/appraisals/${subId}`).set(bearer(facTok))
+      .send({ categories: {} });
+    expect(closed.status).toBe(423);
+    expect(closed.body.code).toBe('FILL_WINDOW_CLOSED');
+
+    // Restore the open window for later tests.
+    await prisma.deptReviewWindow.update({
+      where: { academicYearId_departmentId_quarter: { academicYearId: yearId, departmentId: fixture!.deptId, quarter: Quarter.Q1 } },
+      data: { endDate: new Date(Date.now() + dayMs) },
+    });
   });
 });
 
@@ -214,31 +229,29 @@ describe('W8b review freeze — once issued, the quarter is locked', () => {
   });
 });
 
-describe('W8b drafts list — reviewed-this-quarter stacked last', () => {
-  it('puts a draft reviewed this quarter below the unreviewed ones', async () => {
+describe('W8b drafts list — current quarter to verify, reviewed stacked last', () => {
+  it('flags the ended-window quarter as to-verify and stacks the reviewed faculty down', async () => {
     if (!ready || !fac2User) return;
-    const sub2 = await fixture!.createSubmission(fac2User, { academicYearId: yearId }); // fac2 draft, unreviewed
+    const sub2 = await fixture!.createSubmission(fac2User, { academicYearId: yearId }); // fac2, not reviewed
 
-    // Make sure subId is reviewed for the CURRENT quarter (200, or 409 if the
-    // day-after test already issued it — either way it ends ISSUED).
-    const q = currentQuarter();
+    // Q2's window ended (the day-after test set it to yesterday). Issue Q2 for
+    // subId so it has nothing pending; fac2's sub2 still needs Q2 verified.
     await request(app).post(`/api/appraisals/${subId}/feedback/issue`).set(bearer(hodTok))
-      .send({ period: q, strengths: 'Quarter review done' });
+      .send({ period: 'Q2', strengths: 'Quarter review done' });
 
     const res = await request(app).get('/api/reviews/drafts').set(bearer(hodTok));
     expect(res.status).toBe(200);
     const rows: any[] = res.body;
-    const idxReviewed = rows.findIndex((r) => r.submissionId === subId);
-    const idxUnreviewed = rows.findIndex((r) => r.submissionId === sub2);
-    expect(rows[idxReviewed]?.reviewedThisQuarter).toBe(true);
-    expect(rows[idxUnreviewed]?.reviewedThisQuarter).toBe(false);
-    expect(idxUnreviewed).toBeLessThan(idxReviewed); // unreviewed comes first
+    const reviewed = rows.find((r) => r.submissionId === subId);
+    const pending = rows.find((r) => r.submissionId === sub2);
+    expect(reviewed?.issuedQuarters).toContain('Q2');
+    expect(reviewed?.needsReview).toBe(false);
+    expect(pending?.currentReviewQuarter).toBe('Q2');
+    expect(pending?.needsReview).toBe(true);
 
-    // Global invariant: no unreviewed row appears after a reviewed one.
-    const firstReviewed = rows.findIndex((r) => r.reviewedThisQuarter);
-    if (firstReviewed >= 0) {
-      expect(rows.slice(firstReviewed).every((r) => r.reviewedThisQuarter)).toBe(true);
-    }
+    // Faculty needing review come first; no "done" row sits above a pending one.
+    const firstDone = rows.findIndex((r) => !r.needsReview);
+    if (firstDone >= 0) expect(rows.slice(firstDone).every((r) => !r.needsReview)).toBe(true);
   });
 });
 
@@ -260,6 +273,17 @@ describe('W8b both mails fire the moment a faculty is reviewed', () => {
     const templates = new Set(mails.map((m) => m.template));
     expect(templates.has('feedback_issued')).toBe(true);
     expect(templates.has('quarterly_feedback')).toBe(true);
+  });
+});
+
+describe('W8b issue gate — only the current quarter is issuable', () => {
+  it('refuses to issue a quarter whose fill window has not ended', async () => {
+    if (!ready) return;
+    // Q1's window ends in the future (not ended), so Q1 is not reviewable yet.
+    const res = await request(app).post(`/api/appraisals/${subId}/feedback/issue`).set(bearer(hodTok))
+      .send({ period: 'Q1', strengths: 'too early' });
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('NOT_CURRENT_REVIEW_QUARTER');
   });
 });
 

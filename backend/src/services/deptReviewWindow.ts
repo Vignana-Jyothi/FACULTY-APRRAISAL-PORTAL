@@ -40,10 +40,65 @@ export function sameIndiaDay(a: Date, b: Date): boolean {
     && wa.getUTCDate() === wb.getUTCDate();
 }
 
+// Quarter review order, and the quarter a department may be reviewed for now:
+// the earliest quarter whose fill window has ended and whose feedback has not
+// been issued yet. Used to gate the HoD's "issue feedback" to one quarter at a
+// time, in order.
+export const QUARTER_ORDER: Quarter[] = [Quarter.Q1, Quarter.Q2, Quarter.Q3, Quarter.Q4];
+
+// Whether the department uses fill windows this year — if not, the quarterly
+// review cadence is not enforced (legacy: the HoD may issue any period freely).
+export async function deptHasWindows(
+  departmentId: string | null | undefined,
+  academicYearId: string,
+): Promise<boolean> {
+  if (!departmentId) return false;
+  return (await prisma.deptReviewWindow.count({ where: { enabled: true, departmentId, academicYearId } })) > 0;
+}
+
+export async function endedQuartersFor(
+  departmentId: string | null | undefined,
+  academicYearId: string,
+  at: Date = new Date(),
+): Promise<Set<Quarter>> {
+  const ended = new Set<Quarter>();
+  if (!departmentId) return ended;
+  const windows = await prisma.deptReviewWindow.findMany({
+    where: { enabled: true, departmentId, academicYearId },
+    select: { quarter: true, endDate: true },
+  });
+  for (const w of windows) if (at >= dayAfterInIndia(new Date(w.endDate))) ended.add(w.quarter);
+  return ended;
+}
+
 /**
- * The department's review window that is active (frozen) right now, if any.
- * While one is active the department's drafts are read-only; it auto-clears
- * once the window ends.
+ * Lock-after-window (2026-10-14 model). Faculty FILL during the HoD's window;
+ * once it ends the quarter is closed for the HoD to review, so the draft is
+ * read-only until the HoD opens the next quarter's window. Returns the latest
+ * (operative) window when filling is locked, or null when editing is allowed
+ * (we are on/ before its end day, or no window has been configured yet).
+ */
+export async function fillLockAfterWindow(
+  departmentId: string | null | undefined,
+  academicYearId: string,
+  at: Date = new Date(),
+): Promise<{ quarter: Quarter; endDate: Date } | null> {
+  if (!departmentId) return null;
+  const windows = await prisma.deptReviewWindow.findMany({
+    where: { departmentId, academicYearId, enabled: true },
+    select: { quarter: true, endDate: true },
+  });
+  if (!windows.length) return null; // no window configured -> editable (opt-in)
+  // The operative window is the one set latest (largest end date). Editing is
+  // allowed through its end day; locked from the day after.
+  const latest = windows.reduce((a, b) => (new Date(b.endDate) > new Date(a.endDate) ? b : a));
+  const lockedFrom = dayAfterInIndia(new Date(latest.endDate));
+  return at >= lockedFrom ? { quarter: latest.quarter, endDate: latest.endDate } : null;
+}
+
+/**
+ * The department's review window that is active right now, if any (legacy
+ * during-window check, retained for reference).
  */
 export async function activeDeptWindow(
   departmentId: string | null | undefined,

@@ -68,7 +68,7 @@ export default function DashboardPage() {
   if (!isFaculty) {
     const home = isPrincipal() || isDean() ? '/oversight'
       : isScrutinizer() ? '/final-review'
-      : isHodOrReviewer() ? '/reviews'
+      : isHodOrReviewer() ? '/drafts'
       : (isAdmin() || isDeptAdmin()) ? '/admin/users'
       : '/profile';
     return <Navigate to={home} replace />;

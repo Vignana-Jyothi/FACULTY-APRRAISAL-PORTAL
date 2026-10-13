@@ -5,7 +5,6 @@ import { FileText, Search } from 'lucide-react';
 import { reviewApi, type DraftInProgressRow } from '../../api/appraisals';
 import PageHeader from '../../components/PageHeader';
 import Card from '../../components/Card';
-import { useAuthStore } from '../../store/authStore';
 
 // Drafts in progress (owner decision 2026-09-19). A faculty's draft carries
 // across the whole year and is submitted only after the Q4 review window, so
@@ -16,7 +15,6 @@ export default function DraftsPage() {
   const [rows, setRows] = useState<DraftInProgressRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
-  const isHod = useAuthStore((s) => s.hasRole('HOD'));
 
   const q = query.trim().toLowerCase();
   const shown = q
@@ -35,16 +33,16 @@ export default function DraftsPage() {
   return (
     <div className="max-w-5xl">
       <PageHeader
-        title="Drafts in progress"
-        help="Faculty drafts not yet submitted. Open one to verify proofs and leave a draft review during the year."
-        subtitle={`${rows.length} draft(s) in your department — check proofs during the year${isHod ? ' and note a draft review' : ''}`}
-        breadcrumbs={[{ label: 'Review Queue', to: '/reviews' }, { label: 'Drafts in progress' }]}
+        title="Drafts in Review"
+        help="Your department's appraisals. Each quarter, once its fill window ends, review the faculty and issue feedback. Reviewed quarters show as verified; the quarter awaiting review is highlighted."
+        subtitle={`${rows.length} faculty in your department — verify the current quarter and issue feedback`}
+        breadcrumbs={[{ label: 'Drafts in Review' }]}
       />
 
       {rows.length === 0 ? (
         <Card className="text-center py-8">
           <FileText className="mx-auto text-ink-subtle mb-3" size={40} />
-          <p className="text-ink-muted text-sm">No drafts in progress.</p>
+          <p className="text-ink-muted text-sm">No faculty in your department.</p>
         </Card>
       ) : (
         <>
@@ -75,14 +73,20 @@ export default function DraftsPage() {
             </thead>
             <tbody className="divide-y divide-surface-border">
               {shown.map((r, i) => (
-                <tr key={r.submissionId} className={`${i % 2 === 1 ? 'bg-surface-muted/50' : ''} ${r.reviewedThisQuarter ? 'opacity-60' : ''}`}>
+                <tr key={r.submissionId} className={`${i % 2 === 1 ? 'bg-surface-muted/50' : ''} ${!r.needsReview ? 'opacity-60' : ''}`}>
                   <td className="px-5 py-3 font-medium text-ink-primary">
-                    {r.faculty.name} <span className="text-ink-muted font-normal">({r.faculty.employeeCode})</span>
-                    {r.reviewedThisQuarter && (
-                      <span className="ml-2 align-middle text-[11px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        {r.quarter} reviewed
-                      </span>
-                    )}
+                    <div>{r.faculty.name} <span className="text-ink-muted font-normal">({r.faculty.employeeCode})</span></div>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {r.issuedQuarters.map((q) => (
+                        <span key={q} className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">{q} verified</span>
+                      ))}
+                      {r.currentReviewQuarter && (
+                        <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">{r.currentReviewQuarter} to verify</span>
+                      )}
+                      {!r.currentReviewQuarter && r.issuedQuarters.length === 0 && (
+                        <span className="text-[11px] text-ink-muted">No quarter due yet</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-5 py-3 text-ink-secondary">{r.academicYear.label}</td>
                   <td className="px-5 py-3 text-ink-muted">{new Date(r.updatedAt).toLocaleDateString()}</td>
