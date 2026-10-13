@@ -1,5 +1,11 @@
 import { Request, Response } from 'express';
-import { RoleType, SubmissionStatus, FeedbackPeriod } from '@prisma/client';
+import { RoleType, SubmissionStatus, FeedbackPeriod, Cadre } from '@prisma/client';
+import { deriveCadre, computeExperienceYears } from '../services/cadreEngine';
+
+// Seniormost first for the IQAC sheet ordering.
+const CADRE_RANK: Record<Cadre, number> = {
+  PROFESSOR: 4, ASSOCIATE_PROFESSOR: 3, SR_ASSISTANT_PROFESSOR: 2, ASSISTANT_PROFESSOR: 1,
+};
 import prisma from '../utils/prismaClient';
 import * as XLSX from 'xlsx';
 import { renderHtmlToPdf, renderQuarterlyDeptSummaryHtml } from '../services/pdfService';
@@ -534,7 +540,7 @@ export async function exportIqacQuarterlyExcel(req: Request, res: Response) {
   const submissions = await prisma.appraisalSubmission.findMany({
     where: { academicYearId: year.id, user: { departmentId } },
     include: {
-      user: { select: { id: true, name: true, employeeCode: true } },
+      user: { select: { id: true, name: true, employeeCode: true, designation: true, dateOfJoining: true } },
       review: { select: { overallComment: true } },
       draftReview: { select: { overallComment: true } },
       cat2Journals: { select: { title: true, status: true } },
@@ -564,8 +570,17 @@ export async function exportIqacQuarterlyExcel(req: Request, res: Response) {
     return [...m.entries()].map(([k, v]) => `${v} ${k}`).join(', ');
   };
 
+  // Order: by cadre, seniormost (Professor) first; within a cadre, most
+  // experienced first; name as a final tiebreak.
+  const rankOf = (u: any) => { const c = deriveCadre(u.designation); return c ? CADRE_RANK[c] : 0; };
+  const expOf = (u: any) => computeExperienceYears(u.dateOfJoining);
   const rows = [...picked.values()]
-    .sort((a, b) => ((a as any).user.name ?? '').localeCompare((b as any).user.name ?? ''))
+    .sort((a, b) => {
+      const ua = (a as any).user, ub = (b as any).user;
+      return rankOf(ub) - rankOf(ua)
+        || expOf(ub) - expOf(ua)
+        || (ua.name ?? '').localeCompare(ub.name ?? '');
+    })
     .map((s) => {
       const a = s as any;
       const journals = nonEmpty(a.cat2Journals, 'title');
