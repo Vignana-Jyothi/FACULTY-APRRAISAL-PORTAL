@@ -116,7 +116,11 @@ export async function syncProofVerifications(submissionId: string) {
   });
   if (!sub) return [];
 
-  const items = enumerateProofs(sub);
+  // One ProofVerification row per URL (the unique key). A faculty may point two
+  // fields at the same file (e.g. proofFile and indexProofFile), which would
+  // otherwise make the create collide (P2002 -> 400 "failed to load proof").
+  const seen = new Set<string>();
+  const items = enumerateProofs(sub).filter((i) => (seen.has(i.url) ? false : (seen.add(i.url), true)));
   const currentUrls = new Set(items.map((i) => i.url));
   const existing = await prisma.proofVerification.findMany({ where: { submissionId } });
   const existingByUrl = new Map(existing.map((e) => [e.url, e]));
