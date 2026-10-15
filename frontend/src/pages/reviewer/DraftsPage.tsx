@@ -3,51 +3,65 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { FileText, Search } from 'lucide-react';
 import { reviewApi, type DraftInProgressRow } from '../../api/appraisals';
+import { deptReviewWindowApi, type ActivityRow } from '../../api/deptReviewWindows';
 import PageHeader from '../../components/PageHeader';
 import Card from '../../components/Card';
 
-// Drafts in progress (owner decision 2026-09-19). A faculty's draft carries
-// across the whole year and is submitted only after the Q4 review window, so
-// the department checks proofs on it along the way, and the HoD notes a
-// provisional draft review. The server scopes the list to the caller's own
-// department and leaves out their own draft.
+// Drafts in Review: every faculty in the HoD's department, whether or not they
+// have started this year, with their last-activity date, review status and a
+// manual reminder. The HoD reviews each quarter after its calendar end.
+type Row = ActivityRow & { draft?: DraftInProgressRow };
+
 export default function DraftsPage() {
-  const [rows, setRows] = useState<DraftInProgressRow[]>([]);
+  const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
-  // Review-status filter: all, to-verify (a quarter is due), up-to-date
-  // (nothing due), or a specific current quarter to verify.
   const [statusFilter, setStatusFilter] = useState<'all' | 'to-verify' | 'done' | 'Q1' | 'Q2' | 'Q3' | 'Q4'>('all');
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = async () => {
+    const [drafts, activity] = await Promise.all([reviewApi.listDrafts(), deptReviewWindowApi.activity()]);
+    const byUser = new Map(drafts.map((d) => [d.faculty.id, d]));
+    setRows(activity.rows.map((a) => ({ ...a, draft: byUser.get(a.userId) })));
+  };
+
+  useEffect(() => {
+    load().catch(() => toast.error('Failed to load faculty')).finally(() => setLoading(false));
+  }, []);
 
   const q = query.trim().toLowerCase();
-  const matchStatus = (r: DraftInProgressRow) => {
+  const matchStatus = (r: Row) => {
+    const d = r.draft;
     switch (statusFilter) {
-      case 'to-verify': return r.needsReview;
-      case 'done': return !r.needsReview;
-      case 'Q1': case 'Q2': case 'Q3': case 'Q4': return r.currentReviewQuarter === statusFilter;
+      case 'to-verify': return !!d?.needsReview;
+      case 'done': return !!d && !d.needsReview;
+      case 'Q1': case 'Q2': case 'Q3': case 'Q4': return d?.currentReviewQuarter === statusFilter;
       default: return true;
     }
   };
   const shown = rows.filter((r) =>
-    matchStatus(r)
-    && (!q || r.faculty.name.toLowerCase().includes(q) || r.faculty.employeeCode.toLowerCase().includes(q))
+    matchStatus(r) && (!q || r.name.toLowerCase().includes(q) || r.employeeCode.toLowerCase().includes(q))
   );
 
-  useEffect(() => {
-    reviewApi.listDrafts()
-      .then(setRows)
-      .catch(() => toast.error('Failed to load drafts'))
-      .finally(() => setLoading(false));
-  }, []);
-
-  const toggleLock = async (r: DraftInProgressRow) => {
+  const remind = async (userId: string) => {
+    setBusy('remind:' + userId);
     try {
-      await reviewApi.setEditLock(r.submissionId, !r.editUnlocked);
-      setRows(await reviewApi.listDrafts());
-      toast.success(r.editUnlocked ? 'Re-locked' : 'Unlocked for editing');
+      const r = await deptReviewWindowApi.remind(userId);
+      r.queued ? toast.success(r.message) : toast(r.message);
+    } catch (e: any) {
+      toast.error(e.response?.data?.error ?? 'Could not send reminder');
+    } finally { setBusy(null); }
+  };
+
+  const toggleLock = async (d: DraftInProgressRow) => {
+    setBusy('lock:' + d.submissionId);
+    try {
+      await reviewApi.setEditLock(d.submissionId, !d.editUnlocked);
+      await load();
+      toast.success(d.editUnlocked ? 'Re-locked' : 'Unlocked for editing');
     } catch (e: any) {
       toast.error(e.response?.data?.error ?? 'Could not change the lock');
-    }
+    } finally { setBusy(null); }
   };
 
   if (loading) return <div className="text-sm text-ink-muted">Loading...</div>;
@@ -56,8 +70,8 @@ export default function DraftsPage() {
     <div className="max-w-5xl">
       <PageHeader
         title="Drafts in Review"
-        help="Your department's appraisals. Each quarter, once its fill window ends, review the faculty and issue feedback. Reviewed quarters show as verified; the quarter awaiting review is highlighted."
-        subtitle={`${rows.length} faculty in your department — verify the current quarter and issue feedback`}
+        help="Every faculty in your department. See whether they have started this year and their last activity, verify each quarter after it ends, and remind anyone who has gone quiet."
+        subtitle={`${rows.length} faculty in your department`}
         breadcrumbs={[{ label: 'Drafts in Review' }]}
       />
 
@@ -92,76 +106,88 @@ export default function DraftsPage() {
           {shown.length === 0 ? (
             <Card className="text-center py-6"><p className="text-ink-muted text-sm">No faculty match the current filter.</p></Card>
           ) : (
-        <Card padding="none">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-primary-700 text-white text-xs">
-                <th className="text-left px-5 py-2.5 font-medium">Faculty</th>
-                <th className="text-left px-5 py-2.5 font-medium">Year</th>
-                <th className="text-left px-5 py-2.5 font-medium">Last update</th>
-                <th className="text-left px-5 py-2.5 font-medium">Proofs</th>
-                <th className="text-left px-5 py-2.5 font-medium">Draft review</th>
-                <th className="px-5 py-2.5"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-surface-border">
-              {shown.map((r, i) => (
-                <tr key={r.submissionId} className={`${i % 2 === 1 ? 'bg-surface-muted/50' : ''} ${!r.needsReview ? 'opacity-60' : ''}`}>
-                  <td className="px-5 py-3 font-medium text-ink-primary">
-                    <div>{r.faculty.name} <span className="text-ink-muted font-normal">({r.faculty.employeeCode})</span></div>
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {r.issuedQuarters.map((q) => (
-                        <span key={q} className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">{q} verified</span>
-                      ))}
-                      {r.currentReviewQuarter && (
-                        <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">{r.currentReviewQuarter} to verify</span>
-                      )}
-                      {!r.currentReviewQuarter && r.issuedQuarters.length === 0 && (
-                        <span className="text-[11px] text-ink-muted">No quarter due yet</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-5 py-3 text-ink-secondary">{r.academicYear.label}</td>
-                  <td className="px-5 py-3 text-ink-muted">{new Date(r.updatedAt).toLocaleDateString()}</td>
-                  <td className="px-5 py-3 text-xs">
-                    {r.counts.total === 0 ? (
-                      <span className="text-ink-subtle">none yet</span>
-                    ) : (
-                      <span className="flex gap-2">
-                        <span className="text-amber-700">{r.counts.pending} pending</span>
-                        <span className="text-emerald-700">{r.counts.verified} verified</span>
-                        {r.counts.rejected > 0 && <span className="text-red-700">{r.counts.rejected} rejected</span>}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-5 py-3 text-xs text-ink-muted">
-                    {r.draftReviewedAt ? `saved ${new Date(r.draftReviewedAt).toLocaleDateString()}` : '—'}
-                  </td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-2 justify-end">
-                      {r.locked && <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-red-50 text-red-700 border border-red-200">Locked</span>}
-                      {r.editUnlocked && <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">Unlocked</span>}
-                      {(r.locked || r.editUnlocked) && (
-                        <button
-                          onClick={() => toggleLock(r)}
-                          className="text-xs border border-surface-border rounded px-2 py-1 hover:bg-surface-muted"
-                        >
-                          {r.editUnlocked ? 'Re-lock' : 'Unlock'}
-                        </button>
-                      )}
-                      <Link
-                        to={`/drafts/${r.submissionId}`}
-                        className="text-sm bg-primary-600 text-white px-3 py-1 rounded hover:bg-primary-700 inline-block"
-                      >
-                        Open
-                      </Link>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
+            <Card padding="none">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-primary-700 text-white text-xs">
+                    <th className="text-left px-5 py-2.5 font-medium">Faculty</th>
+                    <th className="text-left px-5 py-2.5 font-medium">Started</th>
+                    <th className="text-left px-5 py-2.5 font-medium">Last activity</th>
+                    <th className="text-left px-5 py-2.5 font-medium">Proofs</th>
+                    <th className="px-5 py-2.5"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-border">
+                  {shown.map((r, i) => {
+                    const d = r.draft;
+                    return (
+                      <tr key={r.userId} className={`${i % 2 === 1 ? 'bg-surface-muted/50' : ''} ${d && !d.needsReview ? 'opacity-70' : ''}`}>
+                        <td className="px-5 py-3 font-medium text-ink-primary">
+                          <div>{r.name} <span className="text-ink-muted font-normal">({r.employeeCode})</span></div>
+                          {d && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {d.issuedQuarters.map((qq) => (
+                                <span key={qq} className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">{qq} verified</span>
+                              ))}
+                              {d.currentReviewQuarter && (
+                                <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">{d.currentReviewQuarter} to verify</span>
+                              )}
+                              {d.locked && <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-red-50 text-red-700 border border-red-200">Locked</span>}
+                              {d.editUnlocked && <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">Unlocked</span>}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-5 py-3">
+                          {r.hasSubmission
+                            ? <span className="text-emerald-700 text-xs font-medium">Started</span>
+                            : <span className="text-ink-subtle text-xs">Not started</span>}
+                        </td>
+                        <td className="px-5 py-3 text-ink-muted">
+                          {r.lastEditedAt ? new Date(r.lastEditedAt).toLocaleDateString() : '—'}
+                        </td>
+                        <td className="px-5 py-3 text-xs">
+                          {!d || d.counts.total === 0 ? (
+                            <span className="text-ink-subtle">none yet</span>
+                          ) : (
+                            <span className="flex gap-2">
+                              <span className="text-amber-700">{d.counts.pending} pending</span>
+                              <span className="text-emerald-700">{d.counts.verified} verified</span>
+                              {d.counts.rejected > 0 && <span className="text-red-700">{d.counts.rejected} rejected</span>}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3">
+                          <div className="flex items-center gap-2 justify-end">
+                            <button
+                              onClick={() => remind(r.userId)}
+                              disabled={busy === 'remind:' + r.userId || r.optedOut}
+                              title={r.optedOut ? 'Faculty opted out of emails' : ''}
+                              className="text-xs border border-surface-border rounded px-2 py-1 hover:bg-surface-muted disabled:opacity-40"
+                            >
+                              Remind
+                            </button>
+                            {d && (d.locked || d.editUnlocked) && (
+                              <button
+                                onClick={() => toggleLock(d)}
+                                disabled={busy === 'lock:' + d.submissionId}
+                                className="text-xs border border-surface-border rounded px-2 py-1 hover:bg-surface-muted"
+                              >
+                                {d.editUnlocked ? 'Re-lock' : 'Unlock'}
+                              </button>
+                            )}
+                            {d && (
+                              <Link to={`/drafts/${d.submissionId}`} className="text-sm bg-primary-600 text-white px-3 py-1 rounded hover:bg-primary-700 inline-block">
+                                Open
+                              </Link>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </Card>
           )}
         </>
       )}

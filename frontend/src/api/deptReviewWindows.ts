@@ -53,8 +53,8 @@ export const deptReviewWindowApi = {
     api.put('/dept-review-windows', body).then((r) => r.data),
   remove: (id: string): Promise<void> =>
     api.delete(`/dept-review-windows/${id}`).then(() => undefined),
-  activity: (academicYearId: string, departmentId?: string): Promise<{ rows: ActivityRow[] }> =>
+  activity: (academicYearId?: string, departmentId?: string): Promise<{ rows: ActivityRow[] }> =>
     api.get('/dept-review-windows/activity', { params: { academicYearId, departmentId } }).then((r) => r.data),
-  remind: (userId: string, academicYearId: string): Promise<{ queued: boolean; message: string }> =>
+  remind: (userId: string, academicYearId?: string): Promise<{ queued: boolean; message: string }> =>
     api.post('/dept-review-windows/remind', { userId, academicYearId }).then((r) => r.data),
 };

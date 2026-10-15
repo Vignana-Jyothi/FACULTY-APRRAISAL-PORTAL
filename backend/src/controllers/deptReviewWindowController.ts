@@ -95,8 +95,12 @@ const STALE_DAYS = 7;
 // draft's last-edit time and a status, so the HoD can see who has gone quiet
 // and nudge them (Phase 2).
 export async function getDeptActivity(req: Request, res: Response) {
-  const academicYearId = typeof req.query.academicYearId === 'string' ? req.query.academicYearId : undefined;
-  if (!academicYearId) return res.status(400).json({ error: 'academicYearId is required' });
+  let academicYearId = typeof req.query.academicYearId === 'string' ? req.query.academicYearId : undefined;
+  if (!academicYearId) {
+    const open = await prisma.academicYear.findFirst({ where: { submissionOpen: true }, orderBy: { startDate: 'desc' }, select: { id: true } });
+    academicYearId = open?.id;
+    if (!academicYearId) return res.status(404).json({ error: 'No open academic year' });
+  }
 
   const allowed = allowedDeptIds(req);
   const filterDept = typeof req.query.departmentId === 'string' ? req.query.departmentId : undefined;
@@ -140,13 +144,16 @@ export async function getDeptActivity(req: Request, res: Response) {
   return res.json({ rows });
 }
 
-const remindSchema = z.object({ userId: z.string().min(1), academicYearId: z.string().min(1) });
+const remindSchema = z.object({ userId: z.string().min(1), academicYearId: z.string().min(1).optional() });
 
 // POST /dept-review-windows/remind  { userId, academicYearId }
 // Manual nudge from the HoD to one faculty in their department (alongside the
 // automatic weekly reminder). Deduped to at most one per faculty per day.
 export async function remindDeptFaculty(req: Request, res: Response) {
-  const { userId, academicYearId } = remindSchema.parse(req.body);
+  const { userId, academicYearId: ayIn } = remindSchema.parse(req.body);
+  const academicYearId = ayIn
+    ?? (await prisma.academicYear.findFirst({ where: { submissionOpen: true }, orderBy: { startDate: 'desc' }, select: { id: true } }))?.id;
+  if (!academicYearId) return res.status(404).json({ error: 'No open academic year' });
   const target = await prisma.user.findUnique({
     where: { id: userId },
     select: { name: true, departmentId: true, email: true, emailOptIn: true },
