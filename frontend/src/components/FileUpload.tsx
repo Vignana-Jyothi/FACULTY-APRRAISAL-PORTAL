@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Upload, FileText, X, Eye, Loader2, Link as LinkIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { uploadApi } from '../api/uploads';
@@ -32,7 +32,13 @@ export default function FileUpload({ value, onChange, readOnly, accept = DEFAULT
   const [pct, setPct] = useState(0);
   const [linkMode, setLinkMode] = useState(false);
   const [link, setLink] = useState('');
+  const [maxMb, setMaxMb] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { uploadApi.limits().then((l) => setMaxMb(l.maxMb)).catch(() => {}); }, []);
+
+  // Human-readable accepted formats from the accept list (".pdf,.jpg" -> "PDF, JPG").
+  const formats = [...new Set(accept.split(',').map((s) => s.trim().replace(/^\./, '').toUpperCase()).filter(Boolean))].join(', ');
 
   const saveLink = () => {
     const url = link.trim();
@@ -158,6 +164,7 @@ export default function FileUpload({ value, onChange, readOnly, accept = DEFAULT
 
   // Empty — upload button + paste-link option
   return (
+    <div className="flex flex-col gap-1">
     <div className="flex items-center gap-2">
       <button
         type="button"
@@ -180,6 +187,10 @@ export default function FileUpload({ value, onChange, readOnly, accept = DEFAULT
         className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) onPick(f); }}
       />
+    </div>
+      <p className="text-[11px] text-ink-muted">
+        {formats}{maxMb ? ` · max ${maxMb} MB` : ''} — or paste a link for a larger file
+      </p>
     </div>
   );
 }
