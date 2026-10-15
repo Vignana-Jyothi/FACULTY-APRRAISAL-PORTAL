@@ -718,7 +718,7 @@ export default function AppraisalEditPage() {
     <div className="max-w-4xl">
       {frozen && (
         <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <span className="font-semibold">Filling closed — under review.</span> {frozen}
+          <span className="font-semibold">Locked for HoD review.</span> {frozen}
         </div>
       )}
       <div className="flex items-center gap-2 mb-4">

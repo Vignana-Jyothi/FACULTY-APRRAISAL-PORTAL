@@ -144,6 +144,8 @@ router.get('/appraisals/:id', authenticate, appraisal.getAppraisal);
 router.put('/appraisals/:id', authenticate, appraisal.updateAppraisal);
 router.post('/appraisals/:id/submit', authenticate, appraisal.submitAppraisal);
 router.post('/appraisals/:id/withdraw', authenticate, appraisal.withdrawAppraisal);
+// HoD unlocks/relocks a single faculty's draft during a review lock.
+router.post('/appraisals/:id/edit-lock', authenticate, roleGuard([RoleType.HOD, ...SEES_ALL]), appraisal.setEditLock);
 router.get('/appraisals/:id/score', authenticate, appraisal.getScore);
 router.get('/appraisals/:id/target-status', authenticate, feedback.getTargetStatus);
 

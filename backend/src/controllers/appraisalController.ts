@@ -1,6 +1,6 @@
 ﻿import { Request, Response } from 'express';
 import { z } from 'zod';
-import { SubmissionStatus } from '@prisma/client';
+import { SubmissionStatus, RoleType } from '@prisma/client';
 import prisma from '../utils/prismaClient';
 import { computeScore } from '../services/scoringEngine';
 import { enqueueEmail } from '../services/emailService';
@@ -13,6 +13,7 @@ import { canViewUserResource } from '../utils/access';
 import { isOwnerView, stripReviewerAssessment, canSeeReviewerAssessment } from '../utils/reviewVisibility';
 import { DEPT_REVIEW, INSTITUTE_READ, SCRUTINY_POOL, deptIdsFor, hasAnyRole } from '../utils/roles';
 import { dropBlankRows } from '../utils/blankRows';
+import { reviewLockQuarter } from '../services/quarterReview';
 import { normalizePublicationAuthors } from '../utils/publicationAuthors';
 import { wouldWipeDraft } from '../utils/wipeGuard';
 import { submitOpensAt, formatOpensAt } from '../services/submitGate';
@@ -239,8 +240,20 @@ export async function updateAppraisal(req: Request, res: Response) {
     return res.status(400).json({ error: 'Only DRAFT submissions can be edited' });
   }
 
-  // Faculty may edit their draft for the whole year — there is no fill lock
-  // (2026-10-15 model). The HoD reviews each quarter after its calendar end.
+  // Review lock: once a quarter ends (on/after LOCK_FROM) the faculty is locked
+  // until the HoD issues its feedback, unless the HoD unlocked them early.
+  if (!sub.editUnlocked) {
+    const ay = await prisma.academicYear.findUnique({ where: { id: sub.academicYearId }, select: { startDate: true } });
+    const lockQ = ay ? await reviewLockQuarter(sub.id, ay.startDate) : null;
+    if (lockQ) {
+      return res.status(423).json({
+        error: `${lockQ} has ended and your appraisal is locked for HoD review. `
+          + 'It unlocks once your HoD issues the feedback.',
+        code: 'REVIEW_LOCK',
+      });
+    }
+  }
+
   const { categories, leaveData } = req.body;
   dropBlankRows(categories); // discard blank auto-added form rows before persisting
   // 2.1 author lists: tidy them, and refuse a paper claimed by another co-author.
@@ -578,3 +591,26 @@ export async function downloadAppraisalPdf(req: Request, res: Response) {
   return res.send(pdf);
 }
 
+
+const editLockSchema = z.object({ unlocked: z.boolean() });
+
+// POST /appraisals/:id/edit-lock — the HoD of the faculty's department (or the
+// principal) unlocks/relocks a single faculty's draft during a review lock, for
+// an emergency or red-list correction. Issuing the quarter re-arms the lock.
+export async function setEditLock(req: Request, res: Response) {
+  const sub = await prisma.appraisalSubmission.findUnique({
+    where: { id: req.params.id },
+    include: { user: { select: { departmentId: true } } },
+  });
+  if (!sub) return res.status(404).json({ error: 'Not found' });
+  const user = req.user!;
+  const isDeptHod = user.roles.some(
+    (r) => r.role === RoleType.HOD && r.departmentId != null && r.departmentId === sub.user.departmentId,
+  );
+  if (!isDeptHod && !hasAnyRole(user, INSTITUTE_READ)) {
+    return res.status(403).json({ error: 'Only the HoD of the faculty\'s department can unlock their draft' });
+  }
+  const { unlocked } = editLockSchema.parse(req.body);
+  await prisma.appraisalSubmission.update({ where: { id: sub.id }, data: { editUnlocked: unlocked } });
+  return res.json({ editUnlocked: unlocked });
+}

@@ -517,6 +517,11 @@ model AppraisalSubmission {
   // frontend mirror both drop these rows, so the two stay in parity.
   voidedSources   String[]
 
+  // Review lock override (2026-10-15): once a quarter ends the faculty is locked
+  // until the HoD issues its feedback. The HoD may unlock one faculty early
+  // (emergency / red-list correction); issuing the quarter re-arms the lock.
+  editUnlocked    Boolean  @default(false)
+
   user         User         @relation(fields: [userId], references: [id])
   draftReview  DraftReview?
   academicYear AcademicYear @relation(fields: [academicYearId], references: [id])

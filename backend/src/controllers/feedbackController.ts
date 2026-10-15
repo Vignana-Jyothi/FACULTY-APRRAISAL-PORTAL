@@ -241,6 +241,12 @@ export async function issueFeedback(req: Request, res: Response) {
     update: { ...data, snapshot: snapshot as any, status: 'ISSUED', issuedById: req.user!.id, issuedAt: new Date() },
   });
 
+  // Issuing a quarter clears any manual unlock, so the next quarter's end locks
+  // the faculty again until that quarter is reviewed too.
+  if (sub.editUnlocked) {
+    await prisma.appraisalSubmission.update({ where: { id: sub.id }, data: { editUnlocked: false } }).catch(() => {});
+  }
+
   await prisma.auditLog.create({
     data: { userId: req.user!.id, action: 'FEEDBACK_ISSUED', entityType: 'Feedback', entityId: feedback.id },
   });

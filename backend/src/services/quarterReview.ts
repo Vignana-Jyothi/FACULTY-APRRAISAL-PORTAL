@@ -9,6 +9,12 @@ import { dayAfterInIndia } from './deptReviewWindow';
 
 export const QUARTER_ORDER: FeedbackPeriod[] = ['Q1', 'Q2', 'Q3', 'Q4'] as FeedbackPeriod[];
 
+// The review lock (faculty locked after a quarter ends, until the HoD issues
+// its feedback) applies only to quarters ending ON OR AFTER this date. Quarters
+// that had already ended when the feature shipped are grandfathered open, so
+// nobody is locked retroactively (owner decision 2026-10-15).
+export const LOCK_FROM = new Date('2026-10-15T00:00:00.000Z');
+
 const IST_OFFSET_MS = 330 * 60 * 1000;
 
 // Last calendar day of a quarter for the given academic year (start = 1 Jul YYYY).
@@ -46,4 +52,25 @@ export async function currentReviewQuarter(
     })).map((f) => f.period)
   );
   return QUARTER_ORDER.find((q) => ended.has(q) && !issued.has(q)) ?? null;
+}
+
+// The quarter the faculty is LOCKED for: earliest ended-but-unissued quarter
+// whose calendar end is on/after LOCK_FROM (grandfathering older quarters).
+// null when the faculty should be editable. Mirrors currentReviewQuarter but
+// skips grandfathered quarters.
+export async function reviewLockQuarter(
+  submissionId: string,
+  ayStart: Date,
+  now: Date = new Date(),
+): Promise<FeedbackPeriod | null> {
+  const ended = endedCalendarQuarters(ayStart, now);
+  const issued = new Set(
+    (await prisma.feedback.findMany({
+      where: { submissionId, status: 'ISSUED', period: { in: QUARTER_ORDER } },
+      select: { period: true },
+    })).map((f) => f.period)
+  );
+  return QUARTER_ORDER.find(
+    (q) => ended.has(q) && !issued.has(q) && calendarQuarterEnd(q, ayStart) >= LOCK_FROM
+  ) ?? null;
 }

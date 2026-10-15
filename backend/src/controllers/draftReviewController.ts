@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { RoleType, SubmissionStatus, FeedbackPeriod } from '@prisma/client';
 import prisma from '../utils/prismaClient';
-import { endedCalendarQuarters, QUARTER_ORDER } from '../services/quarterReview';
+import { endedCalendarQuarters, calendarQuarterEnd, QUARTER_ORDER, LOCK_FROM } from '../services/quarterReview';
 import { DEPT_REVIEW, INSTITUTE_READ, SEES_ALL, deptIdsFor, hasAnyRole } from '../utils/roles';
 import { canSeeReviewerAssessment, stripReviewerAssessment } from '../utils/reviewVisibility';
 import { enumerateProofs, PROOF_INCLUDE } from '../services/proofService';
@@ -211,6 +211,10 @@ export async function listDrafts(req: Request, res: Response) {
     const issuedQuarters = QUARTERS.filter((q) => issuedQ.has(q));
     // Earliest quarter whose calendar end passed but feedback not yet issued.
     const currentReviewQuarter = QUARTERS.find((q) => ended.has(q) && !issuedQ.has(q)) ?? null;
+    // Lock quarter skips grandfathered (pre-LOCK_FROM) quarters.
+    const lockQuarter = QUARTERS.find(
+      (q) => ended.has(q) && !issuedQ.has(q) && calendarQuarterEnd(q, sub.academicYear.startDate) >= LOCK_FROM
+    ) ?? null;
     return {
       submissionId: sub.id,
       submissionNumber: sub.submissionNumber,
@@ -221,6 +225,9 @@ export async function listDrafts(req: Request, res: Response) {
       issuedQuarters,
       currentReviewQuarter,
       needsReview: currentReviewQuarter != null,
+      lockQuarter,
+      editUnlocked: sub.editUnlocked,
+      locked: lockQuarter != null && !sub.editUnlocked,
       counts: { total: items.length, verified, rejected, pending },
     };
   });

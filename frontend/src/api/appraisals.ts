@@ -95,12 +95,20 @@ export interface DraftInProgressRow {
   currentReviewQuarter: 'Q1' | 'Q2' | 'Q3' | 'Q4' | null;
   /** True when a quarter is waiting to be verified — sorted to the top. */
   needsReview: boolean;
+  /** The quarter the faculty is locked for (ended, unissued, not grandfathered), or null. */
+  lockQuarter: 'Q1' | 'Q2' | 'Q3' | 'Q4' | null;
+  /** True when the HoD has unlocked this faculty's draft during a lock. */
+  editUnlocked: boolean;
+  /** True when the faculty's draft is currently locked for review. */
+  locked: boolean;
   counts: { total: number; verified: number; rejected: number; pending: number };
 }
 
 export const reviewApi = {
   listPending: () => api.get('/reviews/pending').then((r) => r.data),
   listDrafts: (): Promise<DraftInProgressRow[]> => api.get('/reviews/drafts').then((r) => r.data),
+  setEditLock: (id: string, unlocked: boolean): Promise<{ editUnlocked: boolean }> =>
+    api.post(`/appraisals/${id}/edit-lock`, { unlocked }).then((r) => r.data),
 };
 
 export interface FinalReviewRow {

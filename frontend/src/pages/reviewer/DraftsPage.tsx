@@ -40,6 +40,16 @@ export default function DraftsPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const toggleLock = async (r: DraftInProgressRow) => {
+    try {
+      await reviewApi.setEditLock(r.submissionId, !r.editUnlocked);
+      setRows(await reviewApi.listDrafts());
+      toast.success(r.editUnlocked ? 'Re-locked' : 'Unlocked for editing');
+    } catch (e: any) {
+      toast.error(e.response?.data?.error ?? 'Could not change the lock');
+    }
+  };
+
   if (loading) return <div className="text-sm text-ink-muted">Loading...</div>;
 
   return (
@@ -128,12 +138,24 @@ export default function DraftsPage() {
                     {r.draftReviewedAt ? `saved ${new Date(r.draftReviewedAt).toLocaleDateString()}` : '—'}
                   </td>
                   <td className="px-5 py-3">
-                    <Link
-                      to={`/drafts/${r.submissionId}`}
-                      className="text-sm bg-primary-600 text-white px-3 py-1 rounded hover:bg-primary-700 inline-block"
-                    >
-                      Open
-                    </Link>
+                    <div className="flex items-center gap-2 justify-end">
+                      {r.locked && <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-red-50 text-red-700 border border-red-200">Locked</span>}
+                      {r.editUnlocked && <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">Unlocked</span>}
+                      {(r.locked || r.editUnlocked) && (
+                        <button
+                          onClick={() => toggleLock(r)}
+                          className="text-xs border border-surface-border rounded px-2 py-1 hover:bg-surface-muted"
+                        >
+                          {r.editUnlocked ? 'Re-lock' : 'Unlock'}
+                        </button>
+                      )}
+                      <Link
+                        to={`/drafts/${r.submissionId}`}
+                        className="text-sm bg-primary-600 text-white px-3 py-1 rounded hover:bg-primary-700 inline-block"
+                      >
+                        Open
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}
