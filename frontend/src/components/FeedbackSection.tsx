@@ -235,8 +235,8 @@ export default function FeedbackSection({ submissionId }: { submissionId: string
           {!canIssue && (
             <p className="text-xs text-ink-muted">
               {data?.currentReviewQuarter
-                ? `You can issue ${data.currentReviewQuarter} right now (its fill window has ended). ${period} is not due for review yet.`
-                : `No quarter is due for review yet — issuing opens once a quarter's fill window ends.`}
+                ? `You can issue ${data.currentReviewQuarter} right now (that quarter has ended). ${period} is not due for review yet.`
+                : `No quarter is due for review yet — issuing opens once a quarter ends on the calendar.`}
             </p>
           )}
           <div className="flex gap-2 justify-end">

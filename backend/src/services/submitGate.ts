@@ -1,12 +1,12 @@
-import { Quarter } from '@prisma/client';
 import prisma from '../utils/prismaClient';
+import { calendarQuarterEnd } from './quarterReview';
 
 /**
- * When a faculty may submit the year's appraisal (owner decision 2026-09-19).
+ * When a faculty may submit the year's appraisal.
  *
  * The draft carries across Q1-Q4; there is no quarterly submission. Submitting
- * opens when the academic year's enabled Q4 review window ends. With no enabled
- * Q4 window configured, the academic year's own end date stands in.
+ * opens the day after Q4's fixed calendar end (30 Jun), the day after the whole
+ * year is over (2026-10-15 model — no review windows).
  *
  * `submissionOpen` on the year is a separate, older gate and still applies —
  * this only answers "from when".
@@ -14,15 +14,9 @@ import prisma from '../utils/prismaClient';
  * Returns null only when the academic year does not exist.
  */
 export async function submitOpensAt(academicYearId: string): Promise<Date | null> {
-  const [q4, year] = await Promise.all([
-    prisma.reviewWindow.findUnique({
-      where: { academicYearId_quarter: { academicYearId, quarter: Quarter.Q4 } },
-      select: { endDate: true, enabled: true },
-    }),
-    prisma.academicYear.findUnique({ where: { id: academicYearId }, select: { endDate: true } }),
-  ]);
+  const year = await prisma.academicYear.findUnique({ where: { id: academicYearId }, select: { startDate: true } });
   if (!year) return null;
-  return dayAfterInIndia(q4?.enabled ? q4.endDate : year.endDate);
+  return dayAfterInIndia(calendarQuarterEnd('Q4', year.startDate));
 }
 
 // Offset of Indian Standard Time from UTC, in milliseconds (+05:30, no DST).

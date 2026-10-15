@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { RoleType, SubmissionStatus, FeedbackPeriod } from '@prisma/client';
 import prisma from '../utils/prismaClient';
-import { dayAfterInIndia } from '../services/deptReviewWindow';
+import { endedCalendarQuarters, QUARTER_ORDER } from '../services/quarterReview';
 import { DEPT_REVIEW, INSTITUTE_READ, SEES_ALL, deptIdsFor, hasAnyRole } from '../utils/roles';
 import { canSeeReviewerAssessment, stripReviewerAssessment } from '../utils/reviewVisibility';
 import { enumerateProofs, PROOF_INCLUDE } from '../services/proofService';
@@ -168,7 +168,7 @@ export async function listDrafts(req: Request, res: Response) {
     include: {
       ...PROOF_INCLUDE,
       user: { select: { id: true, name: true, employeeCode: true, departmentId: true, department: { select: { name: true, code: true } } } },
-      academicYear: { select: { id: true, label: true } },
+      academicYear: { select: { id: true, label: true, startDate: true } },
       draftReview: { select: { updatedAt: true } },
     },
     orderBy: { updatedAt: 'desc' },
@@ -181,11 +181,11 @@ export async function listDrafts(req: Request, res: Response) {
   });
   const statusByKey = new Map(verifications.map((v) => [`${v.submissionId}::${v.url}`, v.status]));
 
-  // Quarterly review status per faculty. A quarter is "to verify" once its dept
-  // fill window has ended and no feedback has been issued for it yet; "verified"
-  // once the feedback is issued. The current quarter to verify is the earliest
-  // ended-but-unissued one. Those with nothing pending stack to the bottom.
-  const QUARTERS: FeedbackPeriod[] = ['Q1', 'Q2', 'Q3', 'Q4'] as FeedbackPeriod[];
+  // Quarterly review status per faculty. A quarter is "to verify" once its
+  // CALENDAR end has passed and no feedback has been issued for it yet;
+  // "verified" once the feedback is issued. The current quarter to verify is the
+  // earliest ended-but-unissued one. Those with nothing pending stack down.
+  const QUARTERS = QUARTER_ORDER;
 
   const issued = await prisma.feedback.findMany({
     where: { submissionId: { in: ids }, status: 'ISSUED', period: { in: QUARTERS } },
@@ -195,24 +195,6 @@ export async function listDrafts(req: Request, res: Response) {
   for (const f of issued) {
     if (!issuedBySub.has(f.submissionId)) issuedBySub.set(f.submissionId, new Set());
     issuedBySub.get(f.submissionId)!.add(f.period);
-  }
-
-  // Which quarters' fill windows have ended, per department + academic year.
-  const deptIdsInvolved = [...new Set(drafts.map((d) => d.user.departmentId).filter(Boolean) as string[])];
-  const ayIds = [...new Set(drafts.map((d) => d.academicYearId))];
-  const windows = deptIdsInvolved.length
-    ? await prisma.deptReviewWindow.findMany({
-        where: { enabled: true, departmentId: { in: deptIdsInvolved }, academicYearId: { in: ayIds } },
-        select: { departmentId: true, academicYearId: true, quarter: true, endDate: true },
-      })
-    : [];
-  const now = new Date();
-  const endedByKey = new Map<string, Set<string>>(); // `${dept}:${ay}` -> ended quarters
-  for (const w of windows) {
-    if (now < dayAfterInIndia(new Date(w.endDate))) continue; // window still open
-    const key = `${w.departmentId}:${w.academicYearId}`;
-    if (!endedByKey.has(key)) endedByKey.set(key, new Set());
-    endedByKey.get(key)!.add(w.quarter);
   }
 
   const rows = drafts.map((sub) => {
@@ -225,9 +207,9 @@ export async function listDrafts(req: Request, res: Response) {
       else pending++;
     }
     const issuedQ = issuedBySub.get(sub.id) ?? new Set<string>();
-    const ended = endedByKey.get(`${sub.user.departmentId}:${sub.academicYearId}`) ?? new Set<string>();
+    const ended = endedCalendarQuarters(sub.academicYear.startDate);
     const issuedQuarters = QUARTERS.filter((q) => issuedQ.has(q));
-    // Earliest quarter whose window ended but feedback not yet issued.
+    // Earliest quarter whose calendar end passed but feedback not yet issued.
     const currentReviewQuarter = QUARTERS.find((q) => ended.has(q) && !issuedQ.has(q)) ?? null;
     return {
       submissionId: sub.id,

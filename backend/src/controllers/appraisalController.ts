@@ -16,7 +16,6 @@ import { dropBlankRows } from '../utils/blankRows';
 import { normalizePublicationAuthors } from '../utils/publicationAuthors';
 import { wouldWipeDraft } from '../utils/wipeGuard';
 import { submitOpensAt, formatOpensAt } from '../services/submitGate';
-import { fillLockAfterWindow } from '../services/deptReviewWindow';
 
 const FULL_INCLUDE = {
   cat1Courses: true,
@@ -240,19 +239,8 @@ export async function updateAppraisal(req: Request, res: Response) {
     return res.status(400).json({ error: 'Only DRAFT submissions can be edited' });
   }
 
-  // Lock-after-window: faculty fill during the HoD's quarter window; once it
-  // ends the quarter is closed for review and the draft is read-only until the
-  // HoD opens the next quarter's window.
-  const owner = await prisma.user.findUnique({ where: { id: sub.userId }, select: { departmentId: true } });
-  const locked = await fillLockAfterWindow(owner?.departmentId, sub.academicYearId);
-  if (locked) {
-    return res.status(423).json({
-      error: `Filling for ${locked.quarter} has closed (the window ended ${locked.endDate.toISOString().slice(0, 10)}) `
-        + 'and your appraisal is under review. It reopens when your HoD opens the next quarter\'s window.',
-      code: 'FILL_WINDOW_CLOSED',
-    });
-  }
-
+  // Faculty may edit their draft for the whole year — there is no fill lock
+  // (2026-10-15 model). The HoD reviews each quarter after its calendar end.
   const { categories, leaveData } = req.body;
   dropBlankRows(categories); // discard blank auto-added form rows before persisting
   // 2.1 author lists: tidy them, and refuse a paper claimed by another co-author.

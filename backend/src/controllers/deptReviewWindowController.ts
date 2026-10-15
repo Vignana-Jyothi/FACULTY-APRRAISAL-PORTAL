@@ -67,28 +67,15 @@ export async function upsertDeptReviewWindow(req: Request, res: Response) {
 
   const allowed = allowedDeptIds(req);
   if (allowed && !allowed.includes(departmentId)) {
-    return res.status(403).json({ error: 'You can only set your own department\'s review window' });
+    return res.status(403).json({ error: 'You can only set your own department\'s reminder dates' });
   }
 
   if (endDate < startDate) {
     return res.status(400).json({ error: 'End date must be on or after the start date' });
   }
-
-  // Bounds: the dean must have defined this quarter, and the dept window must
-  // fit inside it (start >= dean start, end <= dean deadline).
-  const dean = await prisma.reviewWindow.findUnique({
-    where: { academicYearId_quarter: { academicYearId, quarter } },
-    select: { startDate: true, endDate: true, enabled: true },
-  });
-  if (!dean || !dean.enabled) {
-    return res.status(400).json({ error: `The dean has not defined ${quarter}'s review window yet` });
-  }
-  if (startDate < dean.startDate || endDate > dean.endDate) {
-    return res.status(400).json({
-      error: `${quarter} window must fall within the dean's dates `
-        + `(${dean.startDate.toISOString().slice(0, 10)} to ${dean.endDate.toISOString().slice(0, 10)})`,
-    });
-  }
+  // Reminder dates only (2026-10-15): the HoD sets a per-quarter reminder window;
+  // it drives the faculty "fill your appraisal" reminders and does not lock the
+  // draft or gate the review (the review cadence is the fixed calendar).
 
   const row = await prisma.deptReviewWindow.upsert({
     where: { academicYearId_departmentId_quarter: { academicYearId, departmentId, quarter } },

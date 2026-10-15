@@ -148,7 +148,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     add('/drafts', 'Drafts in Review', FilePen);
     add('/uploads', 'Uploads', UploadCloud);
     if (hasRole('HOD')) add('/department/reviewers', 'Reviewers', ShieldCheck);
-    if (hasRole('HOD')) add('/department/review-windows', 'Fill Windows', CalendarClock);
+    if (hasRole('HOD')) add('/department/review-windows', 'Reminder Dates', CalendarClock);
     // A HoD can add and view faculty accounts in their own department.
     if (hasRole('HOD')) add('/admin/users', 'Users', Users);
     if (hasRole('HOD')) add('/reports/department', 'Reports', BarChart2);

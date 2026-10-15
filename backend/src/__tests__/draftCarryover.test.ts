@@ -100,18 +100,10 @@ describe('draft carries over the year', () => {
       expect((await submitOpensAt(y))!.toISOString()).toBe(dayAfterInIndia(new Date('2100-06-30')).toISOString());
     });
 
-    it('is the enabled Q4 window end when there is one', async () => {
+    it('always opens the day after the fixed calendar Q4 end (a Q4 window no longer changes it)', async () => {
       const y = await throwawayYear('Q4');
       await prisma.reviewWindow.create({
         data: { academicYearId: y, quarter: 'Q4', startDate: new Date('2100-04-01'), endDate: new Date('2100-05-15') },
-      });
-      expect((await submitOpensAt(y))!.toISOString()).toBe(dayAfterInIndia(new Date('2100-05-15')).toISOString());
-    });
-
-    it('falls back to the academic year end when the Q4 window is disabled', async () => {
-      const y = await throwawayYear('OFF');
-      await prisma.reviewWindow.create({
-        data: { academicYearId: y, quarter: 'Q4', enabled: false, startDate: new Date('2100-04-01'), endDate: new Date('2100-05-15') },
       });
       expect((await submitOpensAt(y))!.toISOString()).toBe(dayAfterInIndia(new Date('2100-06-30')).toISOString());
     });

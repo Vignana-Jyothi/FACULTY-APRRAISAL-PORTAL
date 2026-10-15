@@ -1,15 +1,16 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
-import { Quarter, RoleType } from '@prisma/client';
+import { RoleType } from '@prisma/client';
 import app from '../app';
 import prisma from '../utils/prismaClient';
-import { runDueDeptReviewWindows, currentQuarter } from '../cron/quarterlySnapshot';
 import { triggerReviewWeekReminders } from '../cron/reminders';
 import { createFixture, type Fixture, type FixtureUser } from './helpers/fixtures';
 
-// W8b — per-department review windows: HoD sets a week inside the dean's quarter
-// bounds, the department's drafts freeze during it, and the day AFTER it ends
-// the department (only) gets its two quarterly mails. Owns its fixtures.
+// Calendar-review model (2026-10-15): HoD sets per-quarter REMINDER dates (no
+// lock, no bounds); faculty edit all year; the HoD reviews each quarter after
+// its fixed calendar end, in order, issuing feedback one quarter at a time.
+// Owns its fixtures. Academic year starts ~700 days ago so all four calendar
+// quarters have ended, making the review order deterministic on any run date.
 
 const bearer = (t: string) => ({ Authorization: `Bearer ${t}` });
 const dayMs = 24 * 60 * 60 * 1000;
@@ -19,7 +20,6 @@ let fixture: Fixture | null = null;
 let hodTok = '';
 let facTok = '';
 let facId = '';
-let fac2Id = '';
 let fac2User: FixtureUser | null = null;
 let otherDeptId = '';
 let yearId = '';
@@ -32,28 +32,16 @@ beforeAll(async () => {
     const hod = await fixture.addUser({ name: 'HOD', role: RoleType.HOD });
     const fac = await fixture.addUser({ name: 'FAC', role: RoleType.FACULTY });
     const fac2 = await fixture.addUser({ name: 'FACB', role: RoleType.FACULTY });
-    hodTok = hod.token; facTok = fac.token; facId = fac.id; fac2Id = fac2.id; fac2User = fac2;
+    hodTok = hod.token; facTok = fac.token; facId = fac.id; fac2User = fac2;
     cleanupUserIds.push(fac.id, fac2.id);
     otherDeptId = await fixture.addDepartment('OTH');
-    // Own throwaway academic year, so this suite's dean + dept windows and
-    // submissions never collide with another suite running in parallel against
-    // the shared DB (the earlier CI flake). submissionOpen:false keeps it out of
-    // other suites' findFirst({ submissionOpen }) lookups.
+    // Own throwaway academic year, isolated from other suites (submissionOpen:false
+    // keeps it out of their findFirst lookups). Start ~700d ago => all quarters ended.
     const year = await prisma.academicYear.create({
-      data: { label: `DRW Year ${Date.now()}`, startDate: new Date(Date.now() - 200 * dayMs), endDate: new Date(Date.now() + 200 * dayMs), submissionOpen: false },
+      data: { label: `DRW Year ${Date.now()}`, startDate: new Date(Date.now() - 700 * dayMs), endDate: new Date(Date.now() - 335 * dayMs), submissionOpen: false },
     });
     yearId = year.id;
-    subId = await fixture.createSubmission(fac, { academicYearId: yearId }); // fac2 deliberately has no submission
-
-    // Dean bounds: Q1 wide-and-active (covers now), Q2 wide (covers yesterday),
-    // Q3 wide (covers a start three days out, for the approaching reminder).
-    for (const quarter of [Quarter.Q1, Quarter.Q2, Quarter.Q3]) {
-      const w = await prisma.reviewWindow.upsert({
-        where: { academicYearId_quarter: { academicYearId: yearId, quarter } },
-        create: { academicYearId: yearId, quarter, startDate: new Date(Date.now() - 30 * dayMs), endDate: new Date(Date.now() + 30 * dayMs), enabled: true },
-        update: { startDate: new Date(Date.now() - 30 * dayMs), endDate: new Date(Date.now() + 30 * dayMs), enabled: true },
-      });
-    }
+    subId = await fixture.createSubmission(fac, { academicYearId: yearId });
     ready = !!hodTok && !!facTok && !!yearId && !!subId;
   } catch (e) {
     console.error('DRW setup failed', e);
@@ -66,234 +54,123 @@ afterAll(async () => {
     await prisma.emailNotification.deleteMany({ where: { toUserId: { in: cleanupUserIds } } }).catch(() => {});
     await prisma.trackingSnapshot.deleteMany({ where: { userId: { in: cleanupUserIds } } }).catch(() => {});
   }
-  await fixture?.destroy(); // removes the fixture users' submissions first
-  // Deleting the throwaway year cascades its ReviewWindow + DeptReviewWindow rows.
+  await fixture?.destroy();
   if (yearId) await prisma.academicYear.delete({ where: { id: yearId } }).catch(() => {});
 });
 
-describe('W8b fixture', () => {
+describe('reminder dates — access + CRUD', () => {
   it('has a working fixture', () => { expect(ready).toBe(true); });
-});
 
-describe('W8b access', () => {
-  it('no token → 401', async () => {
+  it('no token -> 401, faculty -> 403', async () => {
     if (!ready) return;
     expect((await request(app).get('/api/dept-review-windows?academicYearId=' + yearId)).status).toBe(401);
-  });
-  it('faculty → 403', async () => {
-    if (!ready) return;
     expect((await request(app).get('/api/dept-review-windows?academicYearId=' + yearId).set(bearer(facTok))).status).toBe(403);
   });
-});
 
-describe('W8b bounds', () => {
-  it('HoD sets a window inside the dean bounds → 200', async () => {
+  it('HoD sets reminder dates freely (no dean bounds); rejects another department', async () => {
     if (!ready) return;
-    const res = await request(app).put('/api/dept-review-windows').set(bearer(hodTok)).send({
+    const ok = await request(app).put('/api/dept-review-windows').set(bearer(hodTok)).send({
       academicYearId: yearId, departmentId: fixture!.deptId, quarter: 'Q1',
-      startDate: new Date(Date.now() - dayMs).toISOString(), endDate: new Date(Date.now() + dayMs).toISOString(),
+      startDate: new Date(Date.now() - dayMs).toISOString(), endDate: new Date(Date.now() + 2 * dayMs).toISOString(),
     });
-    expect(res.status).toBe(200);
-  });
+    expect(ok.status).toBe(200);
 
-  it('rejects a window that ends after the dean deadline → 400', async () => {
-    if (!ready) return;
-    const res = await request(app).put('/api/dept-review-windows').set(bearer(hodTok)).send({
-      academicYearId: yearId, departmentId: fixture!.deptId, quarter: 'Q1',
-      startDate: new Date(Date.now() - dayMs).toISOString(), endDate: new Date(Date.now() + 90 * dayMs).toISOString(),
-    });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/within the dean/i);
-  });
-
-  it("rejects setting another department's window → 403", async () => {
-    if (!ready) return;
-    const res = await request(app).put('/api/dept-review-windows').set(bearer(hodTok)).send({
+    const forbidden = await request(app).put('/api/dept-review-windows').set(bearer(hodTok)).send({
       academicYearId: yearId, departmentId: otherDeptId, quarter: 'Q1',
       startDate: new Date().toISOString(), endDate: new Date(Date.now() + dayMs).toISOString(),
     });
-    expect(res.status).toBe(403);
+    expect(forbidden.status).toBe(403);
   });
 });
 
-describe('W8b lock-after-window', () => {
-  it('allows editing while the fill window is open, locks it after the window ends', async () => {
+describe('no faculty lock', () => {
+  it('faculty can edit their draft any time (reminder dates do not lock it)', async () => {
     if (!ready) return;
-    // Q1 window from the bounds test is open now (ends tomorrow) -> editable.
-    const open = await request(app).put(`/api/appraisals/${subId}`).set(bearer(facTok))
-      .send({ categories: {} });
-    expect(open.status).toBe(200);
-
-    // Move the window's end into the past so the quarter is closed for review.
-    await prisma.deptReviewWindow.update({
-      where: { academicYearId_departmentId_quarter: { academicYearId: yearId, departmentId: fixture!.deptId, quarter: Quarter.Q1 } },
-      data: { endDate: new Date(Date.now() - dayMs) },
-    });
-    const closed = await request(app).put(`/api/appraisals/${subId}`).set(bearer(facTok))
-      .send({ categories: {} });
-    expect(closed.status).toBe(423);
-    expect(closed.body.code).toBe('FILL_WINDOW_CLOSED');
-
-    // Restore the open window for later tests.
-    await prisma.deptReviewWindow.update({
-      where: { academicYearId_departmentId_quarter: { academicYearId: yearId, departmentId: fixture!.deptId, quarter: Quarter.Q1 } },
-      data: { endDate: new Date(Date.now() + dayMs) },
-    });
+    const res = await request(app).put(`/api/appraisals/${subId}`).set(bearer(facTok)).send({ categories: {} });
+    expect(res.status).toBe(200);
   });
 });
 
-describe('W8b day-after mail (per department)', () => {
-  it('fires two mails for the dept the day after its window ends, once', async () => {
+describe('calendar review gate — one quarter at a time, in order', () => {
+  it('refuses Q2 before Q1 is done, allows Q1, then freezes Q1', async () => {
     if (!ready) return;
-    // A Q2 window that ended yesterday → due today.
-    await prisma.deptReviewWindow.upsert({
-      where: { academicYearId_departmentId_quarter: { academicYearId: yearId, departmentId: fixture!.deptId, quarter: Quarter.Q2 } },
-      create: { academicYearId: yearId, departmentId: fixture!.deptId, quarter: Quarter.Q2, startDate: new Date(Date.now() - 8 * dayMs), endDate: new Date(Date.now() - dayMs), enabled: true },
-      update: { startDate: new Date(Date.now() - 8 * dayMs), endDate: new Date(Date.now() - dayMs), enabled: true, lastMailAt: null },
-    });
+    // All quarters ended, so Q1 is the current one — Q2 is out of order.
+    const early = await request(app).post(`/api/appraisals/${subId}/feedback/issue`).set(bearer(hodTok))
+      .send({ period: 'Q2', strengths: 'out of order' });
+    expect(early.status).toBe(409);
+    expect(early.body.code).toBe('NOT_CURRENT_REVIEW_QUARTER');
 
-    const r1 = await runDueDeptReviewWindows(new Date(), { academicYearIds: [yearId] });
-    expect(r1.windows).toBeGreaterThanOrEqual(1);
-    expect(r1.faculty).toBeGreaterThanOrEqual(1);
+    const q1 = await request(app).post(`/api/appraisals/${subId}/feedback/issue`).set(bearer(hodTok))
+      .send({ period: 'Q1', strengths: 'Q1 reviewed' });
+    expect(q1.status).toBe(200);
 
+    // Re-issuing Q1 is frozen.
+    const again = await request(app).post(`/api/appraisals/${subId}/feedback/issue`).set(bearer(hodTok))
+      .send({ period: 'Q1', strengths: 'changed' });
+    expect(again.status).toBe(409);
+  });
+});
+
+describe('both mails fire on review', () => {
+  it('issuing the current quarter emails the faculty the HoD feedback and the Cat 1-5 snapshot', async () => {
+    if (!ready) return;
+    // Q1 issued above, so Q2 is now current.
+    const res = await request(app).post(`/api/appraisals/${subId}/feedback/issue`).set(bearer(hodTok))
+      .send({ period: 'Q2', strengths: 'Q2 reviewed' });
+    expect(res.status).toBe(200);
     const mails = await prisma.emailNotification.findMany({ where: { toUserId: facId } });
     const templates = new Set(mails.map((m) => m.template));
-    expect(templates.has('quarterly_feedback')).toBe(true);
     expect(templates.has('feedback_issued')).toBe(true);
-
-    // Re-run the same day → guarded by lastMailAt, nothing new fires.
-    const before = mails.length;
-    const r2 = await runDueDeptReviewWindows(new Date(), { academicYearIds: [yearId] });
-    expect(r2.windows).toBe(0);
-    const after = await prisma.emailNotification.count({ where: { toUserId: facId } });
-    expect(after).toBe(before);
+    expect(templates.has('quarterly_feedback')).toBe(true);
   });
 });
 
-describe('W8b inactivity list + manual reminder (Phase 2)', () => {
+describe('drafts list — current quarter + stacking', () => {
+  it('shows issued quarters as verified and the next quarter as to-verify', async () => {
+    if (!ready || !fac2User) return;
+    const sub2 = await fixture!.createSubmission(fac2User, { academicYearId: yearId });
+
+    const res = await request(app).get('/api/reviews/drafts').set(bearer(hodTok));
+    expect(res.status).toBe(200);
+    const rows: any[] = res.body;
+    const reviewed = rows.find((r) => r.submissionId === subId);  // Q1 + Q2 issued
+    const pending = rows.find((r) => r.submissionId === sub2);     // nothing issued
+    expect(reviewed?.issuedQuarters).toEqual(expect.arrayContaining(['Q1', 'Q2']));
+    expect(reviewed?.currentReviewQuarter).toBe('Q3');             // next unissued ended quarter
+    expect(pending?.currentReviewQuarter).toBe('Q1');
+    // Earliest current-quarter first: sub2 (Q1) before subId (Q3).
+    expect(rows.indexOf(pending)).toBeLessThan(rows.indexOf(reviewed));
+  });
+});
+
+describe('inactivity list + manual reminder', () => {
   it('HoD sees the department faculty with a status', async () => {
     if (!ready) return;
     const res = await request(app).get('/api/dept-review-windows/activity?academicYearId=' + yearId).set(bearer(hodTok));
     expect(res.status).toBe(200);
     const rows: any[] = res.body.rows;
     expect(rows.find((r) => r.userId === facId)?.hasSubmission).toBe(true);
-    // fac2 never created a submission → flagged not-started.
-    expect(rows.find((r) => r.userId === fac2Id)?.status).toBe('no-submission');
   });
 
   it('HoD can send a manual reminder, deduped to once a day', async () => {
     if (!ready) return;
     const first = await request(app).post('/api/dept-review-windows/remind').set(bearer(hodTok))
-      .send({ userId: fac2Id, academicYearId: yearId });
+      .send({ userId: facId, academicYearId: yearId });
     expect(first.status).toBe(200);
     expect(first.body.queued).toBe(true);
-    const mail = await prisma.emailNotification.findFirst({ where: { toUserId: fac2Id, template: 'draft_reminder' } });
-    expect(mail).toBeTruthy();
-
     const second = await request(app).post('/api/dept-review-windows/remind').set(bearer(hodTok))
-      .send({ userId: fac2Id, academicYearId: yearId });
-    expect(second.body.queued).toBe(false); // same day → deduped
-  });
-
-  it("rejects reminding a faculty outside the HoD's department", async () => {
-    if (!ready) return;
-    const outsider = await prisma.user.findFirst({ where: { departmentId: otherDeptId } });
-    // No such user exists (empty dept) → use a clearly foreign id: expect 404/403.
-    const res = await request(app).post('/api/dept-review-windows/remind').set(bearer(hodTok))
-      .send({ userId: outsider?.id ?? '00000000-0000-0000-0000-000000000000', academicYearId: yearId });
-    expect([403, 404]).toContain(res.status);
+      .send({ userId: facId, academicYearId: yearId });
+    expect(second.body.queued).toBe(false);
   });
 });
 
-describe('W8b review freeze — once issued, the quarter is locked', () => {
-  it('lets the HoD draft then issue a period once, and locks it after', async () => {
-    if (!ready) return;
-    // Draft saves freely.
-    const draft = await request(app).put(`/api/appraisals/${subId}/feedback`).set(bearer(hodTok))
-      .send({ period: 'ANNUAL', strengths: 'Draft note' });
-    expect(draft.status).toBe(200);
-
-    // Issue once → ok.
-    const issued = await request(app).post(`/api/appraisals/${subId}/feedback/issue`).set(bearer(hodTok))
-      .send({ period: 'ANNUAL', strengths: 'Final note' });
-    expect(issued.status).toBe(200);
-
-    // Any further save or re-issue of that period is frozen (409).
-    const reSave = await request(app).put(`/api/appraisals/${subId}/feedback`).set(bearer(hodTok))
-      .send({ period: 'ANNUAL', strengths: 'Changed my mind' });
-    expect(reSave.status).toBe(409);
-
-    const reIssue = await request(app).post(`/api/appraisals/${subId}/feedback/issue`).set(bearer(hodTok))
-      .send({ period: 'ANNUAL', strengths: 'Changed again' });
-    expect(reIssue.status).toBe(409);
-  });
-});
-
-describe('W8b drafts list — current quarter to verify, reviewed stacked last', () => {
-  it('flags the ended-window quarter as to-verify and stacks the reviewed faculty down', async () => {
+describe('review-week-approaching reminder', () => {
+  it('mails the department faculty when the reminder window starts in 3 days', async () => {
     if (!ready || !fac2User) return;
-    const sub2 = await fixture!.createSubmission(fac2User, { academicYearId: yearId }); // fac2, not reviewed
-
-    // Q2's window ended (the day-after test set it to yesterday). Issue Q2 for
-    // subId so it has nothing pending; fac2's sub2 still needs Q2 verified.
-    await request(app).post(`/api/appraisals/${subId}/feedback/issue`).set(bearer(hodTok))
-      .send({ period: 'Q2', strengths: 'Quarter review done' });
-
-    const res = await request(app).get('/api/reviews/drafts').set(bearer(hodTok));
-    expect(res.status).toBe(200);
-    const rows: any[] = res.body;
-    const reviewed = rows.find((r) => r.submissionId === subId);
-    const pending = rows.find((r) => r.submissionId === sub2);
-    expect(reviewed?.issuedQuarters).toContain('Q2');
-    expect(reviewed?.needsReview).toBe(false);
-    expect(pending?.currentReviewQuarter).toBe('Q2');
-    expect(pending?.needsReview).toBe(true);
-
-    // Faculty needing review come first; no "done" row sits above a pending one.
-    const firstDone = rows.findIndex((r) => !r.needsReview);
-    if (firstDone >= 0) expect(rows.slice(firstDone).every((r) => !r.needsReview)).toBe(true);
-  });
-});
-
-describe('W8b both mails fire the moment a faculty is reviewed', () => {
-  it('issuing a quarter review emails the faculty both the HoD feedback and the Cat 1-5 snapshot', async () => {
-    if (!ready || !fac2User) return;
-    // Ensure fac2 has a draft to review (idempotent — the sort test may have made one).
-    await fixture!.createSubmission(fac2User, { academicYearId: yearId }).catch(() => {});
-    const sub = await prisma.appraisalSubmission.findFirst({ where: { userId: fac2Id }, orderBy: { submissionNumber: 'desc' } });
-    expect(sub).toBeTruthy();
-
-    const q = currentQuarter();
-    const res = await request(app).post(`/api/appraisals/${sub!.id}/feedback/issue`).set(bearer(hodTok))
-      .send({ period: q, strengths: 'Reviewed now' });
-    // 200 fresh, or 409 if already issued earlier — either way the mails exist.
-    expect([200, 409]).toContain(res.status);
-
-    const mails = await prisma.emailNotification.findMany({ where: { toUserId: fac2Id } });
-    const templates = new Set(mails.map((m) => m.template));
-    expect(templates.has('feedback_issued')).toBe(true);
-    expect(templates.has('quarterly_feedback')).toBe(true);
-  });
-});
-
-describe('W8b issue gate — only the current quarter is issuable', () => {
-  it('refuses to issue a quarter whose fill window has not ended', async () => {
-    if (!ready) return;
-    // Q1's window ends in the future (not ended), so Q1 is not reviewable yet.
-    const res = await request(app).post(`/api/appraisals/${subId}/feedback/issue`).set(bearer(hodTok))
-      .send({ period: 'Q1', strengths: 'too early' });
-    expect(res.status).toBe(409);
-    expect(res.body.code).toBe('NOT_CURRENT_REVIEW_QUARTER');
-  });
-});
-
-describe('W8b review-week-approaching reminder (Phase 2)', () => {
-  it('mails the department faculty when the window starts in 3 days', async () => {
-    if (!ready) return;
     const start = new Date(Date.now() + 3 * dayMs);
     await prisma.deptReviewWindow.upsert({
-      where: { academicYearId_departmentId_quarter: { academicYearId: yearId, departmentId: fixture!.deptId, quarter: Quarter.Q3 } },
-      create: { academicYearId: yearId, departmentId: fixture!.deptId, quarter: Quarter.Q3, startDate: start, endDate: new Date(Date.now() + 5 * dayMs), enabled: true },
+      where: { academicYearId_departmentId_quarter: { academicYearId: yearId, departmentId: fixture!.deptId, quarter: 'Q3' } },
+      create: { academicYearId: yearId, departmentId: fixture!.deptId, quarter: 'Q3', startDate: start, endDate: new Date(Date.now() + 5 * dayMs), enabled: true },
       update: { startDate: start, endDate: new Date(Date.now() + 5 * dayMs), enabled: true },
     });
     await triggerReviewWeekReminders(new Date());

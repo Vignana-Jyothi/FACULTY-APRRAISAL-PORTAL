@@ -493,15 +493,14 @@ export async function runDueDeptReviewWindows(
 }
 
 export function startQuarterlySnapshotCron() {
-  // Daily 09:00 — fire any department review window whose end was yesterday.
-  // Per-department, auto-fires without arming (2026-10-08). HoD-set windows take
-  // effect without a restart (the checker reads them each run).
+  // Daily 09:00. The quarterly review mails now fire when the HoD issues (2026-
+  // 10-15 model), so the window-end mailer is retired; this only clears stalled
+  // proofs. runDueDeptReviewWindows is kept for manual/test use.
   cron.schedule('0 9 * * *', async () => {
-    try { await runDueDeptReviewWindows(); } catch (e) { console.error('[cron] Dept review window error:', e); }
     // Unblock appraisals stalled on a rejected proof nobody fixed.
     try { await voidExpiredProofs(); } catch (e) { console.error('[cron] Proof deadline error:', e); }
   });
-  console.log('[cron] Dept review-window checker scheduled (daily 09:00)');
+  console.log('[cron] Daily proof-deadline job scheduled (09:00)');
 }
 
 // Manual trigger (dean/principal "Run snapshot now").

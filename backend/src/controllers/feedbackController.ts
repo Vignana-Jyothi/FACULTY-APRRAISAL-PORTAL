@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { RoleType, FeedbackPeriod, Quarter } from '@prisma/client';
-import { endedQuartersFor, deptHasWindows, QUARTER_ORDER } from '../services/deptReviewWindow';
+import { endedCalendarQuarters, currentReviewQuarter, QUARTER_ORDER } from '../services/quarterReview';
 import prisma from '../utils/prismaClient';
 import { canViewUserResource } from '../utils/access';
 import { SEES_ALL, hasAnyRole } from '../utils/roles';
@@ -118,7 +118,7 @@ export async function listFeedbacks(req: Request, res: Response) {
 export async function getFeedback(req: Request, res: Response) {
   const sub = await prisma.appraisalSubmission.findUnique({
     where: { id: req.params.id },
-    include: { user: { select: { departmentId: true } } },
+    include: { user: { select: { departmentId: true } }, academicYear: { select: { startDate: true } } },
   });
   if (!sub) return res.status(404).json({ error: 'Not found' });
   if (!canViewUserResource(req.user!, sub.userId, sub.user.departmentId)) {
@@ -147,14 +147,12 @@ export async function getFeedback(req: Request, res: Response) {
   // HoD reviews a ready draft and edits or issues it with one click.
   const autoSnapshot = editable ? await buildSnapshot(sub.id) : null;
   const suggested = autoSnapshot ? generateNarrative(autoSnapshot) : null;
-  // The quarter the HoD may issue right now (gates the Issue button per
-  // quarter). reviewGated is false for departments not using fill windows, so
-  // the button stays free there (legacy behaviour).
-  const reviewGated = editable && await deptHasWindows((sub as any).user?.departmentId ?? null, sub.academicYearId);
-  const currentQuarter = reviewGated
-    ? await currentReviewQuarter(sub.id, (sub as any).user?.departmentId ?? null, sub.academicYearId)
+  // The quarter the HoD may issue right now (gates the Issue button): the
+  // earliest calendar-ended quarter not yet issued. Always applies.
+  const currentQuarter = editable
+    ? await currentReviewQuarter(sub.id, (sub as any).academicYear.startDate)
     : null;
-  return res.json({ feedback, autoSnapshot, suggested, editable, reviewGated, currentReviewQuarter: currentQuarter });
+  return res.json({ feedback, autoSnapshot, suggested, editable, reviewGated: editable, currentReviewQuarter: currentQuarter });
 }
 
 const saveSchema = z.object({
@@ -174,25 +172,6 @@ async function periodIsIssued(submissionId: string, period: FeedbackPeriod): Pro
     select: { status: true },
   });
   return existing?.status === 'ISSUED';
-}
-
-// The quarter this faculty may be reviewed for now: earliest quarter whose fill
-// window has ended and whose feedback is not yet issued. null when none is due.
-async function currentReviewQuarter(
-  submissionId: string,
-  departmentId: string | null,
-  academicYearId: string,
-): Promise<FeedbackPeriod | null> {
-  const ended = await endedQuartersFor(departmentId, academicYearId);
-  const issued = new Set(
-    (await prisma.feedback.findMany({
-      where: { submissionId, status: 'ISSUED', period: { in: QUARTER_ORDER as unknown as FeedbackPeriod[] } },
-      select: { period: true },
-    })).map((f) => f.period)
-  );
-  return (QUARTER_ORDER as unknown as FeedbackPeriod[]).find(
-    (q) => ended.has(q as unknown as Quarter) && !issued.has(q)
-  ) ?? null;
 }
 
 // PUT /appraisals/:id/feedback — save narrative as DRAFT (HoD/admin).
@@ -223,7 +202,7 @@ export async function saveFeedback(req: Request, res: Response) {
 export async function issueFeedback(req: Request, res: Response) {
   const sub = await prisma.appraisalSubmission.findUnique({
     where: { id: req.params.id },
-    include: { user: { select: { departmentId: true } }, academicYear: { select: { label: true } } },
+    include: { user: { select: { departmentId: true } }, academicYear: { select: { label: true, startDate: true } } },
   });
   if (!sub) return res.status(404).json({ error: 'Not found' });
   if (!canAuthor(req.user!, sub.userId, sub.user.departmentId)) {
@@ -235,16 +214,16 @@ export async function issueFeedback(req: Request, res: Response) {
   if (await periodIsIssued(sub.id, period)) return res.status(409).json({ error: REVIEW_FROZEN });
 
   // One quarter reviewed at a time, in order: a quarter may only be issued once
-  // its fill window has ended and every earlier quarter is done. After issuing,
-  // nothing is issuable until the next quarter's window ends — so the button is
-  // effectively frozen until the next quarter's review (owner decision 2026-10-14).
-  if ((QUARTER_ORDER as unknown as FeedbackPeriod[]).includes(period)
-    && await deptHasWindows(sub.user.departmentId, sub.academicYearId)) {
-    const current = await currentReviewQuarter(sub.id, sub.user.departmentId, sub.academicYearId);
+  // its CALENDAR end has passed and every earlier quarter is done. After issuing,
+  // nothing is issuable until the next quarter ends — so the Issue button stays
+  // frozen for that faculty until the next quarter's review (owner decision
+  // 2026-10-15).
+  if ((QUARTER_ORDER as unknown as FeedbackPeriod[]).includes(period)) {
+    const current = await currentReviewQuarter(sub.id, sub.academicYear.startDate);
     if (period !== current) {
-      const ended = await endedQuartersFor(sub.user.departmentId, sub.academicYearId);
-      const msg = !ended.has(period as unknown as Quarter)
-        ? `${period}'s fill window has not ended yet — you can review it once it closes.`
+      const ended = endedCalendarQuarters(sub.academicYear.startDate);
+      const msg = !ended.has(period)
+        ? `${period} has not ended yet — you can review it once the quarter closes.`
         : current
           ? `Review ${current} first — quarters are reviewed in order.`
           : 'There is no quarter awaiting review right now.';
