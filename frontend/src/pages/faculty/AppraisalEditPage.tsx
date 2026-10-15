@@ -1358,7 +1358,10 @@ export default function AppraisalEditPage() {
                               const v = e.target.value;
                               // Drop dates the row no longer shows so a downgraded
                               // status can't persist a stale publication/grant date.
-                              if (v !== 'GRANTED') setValue(`cat2Patents.${i}.dateOfGrant`, '', { shouldDirty: true });
+                              if (v !== 'GRANTED') {
+                                setValue(`cat2Patents.${i}.dateOfGrant`, '', { shouldDirty: true });
+                                setValue(`cat2Patents.${i}.validDuration`, '', { shouldDirty: true });
+                              }
                               if (v === 'FILED') setValue(`cat2Patents.${i}.dateOfPub`, '', { shouldDirty: true });
                             }}
                           >
@@ -1403,7 +1406,9 @@ export default function AppraisalEditPage() {
                     {(watchedValues as any)?.cat2Patents?.[i]?.status === 'GRANTED' && (
                       <div><label className={labelCls}>Date of Grant</label><input type="date" {...register(`cat2Patents.${i}.dateOfGrant`)} className={inputCls} /></div>
                     )}
-                    <div><label className={labelCls}>Valid Duration</label><input {...register(`cat2Patents.${i}.validDuration`)} className={inputCls} /></div>
+                    {(watchedValues as any)?.cat2Patents?.[i]?.status === 'GRANTED' && (
+                      <div><label className={labelCls}>Valid Duration</label><input {...register(`cat2Patents.${i}.validDuration`)} className={inputCls} /></div>
+                    )}
                     {proofField(`cat2Patents.${i}.proofFile`)}
                   </div>
                   {(() => {
