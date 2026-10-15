@@ -15,11 +15,23 @@ export default function DraftsPage() {
   const [rows, setRows] = useState<DraftInProgressRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
+  // Review-status filter: all, to-verify (a quarter is due), up-to-date
+  // (nothing due), or a specific current quarter to verify.
+  const [statusFilter, setStatusFilter] = useState<'all' | 'to-verify' | 'done' | 'Q1' | 'Q2' | 'Q3' | 'Q4'>('all');
 
   const q = query.trim().toLowerCase();
-  const shown = q
-    ? rows.filter((r) => r.faculty.name.toLowerCase().includes(q) || r.faculty.employeeCode.toLowerCase().includes(q))
-    : rows;
+  const matchStatus = (r: DraftInProgressRow) => {
+    switch (statusFilter) {
+      case 'to-verify': return r.needsReview;
+      case 'done': return !r.needsReview;
+      case 'Q1': case 'Q2': case 'Q3': case 'Q4': return r.currentReviewQuarter === statusFilter;
+      default: return true;
+    }
+  };
+  const shown = rows.filter((r) =>
+    matchStatus(r)
+    && (!q || r.faculty.name.toLowerCase().includes(q) || r.faculty.employeeCode.toLowerCase().includes(q))
+  );
 
   useEffect(() => {
     reviewApi.listDrafts()
@@ -46,18 +58,29 @@ export default function DraftsPage() {
         </Card>
       ) : (
         <>
-          <div className="mb-3 relative max-w-xs">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search faculty name or code"
-              className="input w-full pl-9"
-            />
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <div className="relative max-w-xs flex-1 min-w-[180px]">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search faculty name or code"
+                className="input w-full pl-9"
+              />
+            </div>
+            <select className="input max-w-[200px]" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)}>
+              <option value="all">All statuses</option>
+              <option value="to-verify">To verify (any quarter)</option>
+              <option value="done">Up to date (nothing due)</option>
+              <option value="Q1">Q1 to verify</option>
+              <option value="Q2">Q2 to verify</option>
+              <option value="Q3">Q3 to verify</option>
+              <option value="Q4">Q4 to verify</option>
+            </select>
           </div>
           {shown.length === 0 ? (
-            <Card className="text-center py-6"><p className="text-ink-muted text-sm">No faculty match “{query}”.</p></Card>
+            <Card className="text-center py-6"><p className="text-ink-muted text-sm">No faculty match the current filter.</p></Card>
           ) : (
         <Card padding="none">
           <table className="w-full text-sm">
