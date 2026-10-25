@@ -5,6 +5,7 @@ import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import DashboardPage from './pages/faculty/DashboardPage';
 import MyRedListPage from './pages/faculty/MyRedListPage';
+import MyFeedbackPage from './pages/faculty/MyFeedbackPage';
 import AppraisalEditPage from './pages/faculty/AppraisalEditPage';
 import AppraisalViewPage from './pages/faculty/AppraisalViewPage';
 import FinalReviewPage from './pages/reviewer/FinalReviewPage';
@@ -63,6 +64,7 @@ export default function App() {
         {/* Faculty */}
         <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
         <Route path="/appraisal" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/my-feedback" element={<ProtectedRoute><MyFeedbackPage /></ProtectedRoute>} />
         <Route path="/my-red-list" element={<ProtectedRoute><MyRedListPage /></ProtectedRoute>} />
         <Route path="/appraisal/:id/edit" element={<ProtectedRoute><AppraisalEditPage /></ProtectedRoute>} />
         <Route path="/appraisal/:id" element={<ProtectedRoute><AppraisalViewPage /></ProtectedRoute>} />

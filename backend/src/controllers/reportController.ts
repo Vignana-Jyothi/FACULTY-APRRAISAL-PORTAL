@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { RoleType, SubmissionStatus, FeedbackPeriod, Cadre } from '@prisma/client';
-import { deriveCadre, computeExperienceYears } from '../services/cadreEngine';
+import { deriveCadre, computeExperienceYears, CADRE_LABEL } from '../services/cadreEngine';
 
 // Seniormost first for the IQAC sheet ordering.
 const CADRE_RANK: Record<Cadre, number> = {
@@ -604,12 +604,14 @@ export async function exportIqacQuarterlyExcel(req: Request, res: Response) {
       // HoD remarks = the HoD's draft note (overall comment on the draft review),
       // falling back to the final review comment once the appraisal is reviewed.
       const review = a.draftReview?.overallComment ?? a.review?.overallComment ?? 'No draft note';
-      return [a.user.employeeCode ?? '', a.user.name ?? '', targets, review];
+      const cadre = deriveCadre(a.user.designation);
+      const cadreText = cadre ? CADRE_LABEL[cadre] : (a.user.designation ?? '—');
+      return [a.user.employeeCode ?? '', a.user.name ?? '', cadreText, targets, review];
     });
 
-  const headers = ['Employee ID', 'Employee Name', 'Current Targets', 'HoD Remarks'];
+  const headers = ['Employee ID', 'Employee Name', 'Cadre', 'Current Targets', 'HoD Remarks'];
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-  ws['!cols'] = [{ wch: 14 }, { wch: 26 }, { wch: 60 }, { wch: 70 }];
+  ws['!cols'] = [{ wch: 14 }, { wch: 26 }, { wch: 22 }, { wch: 60 }, { wch: 70 }];
   const wb = XLSX.utils.book_new();
   const dept = await prisma.department.findUnique({ where: { id: departmentId }, select: { code: true } });
   XLSX.utils.book_append_sheet(wb, ws, `${dept?.code ?? 'Dept'}-${period}`.slice(0, 28));

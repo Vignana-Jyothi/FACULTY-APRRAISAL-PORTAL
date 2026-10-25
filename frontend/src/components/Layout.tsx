@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import {
   BarChart2, FileText, FilePen, BookOpen, User, Users, Settings, LayoutDashboard, Mail, Activity, Menu, X, Target, ShieldCheck, AlertTriangle, Gauge, CalendarClock, Gavel, UploadCloud,
+  MessageSquare,
 } from 'lucide-react';
 import BrandHeader from './BrandHeader';
 import Footer from './Footer';
@@ -171,6 +172,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     // A faculty's own Red List — a standing tab (separate from the HoD's
     // department red-list workflow at /red-list) that shows any held
     // submission, with a notification dot when they are red-listed.
+    if (hasRole('FACULTY')) add('/my-feedback', 'Feedback', MessageSquare);
     if (hasRole('FACULTY')) add('/my-red-list', 'Red List', AlertTriangle);
   }
 
@@ -182,7 +184,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // the personal filing pages, the staff workspace only the review pages, so the
   // two never sit in one menu. Profile stays in both. A non-dual account is
   // unaffected and keeps its full additive menu.
-  const FACULTY_PATHS = ['/dashboard', '/appraisal', '/my-red-list'];
+  const FACULTY_PATHS = ['/dashboard', '/appraisal', '/my-feedback', '/my-red-list'];
   const dual = canSwitchWorkspace();
   const visibleEntries = !dual
     ? entries

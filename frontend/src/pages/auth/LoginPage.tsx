@@ -154,7 +154,6 @@ export default function LoginPage() {
                       type={showPassword ? 'text' : 'password'}
                       {...register('password')}
                       className="w-full border border-surface-border rounded px-3 py-2 pr-10 text-sm bg-surface-base focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                      placeholder="••••••••"
                     />
                     <button
                       type="button"

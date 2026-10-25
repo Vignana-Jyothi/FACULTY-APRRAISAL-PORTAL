@@ -803,6 +803,12 @@ export default function AppraisalEditPage() {
         ))}
       </div>
 
+      {!readOnly && (
+        <div className="mb-3 rounded-md border border-primary-200 bg-primary-50 px-4 py-2.5 text-xs text-primary-800">
+          <span className="font-semibold">Proof uploads:</span> PDF, JPG, PNG or WEBP, up to 5 MB each. For a larger file, use the <span className="font-medium">Link</span> option to paste a shareable link (e.g. Google Drive).
+        </div>
+      )}
+
       <form className="bg-white border border-surface-border rounded-md p-6">
         <fieldset disabled={readOnly} className={readOnly ? 'opacity-90' : ''}>
         {/* Step 0: Leave & Info */}
