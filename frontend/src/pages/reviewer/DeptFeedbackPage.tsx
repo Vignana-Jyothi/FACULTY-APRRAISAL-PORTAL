@@ -5,6 +5,7 @@ import { reviewApi, type DraftInProgressRow } from '../../api/appraisals';
 import PageHeader from '../../components/PageHeader';
 import Card from '../../components/Card';
 import FeedbackSection from '../../components/FeedbackSection';
+import HodNoteCard from '../../components/HodNoteCard';
 
 // The HoD's own feedback log. Lists the department's faculty (one row each,
 // their most recent submission), with a search box; picking one opens that
@@ -105,6 +106,7 @@ export default function DeptFeedbackPage() {
                 <h2 className="text-base font-semibold text-ink-primary">{selected.faculty.name}</h2>
                 <p className="text-xs text-ink-muted">{selected.faculty.employeeCode} · {selected.academicYear.label}</p>
               </div>
+              <HodNoteCard key={`note-${selected.submissionId}`} submissionId={selected.submissionId} />
               <FeedbackSection key={selected.submissionId} submissionId={selected.submissionId} />
             </div>
           ) : (

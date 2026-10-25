@@ -4,6 +4,7 @@ import { appraisalApi } from '../../api/appraisals';
 import PageHeader from '../../components/PageHeader';
 import Card from '../../components/Card';
 import FeedbackSection from '../../components/FeedbackSection';
+import HodNoteCard from '../../components/HodNoteCard';
 
 // A faculty's quarter-wise feedback log: the HoD's issued feedback and comments
 // for each quarter. FeedbackSection (owner view) shows only issued periods, as
@@ -34,7 +35,10 @@ export default function MyFeedbackPage() {
       {loading ? (
         <div className="text-sm text-ink-muted">Loading...</div>
       ) : subId ? (
-        <FeedbackSection submissionId={subId} />
+        <>
+          <HodNoteCard submissionId={subId} />
+          <FeedbackSection submissionId={subId} />
+        </>
       ) : (
         <Card><p className="text-sm text-ink-secondary">You don't have an appraisal yet, so there's no feedback to show.</p></Card>
       )}
