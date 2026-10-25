@@ -107,7 +107,7 @@ export default function DeptFeedbackPage() {
                 <p className="text-xs text-ink-muted">{selected.faculty.employeeCode} · {selected.academicYear.label}</p>
               </div>
               <HodNoteCard key={`note-${selected.submissionId}`} submissionId={selected.submissionId} />
-              <FeedbackSection key={selected.submissionId} submissionId={selected.submissionId} />
+              <FeedbackSection key={selected.submissionId} submissionId={selected.submissionId} readOnly />
             </div>
           ) : (
             <Card>

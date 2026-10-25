@@ -230,6 +230,22 @@ export async function issueFeedback(req: Request, res: Response) {
       return res.status(409).json({ error: msg, code: 'NOT_CURRENT_REVIEW_QUARTER' });
     }
   }
+
+  // The annual review is the final one: it may only be issued once all four
+  // quarters have been issued, so it can't be released ahead of the quarterly
+  // reviews (owner decision 2026-10-26). Like the quarters, it is locked for
+  // good once issued (periodIsIssued above).
+  if (period === FeedbackPeriod.ANNUAL) {
+    const issuedQuarters = await prisma.feedback.count({
+      where: { submissionId: sub.id, status: 'ISSUED', period: { in: QUARTER_ORDER as unknown as FeedbackPeriod[] } },
+    });
+    if (issuedQuarters < QUARTER_ORDER.length) {
+      return res.status(409).json({
+        error: `Issue all four quarterly reviews before the annual one — ${issuedQuarters} of ${QUARTER_ORDER.length} issued so far.`,
+        code: 'QUARTERS_NOT_COMPLETE',
+      });
+    }
+  }
   const snapshot = await buildSnapshot(sub.id);
 
   const feedback = await prisma.feedback.upsert({

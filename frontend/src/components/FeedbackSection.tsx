@@ -46,7 +46,10 @@ function SnapshotSummary({ s }: { s: FeedbackSnapshot }) {
   );
 }
 
-export default function FeedbackSection({ submissionId }: { submissionId: string }) {
+// readOnly forces the issued-only, read-only view even for a HoD/admin who could
+// otherwise edit — used on the Feedback log tab, where issuing is not the job
+// (that stays on the drafts review page). Only periods issued so far are shown.
+export default function FeedbackSection({ submissionId, readOnly = false }: { submissionId: string; readOnly?: boolean }) {
   const [list, setList] = useState<FeedbackListResponse | null>(null);
   const [period, setPeriod] = useState<FeedbackPeriod>('Q1');
   const [data, setData] = useState<FeedbackResponse | null>(null);
@@ -64,7 +67,7 @@ export default function FeedbackSection({ submissionId }: { submissionId: string
       // Editors start on the earliest unfinished quarter; faculty on the most
       // recent period they have been given.
       const issued = l.periods.filter((p) => p.status === 'ISSUED');
-      if (l.editable) {
+      if (l.editable && !readOnly) {
         const firstOpen = PERIODS.find((p) => !l.periods.some((r) => r.period === p.v && r.status !== 'NONE'));
         setPeriod(firstOpen?.v ?? 'ANNUAL');
       } else if (issued.length) {
@@ -95,7 +98,7 @@ export default function FeedbackSection({ submissionId }: { submissionId: string
       }
     }).catch(() => toast.error('Failed to load feedback'));
 
-  const editable = !!list?.editable;
+  const editable = !!list?.editable && !readOnly;
   useEffect(() => { if (editable) load(); }, [submissionId, period, editable]);
 
   if (!list) return null;
@@ -157,7 +160,13 @@ export default function FeedbackSection({ submissionId }: { submissionId: string
   // One quarter is issuable at a time: the one whose fill window ended and is
   // not yet reviewed. ANNUAL is always issuable; departments not using fill
   // windows (reviewGated=false) keep the button free.
-  const canIssue = !data?.reviewGated || period === 'ANNUAL' || (data?.currentReviewQuarter ?? null) === period;
+  // The annual review is issuable only after all four quarters are issued, so
+  // it can't go out ahead of them. A quarter is issuable when it is the one due.
+  const quartersIssued = (['Q1', 'Q2', 'Q3', 'Q4'] as FeedbackPeriod[]).filter((p) => statusOf(p) === 'ISSUED').length;
+  const allQuartersIssued = quartersIssued === 4;
+  const canIssue = period === 'ANNUAL'
+    ? allQuartersIssued
+    : !data?.reviewGated || (data?.currentReviewQuarter ?? null) === period;
   // Which period tabs to show: all five for an editor, only issued ones for faculty.
   const tabs = editable ? PERIODS : PERIODS.filter((p) => statusOf(p.v) === 'ISSUED');
 
@@ -165,7 +174,7 @@ export default function FeedbackSection({ submissionId }: { submissionId: string
     <Card>
       <div className="flex items-center justify-between mb-3 pb-2 border-b border-accent-500/30">
         <h2 className="text-sm font-semibold text-ink-primary font-serif flex items-center gap-2">
-          <MessageSquare size={15} className="text-primary-600" /> {editable ? 'Feedback' : 'Your Feedback'}
+          <MessageSquare size={15} className="text-primary-600" /> {editable ? 'Feedback' : readOnly ? 'Issued Feedback' : 'Your Feedback'}
         </h2>
         <div className="flex items-center gap-2">
           {status !== 'NONE' && (
@@ -234,16 +243,18 @@ export default function FeedbackSection({ submissionId }: { submissionId: string
           ))}
           {!canIssue && (
             <p className="text-xs text-ink-muted">
-              {data?.currentReviewQuarter
-                ? `You can issue ${data.currentReviewQuarter} right now (that quarter has ended). ${period} is not due for review yet.`
-                : `No quarter is due for review yet — issuing opens once a quarter ends on the calendar.`}
+              {period === 'ANNUAL'
+                ? `Issue all four quarterly reviews first — ${quartersIssued} of 4 done. The annual review opens once they are all issued.`
+                : data?.currentReviewQuarter
+                  ? `You can issue ${data.currentReviewQuarter} right now (that quarter has ended). ${period} is not due for review yet.`
+                  : `No quarter is due for review yet — issuing opens once a quarter ends on the calendar.`}
             </p>
           )}
           <div className="flex gap-2 justify-end">
             <button onClick={() => save(false)} disabled={busy} className="inline-flex items-center gap-2 text-sm border border-surface-border px-4 py-2 rounded hover:bg-surface-muted disabled:opacity-50">
               <Save size={15} /> Save draft
             </button>
-            <button onClick={() => save(true)} disabled={busy || !canIssue} title={canIssue ? '' : 'Only the current quarter can be issued'} className="inline-flex items-center gap-2 text-sm bg-primary-600 text-white px-4 py-2 rounded hover:bg-primary-700 disabled:opacity-50">
+            <button onClick={() => save(true)} disabled={busy || !canIssue} title={canIssue ? '' : (period === 'ANNUAL' ? 'Issue all four quarters before the annual review' : 'Only the current quarter can be issued')} className="inline-flex items-center gap-2 text-sm bg-primary-600 text-white px-4 py-2 rounded hover:bg-primary-700 disabled:opacity-50">
               <Send size={15} /> Issue to faculty
             </button>
           </div>
