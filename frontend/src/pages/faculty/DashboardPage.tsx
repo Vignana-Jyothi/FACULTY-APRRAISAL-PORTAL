@@ -262,24 +262,31 @@ function TargetBar({ t }: { t: TargetStatus }) {
         {done ? 'All targets met.' : t.leftText}
       </p>
 
-      {/* Per-target breakdown */}
-      <div className="mt-3 flex flex-wrap gap-2">
-        {t.rows.map((r) => (
-          <span
-            key={r.label}
-            className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${
-              r.achieved
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                : 'bg-surface-base border-surface-border text-ink-secondary'
-            }`}
-          >
-            {r.achieved
-              ? <Check size={12} className="text-emerald-600" />
-              : <span className="text-ink-subtle">•</span>}
-            {r.label}: <strong>{r.current}</strong>/{r.required}
-            {!r.achieved && <span className="text-ink-subtle">({r.left} to go)</span>}
-          </span>
-        ))}
+      {/* Per-target cards */}
+      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {t.rows.map((r) => {
+          const rpct = Number(r.required) > 0 ? Math.min(100, Math.round((Number(r.current) / Number(r.required)) * 100)) : (r.achieved ? 100 : 0);
+          return (
+            <div
+              key={r.label}
+              className={`rounded-lg border p-3 ${r.achieved ? 'bg-emerald-50 border-emerald-200' : 'bg-surface-base border-surface-border'}`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-xs font-medium text-ink-secondary leading-snug">{r.label}</span>
+                {r.achieved
+                  ? <Check size={15} className="text-emerald-600 shrink-0" />
+                  : <span className="text-[10px] font-semibold text-amber-700 shrink-0">{r.left} to go</span>}
+              </div>
+              <div className="mt-1 flex items-baseline gap-1">
+                <span className={`text-xl font-bold ${r.achieved ? 'text-emerald-700' : 'text-ink-primary'}`}>{r.current}</span>
+                <span className="text-xs text-ink-muted">/ {r.required}</span>
+              </div>
+              <div className="mt-2 h-1.5 rounded-full bg-surface-muted overflow-hidden">
+                <div className={`h-full rounded-full ${r.achieved ? 'bg-emerald-500' : 'bg-primary-600'}`} style={{ width: `${rpct}%` }} />
+              </div>
+            </div>
+          );
+        })}
       </div>
     </Card>
   );

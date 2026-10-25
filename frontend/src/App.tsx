@@ -25,6 +25,7 @@ import AdminDepartmentsPage from './pages/admin/AdminDepartmentsPage';
 import AdminReportsPage from './pages/admin/AdminReportsPage';
 import DeptReportsPage from './pages/reviewer/DeptReportsPage';
 import DeptReviewersPage from './pages/reviewer/DeptReviewersPage';
+import DeptFeedbackPage from './pages/reviewer/DeptFeedbackPage';
 import RedListPage from './pages/reviewer/RedListPage';
 import TrackingPage from './pages/reviewer/TrackingPage';
 import AdminEmailsPage from './pages/admin/AdminEmailsPage';
@@ -88,6 +89,10 @@ export default function App() {
         {/* HoD-only: appoint department reviewers (incharges) in their own dept. */}
         <Route path="/department/reviewers" element={
           <ProtectedRoute roles={['HOD']}><DeptReviewersPage /></ProtectedRoute>
+        } />
+        {/* HoD-only: the feedback they've issued, searchable by faculty. */}
+        <Route path="/department/feedback" element={
+          <ProtectedRoute roles={['HOD']}><DeptFeedbackPage /></ProtectedRoute>
         } />
         {/* HoD (dean/principal too): set the department's review week per quarter. */}
         <Route path="/department/review-windows" element={

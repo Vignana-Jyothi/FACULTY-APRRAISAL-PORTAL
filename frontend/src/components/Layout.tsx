@@ -153,6 +153,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     // A HoD can add and view faculty accounts in their own department.
     if (hasRole('HOD')) add('/admin/users', 'Users', Users);
     if (hasRole('HOD')) add('/reports/department', 'Reports', BarChart2);
+    // The HoD's own feedback log — search a faculty, read the feedback issued.
+    if (hasRole('HOD')) add('/department/feedback', 'Feedback', MessageSquare);
   }
 
   // Scrutinizers work only through the final-review queue, so it is a standing
