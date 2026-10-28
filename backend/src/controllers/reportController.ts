@@ -543,8 +543,8 @@ export async function exportIqacQuarterlyExcel(req: Request, res: Response) {
       user: { select: { id: true, name: true, employeeCode: true, designation: true, dateOfJoining: true } },
       review: { select: { overallComment: true } },
       draftReview: { select: { overallComment: true } },
-      cat2Journals: { select: { title: true, status: true } },
-      cat2Conferences: { select: { title: true, status: true } },
+      cat2Journals: { select: { title: true, status: true, authorPosition: true } },
+      cat2Conferences: { select: { title: true, status: true, authorPosition: true } },
       cat2Patents: { select: { title: true, status: true } },
       cat2Projects: { select: { title: true, status: true } },
       cat1EContent: { select: { contentName: true, courseName: true } },
@@ -591,10 +591,19 @@ export async function exportIqacQuarterlyExcel(req: Request, res: Response) {
       const consult = nonEmpty(a.cat2Consultancy, 'name');
       const consultTotal = consult.reduce((t: number, c: any) => t + (Number(c.amountLakhs) || 0), 0);
 
-      // Current targets: counts (with status breakdown where it applies).
+      // Author positions the faculty recorded on their publications (first
+      // author, corresponding, etc.) — only journals and conferences carry one.
+      // Appended only when at least one entry has a position filled.
+      const posList = (list: any[]) => list.map((r) => String(r.authorPosition ?? '').trim()).filter(Boolean);
+      const withPos = (list: any[]) => {
+        const p = posList(list);
+        return p.length ? ` — Author position: ${p.join('; ')}` : '';
+      };
+
+      // Current target status: counts (with status breakdown where it applies).
       const targets = [
-        `Journals: ${journals.length}${journals.length ? ` (${byStatus(journals)})` : ''}`,
-        `Conferences: ${confs.length}${confs.length ? ` (${byStatus(confs)})` : ''}`,
+        `Journals: ${journals.length}${journals.length ? ` (${byStatus(journals)})` : ''}${withPos(journals)}`,
+        `Conferences: ${confs.length}${confs.length ? ` (${byStatus(confs)})` : ''}${withPos(confs)}`,
         `Patents: ${patents.length}${patents.length ? ` (${byStatus(patents)})` : ''}`,
         `Projects applied: ${projects.length}`,
         `E-contents: ${econtent.length}`,
@@ -609,7 +618,7 @@ export async function exportIqacQuarterlyExcel(req: Request, res: Response) {
       return [a.user.employeeCode ?? '', a.user.name ?? '', cadreText, targets, review];
     });
 
-  const headers = ['Employee ID', 'Employee Name', 'Cadre', 'Current Targets', 'HoD Remarks'];
+  const headers = ['Employee ID', 'Employee Name', 'Cadre', 'Current Target Status', 'HoD Remarks'];
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   ws['!cols'] = [{ wch: 14 }, { wch: 26 }, { wch: 22 }, { wch: 60 }, { wch: 70 }];
   const wb = XLSX.utils.book_new();
