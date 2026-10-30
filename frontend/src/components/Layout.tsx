@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import BrandHeader from './BrandHeader';
 import Footer from './Footer';
+import ReportsNavMenu from './ReportsNavMenu';
 import { finalReviewApi, appraisalApi } from '../api/appraisals';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -231,7 +232,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {workspaceSwitch}
       {visibleEntries
         .filter(([to]) => !(to === '/final-review' && finalCount > 0))
-        .map(([to, label, Icon]) => navLink(to, label, Icon, to === '/my-red-list' && facultyRedListed))}
+        .map(([to, label, Icon]) => to === '/reports/department'
+          ? <ReportsNavMenu key={to} onNavigate={() => setDrawerOpen(false)} />
+          : navLink(to, label, Icon, to === '/my-red-list' && facultyRedListed))}
       {finalCount > 0 && (!dual || activeWorkspace === 'staff') &&
         navLink('/final-review', `Final Review (${finalCount})`, Gavel)}
     </>
