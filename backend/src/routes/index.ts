@@ -249,6 +249,8 @@ router.get('/reports/appraisal-excel', authenticate, roleGuard(DEPT_CONTENT_READ
 router.get('/reports/quarterly-summary', authenticate, roleGuard(DEPT_CONTENT_READ), report.exportQuarterlyDeptPdf);
 // Quarterly summary (Excel): Emp ID, Name, Targets Achieved, HoD Review — per dept + quarter.
 router.get('/reports/iqac-excel', authenticate, roleGuard(DEPT_CONTENT_READ), report.exportIqacQuarterlyExcel);
+// Publications (Excel): one row per publication across all 2.1 types, every IQAC field.
+router.get('/reports/publications-excel', authenticate, roleGuard(DEPT_CONTENT_READ), report.exportPublicationsExcel);
 
 // Admin: email notifications. A DEPT_ADMIN may READ the queue (scoped to their
 // department's recipients in the controller); retrying and manually triggering

@@ -21,6 +21,9 @@ export const reportApi = {
   // IQAC quarterly sheet: Emp ID, Name, Targets Achieved, HoD Review.
   iqacExcel: (params: { period: string; dept?: string; academicYearId?: string }): Promise<Blob> =>
     api.get('/reports/iqac-excel', { params, responseType: 'blob' }).then((r) => r.data),
+  // Publications sheet: one row per publication, every IQAC field (all 2.1 types).
+  publicationsExcel: (params?: { dept?: string; academicYearId?: string }): Promise<Blob> =>
+    api.get('/reports/publications-excel', { params, responseType: 'blob' }).then((r) => r.data),
 };
 
 export interface CategoryBreakdown { total: number; [k: string]: number }

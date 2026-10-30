@@ -681,6 +681,13 @@ model Cat2Journal {
   status             PublicationStatus?
   indexed            PublicationIndex @default(NONE)
   quartile           String?
+  // IQAC publication-report fields (2026-10-30). Not scored — collected for the
+  // Publications export. scope = Level of Circulation (National/International).
+  publisher          String?
+  scope              Scope?
+  paperLink          String?
+  venueLink          String? // link of the journal/conference
+  ugcCareListed      Boolean?
   proofFile          String?
   indexProofFile     String? // 2nd proof — the "index" page (proofFile is the 1st page)
 
@@ -712,6 +719,12 @@ model Cat2Conference {
   status             PublicationStatus?
   indexed            PublicationIndex @default(NONE)
   presentationStatus String? // legacy (pre-status); superseded by `status`
+  // IQAC publication-report fields (2026-10-30). See Cat2Journal.
+  publisher          String?
+  scope              Scope?
+  paperLink          String?
+  venueLink          String?
+  ugcCareListed      Boolean?
   proofFile          String?
   indexProofFile     String? // the index page, shown only for an Indexed paper
 

@@ -76,6 +76,9 @@ export function cleanRow(row: any) {
     } else if (k === 'status' && v === '') {
       // 2.1: "no lifecycle status chosen" is null — '' is not a PublicationStatus.
       out[k] = null;
+    } else if (k === 'ugcCareListed') {
+      // 2.1 IQAC: Yes/No radio — '' / null is "unanswered" (null), else a boolean.
+      out[k] = v === '' || v == null ? null : (v === true || v === 'true');
     } else {
       out[k] = v;
     }

@@ -30,6 +30,7 @@ export default function DeptReportsPage() {
   const [quarter, setQuarter] = useState('Q1');
   const [exportingQuarter, setExportingQuarter] = useState(false);
   const [exportingIqac, setExportingIqac] = useState(false);
+  const [exportingPubs, setExportingPubs] = useState(false);
 
   useEffect(() => {
     userApi.listAcademicYears().then(setYears).catch(() => {});
@@ -140,6 +141,26 @@ export default function DeptReportsPage() {
     }
   };
 
+  // Publications (Excel) — one row per publication, every IQAC field, all 2.1 types.
+  const exportPublications = async () => {
+    if (seesAllDepts && !deptFilter) { toast.error('Pick a department first'); return; }
+    setExportingPubs(true);
+    try {
+      const academicYearId = years.find((y) => y.label === yearFilter)?.id;
+      const blob = await reportApi.publicationsExcel({ dept: deptParam, academicYearId });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `publications-${deptCode ? `${deptCode}-` : ''}${yearFilter || 'current'}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Export failed');
+    } finally {
+      setExportingPubs(false);
+    }
+  };
+
   return (
     <div>
       <PageHeader
@@ -211,6 +232,14 @@ export default function DeptReportsPage() {
               title="Quarterly summary (Emp ID, Name, Targets Achieved, HoD Review) for the selected quarter, as Excel"
             >
               <Download size={14} /> {exportingIqac ? 'Exporting...' : 'Quarterly Summary (Excel)'}
+            </button>
+            <button
+              onClick={exportPublications}
+              disabled={exportingPubs}
+              className="flex items-center gap-2 border border-primary-600 text-primary-700 px-3 py-2 rounded text-sm font-medium hover:bg-primary-50 disabled:opacity-50"
+              title="Every publication filed this year — one row per publication, all 2.1 fields — as Excel"
+            >
+              <Download size={14} /> {exportingPubs ? 'Exporting...' : 'Publications (Excel)'}
             </button>
           </div>
         }

@@ -631,3 +631,123 @@ export async function exportIqacQuarterlyExcel(req: Request, res: Response) {
   return res.send(buf);
 }
 
+// GET /reports/publications-excel — every publication a department filed, one row
+// per publication, across all 2.1 types (journals, conferences, conference book
+// chapters, book chapters, books). Columns union all the IQAC publication-report
+// fields; a type leaves blank the columns it does not carry. HoD = own dept;
+// dean/principal pick a dept. Not period-scoped — a publication belongs to the
+// appraisal year, not a quarter.
+export async function exportPublicationsExcel(req: Request, res: Response) {
+  const user = req.user!;
+  const seesAllDepts = hasAnyRole(user, CONFIG);
+  const deptFilter = typeof req.query.dept === 'string' ? req.query.dept : undefined;
+
+  let departmentId: string | undefined;
+  if (seesAllDepts) {
+    if (!deptFilter) return res.status(400).json({ error: 'Select a department to export' });
+    departmentId = deptFilter;
+  } else {
+    const own = deptIdsFor(user, [RoleType.HOD]);
+    if (own.length === 0) return res.status(403).json({ error: 'No department to export' });
+    departmentId = own[0];
+  }
+
+  const year = typeof req.query.academicYearId === 'string'
+    ? await prisma.academicYear.findUnique({ where: { id: req.query.academicYearId } })
+    : await prisma.academicYear.findFirst({ where: { submissionOpen: true }, orderBy: { startDate: 'desc' } });
+  if (!year) return res.status(404).json({ error: 'Academic year not found' });
+
+  const submissions = await prisma.appraisalSubmission.findMany({
+    where: { academicYearId: year.id, user: { departmentId } },
+    include: {
+      user: { select: { id: true, name: true, employeeCode: true, designation: true, dateOfJoining: true } },
+      cat2Journals: true,
+      cat2Conferences: true,
+      cat2ConfBookChapters: true,
+      cat2BookChapters: true,
+      cat2Books: true,
+    },
+    orderBy: { submissionNumber: 'desc' },
+  });
+
+  // One submission per faculty — prefer the approved one, else the newest.
+  const picked = new Map<string, (typeof submissions)[number]>();
+  for (const s of submissions) {
+    const cur = picked.get(s.userId);
+    if (!cur) picked.set(s.userId, s);
+    else if (cur.status !== SubmissionStatus.APPROVED && s.status === SubmissionStatus.APPROVED) picked.set(s.userId, s);
+  }
+
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const fmtDate = (d: any) => (d ? new Date(d).toLocaleDateString('en-GB') : '');
+  const monthOf = (d: any) => (d ? MONTHS[new Date(d).getMonth()] : '');
+  const INDEX_LABEL: Record<string, string> = { SCOPUS: 'Scopus', WOS: 'Web of Science', ESCI: 'ESCI', ICI: 'ICI', NONE: '' };
+  const idxLabel = (v: any) => INDEX_LABEL[v as string] ?? '';
+  const scopeLabel = (v: any) => (v === 'NATIONAL' ? 'National' : v === 'INTERNATIONAL' ? 'International' : '');
+  const ugcLabel = (v: any) => (v === true ? 'Yes' : v === false ? 'No' : '');
+  const statusLabel = (v: any) => (v ? String(v).charAt(0) + String(v).slice(1).toLowerCase() : '');
+  const has = (v: any) => String(v ?? '').trim();
+
+  // Sort faculty: by cadre seniority, then experience, then name (as IQAC).
+  const rankOf = (u: any) => { const c = deriveCadre(u.designation); return c ? CADRE_RANK[c] : 0; };
+  const expOf = (u: any) => computeExperienceYears(u.dateOfJoining);
+  const people = [...picked.values()].sort((a, b) => {
+    const ua = (a as any).user, ub = (b as any).user;
+    return rankOf(ub) - rankOf(ua) || expOf(ub) - expOf(ua) || (ua.name ?? '').localeCompare(ub.name ?? '');
+  });
+
+  const rows: any[][] = [];
+  for (const s of people) {
+    const u = (s as any).user;
+    const emp = u.employeeCode ?? '';
+    const name = u.name ?? '';
+    // row(): [Type, Title, Venue, Publisher, Vol, Issue, Pages, Date, Month, ISSN/ISBN,
+    //        IF, Indexed, Quartile, Circulation, Authors, Author Position, Status, DOI,
+    //        Paper Link, Venue Link, UGC Care]
+    const push = (type: string, c: any[]) => rows.push([type, emp, name, ...c]);
+
+    for (const j of (s as any).cat2Journals ?? []) {
+      if (!has(j.title) && !has(j.journalName)) continue;
+      push('Journal', [j.title ?? '', j.journalName ?? '', j.publisher ?? '', j.volume ?? '', j.issueNo ?? '', j.pageNos ?? '', fmtDate(j.dateOfPub), monthOf(j.dateOfPub), j.issn ?? '', j.impactFactor ?? '', idxLabel(j.indexed), j.quartile ?? '', scopeLabel(j.scope), j.authors ?? '', j.authorPosition ?? '', statusLabel(j.status), j.doi ?? '', j.paperLink ?? '', j.venueLink ?? '', ugcLabel(j.ugcCareListed)]);
+    }
+    for (const c of (s as any).cat2Conferences ?? []) {
+      if (!has(c.title) && !has(c.conferenceName)) continue;
+      push('Conference', [c.title ?? '', c.conferenceName ?? '', c.publisher ?? '', c.volume ?? '', c.issueNo ?? '', c.pageNos ?? '', fmtDate(c.dateOfPub), monthOf(c.dateOfPub), c.issn ?? '', c.impactFactor ?? '', idxLabel(c.indexed), c.quartile ?? '', scopeLabel(c.scope), c.authors ?? '', c.authorPosition ?? '', statusLabel(c.status), c.doi ?? '', c.paperLink ?? '', c.venueLink ?? '', ugcLabel(c.ugcCareListed)]);
+    }
+    for (const c of (s as any).cat2ConfBookChapters ?? []) {
+      if (!has(c.title) && !has(c.conferenceName)) continue;
+      push('Conf. Book Chapter', [c.title ?? '', c.conferenceName ?? '', '', c.volume ?? '', c.issueNo ?? '', c.pageNos ?? '', fmtDate(c.dateOfPub), monthOf(c.dateOfPub), c.issn ?? '', c.impactFactor ?? '', idxLabel(c.indexed), c.quartile ?? '', '', c.authors ?? '', c.authorPosition ?? '', '', c.doi ?? '', '', '', '']);
+    }
+    for (const b of (s as any).cat2BookChapters ?? []) {
+      if (!has(b.title)) continue;
+      push('Book Chapter', [b.title ?? '', '', b.publisher ?? '', '', '', '', '', '', b.isbn ?? '', '', '', '', scopeLabel(b.scope), b.authors ?? '', b.authorPosition ?? '', '', '', '', '', '']);
+    }
+    for (const b of (s as any).cat2Books ?? []) {
+      if (!has(b.title)) continue;
+      push('Book', [b.title ?? '', '', b.publisher ?? '', '', '', '', '', '', b.isbn ?? '', '', '', '', scopeLabel(b.scope), b.authors ?? '', '', '', '', '', '', '']);
+    }
+  }
+
+  const headers = [
+    'Type', 'Employee ID', 'Faculty', 'Title of the Article', 'Journal / Conference', 'Publisher',
+    'Volume', 'Issue No', 'Page Nos', 'Date of Publication', 'Month', 'ISSN / ISBN', 'Impact Factor',
+    'Indexed In', 'Quartile', 'Level of Circulation', 'Authors', 'Author Position', 'Status', 'DOI',
+    'Link of the Paper', 'Link of the Journal / Conference', 'UGC Care Listed',
+  ];
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws['!cols'] = [
+    { wch: 16 }, { wch: 13 }, { wch: 24 }, { wch: 40 }, { wch: 30 }, { wch: 22 },
+    { wch: 8 }, { wch: 8 }, { wch: 10 }, { wch: 15 }, { wch: 11 }, { wch: 18 }, { wch: 11 },
+    { wch: 16 }, { wch: 9 }, { wch: 16 }, { wch: 30 }, { wch: 14 }, { wch: 11 }, { wch: 24 },
+    { wch: 28 }, { wch: 28 }, { wch: 13 },
+  ];
+  const wb = XLSX.utils.book_new();
+  const dept = await prisma.department.findUnique({ where: { id: departmentId }, select: { code: true } });
+  XLSX.utils.book_append_sheet(wb, ws, `${dept?.code ?? 'Dept'}-Publications`.slice(0, 28));
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  const fname = `publications-${dept?.code ?? 'dept'}-${year.label}.xlsx`.replace(/\s+/g, '_');
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename=${fname}`);
+  return res.send(buf);
+}
+

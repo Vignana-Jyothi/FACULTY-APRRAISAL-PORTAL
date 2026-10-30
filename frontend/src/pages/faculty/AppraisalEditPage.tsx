@@ -73,6 +73,15 @@ function RowNote({ r }: { r: { score: number; reason: string } }) {
 // A row is only saved if the faculty actually filled its free-text identifier
 // (an alphanumeric char) — this drops the empty "Add Row" placeholders and their
 // dropdown defaults so an untouched section persists nothing and scores 0.
+// Stringify the stored ugcCareListed boolean so the Yes/No select preselects
+// ('' | 'true' | 'false'). cleanRow coerces it back to a boolean on save.
+function withUgcStr(rows: any[] | undefined): any[] {
+  return (rows ?? []).map((r) => ({
+    ...r,
+    ugcCareListed: r?.ugcCareListed === true ? 'true' : r?.ugcCareListed === false ? 'false' : '',
+  }));
+}
+
 // Mirrors the backend guard in appraisalController.dropBlankRows.
 const ROW_CONTENT_FIELDS: Record<string, string[]> = {
   cat1Courses: ['courseName'],
@@ -297,8 +306,8 @@ export default function AppraisalEditPage() {
         cat1ICT: sub.cat1ICT ?? [],
         // Date boxes need YYYY-MM-DD; the API sends timestamps (see toDateInputs).
         // 2.1 rows also get an author list, seeded from older free-text authors.
-        cat2Journals: withAuthorList(toDateInputs(sub.cat2Journals)),
-        cat2Conferences: withAuthorList(toDateInputs(sub.cat2Conferences)),
+        cat2Journals: withUgcStr(withAuthorList(toDateInputs(sub.cat2Journals))),
+        cat2Conferences: withUgcStr(withAuthorList(toDateInputs(sub.cat2Conferences))),
         cat2ConfBookChapters: withAuthorList(toDateInputs(sub.cat2ConfBookChapters)),
         cat2BookChapters: sub.cat2BookChapters ?? [],
         cat2Books: sub.cat2Books ?? [],
@@ -623,6 +632,23 @@ export default function AppraisalEditPage() {
     <select {...register(name as any)} className={inputCls}>
       <option value="">N/A</option>
       {['Q1', 'Q2', 'Q3', 'Q4'].map((q) => <option key={q} value={q}>{q}</option>)}
+    </select>
+  );
+  // IQAC publication-report selects. scope = Level of Circulation; ugcCareListed
+  // is a Yes/No held as the string '' | 'true' | 'false' (cleanRow coerces it to
+  // a boolean on save; the loader stringifies the stored boolean — see withUgcStr).
+  const circulationSelect = (name: string) => (
+    <select {...register(name as any)} className={inputCls}>
+      <option value="">Select…</option>
+      <option value="NATIONAL">National</option>
+      <option value="INTERNATIONAL">International</option>
+    </select>
+  );
+  const ugcSelect = (name: string) => (
+    <select {...register(name as any)} className={inputCls}>
+      <option value="">Select…</option>
+      <option value="true">Yes</option>
+      <option value="false">No</option>
     </select>
   );
   // Per-row 2.1 working, from the same helper the engines score with: the
@@ -1147,6 +1173,11 @@ export default function AppraisalEditPage() {
                         {selectOther(`cat2Journals.${i}.impactFactorSource`, IMPACT_FACTOR_SOURCES, 'Select...', 'Specify source')}
                       </div>
                       <div><label className={labelCls}>Quartile (if applicable)</label>{quartileSelect(`cat2Journals.${i}.quartile`)}</div>
+                      <div><label className={labelCls}>Name of the Publisher</label><input {...register(`cat2Journals.${i}.publisher`)} className={inputCls} /></div>
+                      <div><label className={labelCls}>Level of Circulation</label>{circulationSelect(`cat2Journals.${i}.scope`)}</div>
+                      <div><label className={labelCls}>Link of the Paper</label><input {...register(`cat2Journals.${i}.paperLink`)} className={inputCls} /></div>
+                      <div><label className={labelCls}>Link of the Journal</label><input {...register(`cat2Journals.${i}.venueLink`)} className={inputCls} /></div>
+                      <div><label className={labelCls}>UGC Care Listed</label>{ugcSelect(`cat2Journals.${i}.ugcCareListed`)}</div>
                       {proofField(`cat2Journals.${i}.proofFile`, '1st Page Proof')}
                     </>}
                     {/* Indexed adds the index and its proof — it is already published. */}
@@ -1161,7 +1192,7 @@ export default function AppraisalEditPage() {
                 </div>
                 );
               })}
-              {addRowBtn('Add Journal', () => journals.append({ title: '', journalName: '', authors: '', authorList: [''], allAuthorsFromCampus: null, claimedBySelf: null, authorPosition: '1st', status: '', indexed: 'NONE', impactFactor: 0, impactFactorSource: '', volume: '', issueNo: '', pageNos: '', dateOfPub: '', quartile: '', proofFile: '', indexProofFile: '' }))}
+              {addRowBtn('Add Journal', () => journals.append({ title: '', journalName: '', authors: '', authorList: [''], allAuthorsFromCampus: null, claimedBySelf: null, authorPosition: '1st', status: '', indexed: 'NONE', impactFactor: 0, impactFactorSource: '', volume: '', issueNo: '', pageNos: '', dateOfPub: '', quartile: '', publisher: '', scope: '', paperLink: '', venueLink: '', ugcCareListed: '', proofFile: '', indexProofFile: '' }))}
             </details>
 
             <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
@@ -1203,6 +1234,11 @@ export default function AppraisalEditPage() {
                       <div><label className={labelCls}>DOI</label><input {...register(`cat2Conferences.${i}.doi`)} className={inputCls} /></div>
                       <div><label className={labelCls}>Impact Factor</label><input type="number" step="0.01" {...register(`cat2Conferences.${i}.impactFactor`, { valueAsNumber: true })} className={inputCls} /></div>
                       <div><label className={labelCls}>Quartile (if applicable)</label>{quartileSelect(`cat2Conferences.${i}.quartile`)}</div>
+                      <div><label className={labelCls}>Name of the Publisher</label><input {...register(`cat2Conferences.${i}.publisher`)} className={inputCls} /></div>
+                      <div><label className={labelCls}>Level of Circulation</label>{circulationSelect(`cat2Conferences.${i}.scope`)}</div>
+                      <div><label className={labelCls}>Link of the Paper</label><input {...register(`cat2Conferences.${i}.paperLink`)} className={inputCls} /></div>
+                      <div><label className={labelCls}>Link of the Conference</label><input {...register(`cat2Conferences.${i}.venueLink`)} className={inputCls} /></div>
+                      <div><label className={labelCls}>UGC Care Listed</label>{ugcSelect(`cat2Conferences.${i}.ugcCareListed`)}</div>
                       {proofField(`cat2Conferences.${i}.proofFile`, '1st Page Proof')}
                     </>}
                     {/* Indexed adds the index and its proof — it is already published. */}
@@ -1217,7 +1253,7 @@ export default function AppraisalEditPage() {
                 </div>
                 );
               })}
-              {addRowBtn('Add Conference', () => conferences.append({ title: '', conferenceName: '', authors: '', authorList: [''], allAuthorsFromCampus: null, claimedBySelf: null, authorPosition: '1st', status: '', volume: '', issueNo: '', pageNos: '', dateOfPub: '', issn: '', doi: '', impactFactor: 0, indexed: 'NONE', quartile: '', presentationStatus: '', proofFile: '', indexProofFile: '' }))}
+              {addRowBtn('Add Conference', () => conferences.append({ title: '', conferenceName: '', authors: '', authorList: [''], allAuthorsFromCampus: null, claimedBySelf: null, authorPosition: '1st', status: '', volume: '', issueNo: '', pageNos: '', dateOfPub: '', issn: '', doi: '', impactFactor: 0, indexed: 'NONE', quartile: '', publisher: '', scope: '', paperLink: '', venueLink: '', ugcCareListed: '', presentationStatus: '', proofFile: '', indexProofFile: '' }))}
             </details>
 
             <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
