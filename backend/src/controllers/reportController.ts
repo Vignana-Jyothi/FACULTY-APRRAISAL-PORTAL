@@ -685,7 +685,6 @@ export async function exportPublicationsExcel(req: Request, res: Response) {
   const idxLabel = (v: any) => INDEX_LABEL[v as string] ?? '';
   const scopeLabel = (v: any) => (v === 'NATIONAL' ? 'National' : v === 'INTERNATIONAL' ? 'International' : '');
   const ugcLabel = (v: any) => (v === true ? 'Yes' : v === false ? 'No' : '');
-  const statusLabel = (v: any) => (v ? String(v).charAt(0) + String(v).slice(1).toLowerCase() : '');
   const has = (v: any) => String(v ?? '').trim();
 
   // Sort faculty: by cadre seniority, then experience, then name (as IQAC).
@@ -699,47 +698,48 @@ export async function exportPublicationsExcel(req: Request, res: Response) {
   const rows: any[][] = [];
   for (const s of people) {
     const u = (s as any).user;
-    const emp = u.employeeCode ?? '';
     const name = u.name ?? '';
-    // row(): [Type, Title, Venue, Publisher, Vol, Issue, Pages, Date, Month, ISSN/ISBN,
-    //        IF, Indexed, Quartile, Circulation, Authors, Author Position, Status, DOI,
-    //        Paper Link, Venue Link, UGC Care]
-    const push = (type: string, c: any[]) => rows.push([type, emp, name, ...c]);
+    const desig = u.designation ?? '';
+    // Column order (per IQAC request 2026-10-30): Faculty, Designation, Type,
+    // Circulation, Authors, Author Position, Quartile, Title, Venue, Volume,
+    // Issue No, Page Nos, Date, Month, ISSN/ISBN, Impact Factor, Indexed, Publisher,
+    // DOI, Paper Link, Venue Link, UGC Care. A type blanks what it does not carry.
+    const push = (type: string, c: any[]) => rows.push([name, desig, type, ...c]);
 
     for (const j of (s as any).cat2Journals ?? []) {
       if (!has(j.title) && !has(j.journalName)) continue;
-      push('Journal', [j.title ?? '', j.journalName ?? '', j.publisher ?? '', j.volume ?? '', j.issueNo ?? '', j.pageNos ?? '', fmtDate(j.dateOfPub), monthOf(j.dateOfPub), j.issn ?? '', j.impactFactor ?? '', idxLabel(j.indexed), j.quartile ?? '', scopeLabel(j.scope), j.authors ?? '', j.authorPosition ?? '', statusLabel(j.status), j.doi ?? '', j.paperLink ?? '', j.venueLink ?? '', ugcLabel(j.ugcCareListed)]);
+      push('Journal', [scopeLabel(j.scope), j.authors ?? '', j.authorPosition ?? '', j.quartile ?? '', j.title ?? '', j.journalName ?? '', j.volume ?? '', j.issueNo ?? '', j.pageNos ?? '', fmtDate(j.dateOfPub), monthOf(j.dateOfPub), j.issn ?? '', j.impactFactor ?? '', idxLabel(j.indexed), j.publisher ?? '', j.doi ?? '', j.paperLink ?? '', j.venueLink ?? '', ugcLabel(j.ugcCareListed)]);
     }
     for (const c of (s as any).cat2Conferences ?? []) {
       if (!has(c.title) && !has(c.conferenceName)) continue;
-      push('Conference', [c.title ?? '', c.conferenceName ?? '', c.publisher ?? '', c.volume ?? '', c.issueNo ?? '', c.pageNos ?? '', fmtDate(c.dateOfPub), monthOf(c.dateOfPub), c.issn ?? '', c.impactFactor ?? '', idxLabel(c.indexed), c.quartile ?? '', scopeLabel(c.scope), c.authors ?? '', c.authorPosition ?? '', statusLabel(c.status), c.doi ?? '', c.paperLink ?? '', c.venueLink ?? '', ugcLabel(c.ugcCareListed)]);
+      push('Conference', [scopeLabel(c.scope), c.authors ?? '', c.authorPosition ?? '', c.quartile ?? '', c.title ?? '', c.conferenceName ?? '', c.volume ?? '', c.issueNo ?? '', c.pageNos ?? '', fmtDate(c.dateOfPub), monthOf(c.dateOfPub), c.issn ?? '', c.impactFactor ?? '', idxLabel(c.indexed), c.publisher ?? '', c.doi ?? '', c.paperLink ?? '', c.venueLink ?? '', ugcLabel(c.ugcCareListed)]);
     }
     for (const c of (s as any).cat2ConfBookChapters ?? []) {
       if (!has(c.title) && !has(c.conferenceName)) continue;
-      push('Conf. Book Chapter', [c.title ?? '', c.conferenceName ?? '', '', c.volume ?? '', c.issueNo ?? '', c.pageNos ?? '', fmtDate(c.dateOfPub), monthOf(c.dateOfPub), c.issn ?? '', c.impactFactor ?? '', idxLabel(c.indexed), c.quartile ?? '', '', c.authors ?? '', c.authorPosition ?? '', '', c.doi ?? '', '', '', '']);
+      push('Conf. Book Chapter', ['', c.authors ?? '', c.authorPosition ?? '', c.quartile ?? '', c.title ?? '', c.conferenceName ?? '', c.volume ?? '', c.issueNo ?? '', c.pageNos ?? '', fmtDate(c.dateOfPub), monthOf(c.dateOfPub), c.issn ?? '', c.impactFactor ?? '', idxLabel(c.indexed), '', c.doi ?? '', '', '', '']);
     }
     for (const b of (s as any).cat2BookChapters ?? []) {
       if (!has(b.title)) continue;
-      push('Book Chapter', [b.title ?? '', '', b.publisher ?? '', '', '', '', '', '', b.isbn ?? '', '', '', '', scopeLabel(b.scope), b.authors ?? '', b.authorPosition ?? '', '', '', '', '', '']);
+      push('Book Chapter', [scopeLabel(b.scope), b.authors ?? '', b.authorPosition ?? '', '', b.title ?? '', '', '', '', '', '', '', b.isbn ?? '', '', '', b.publisher ?? '', '', '', '', '']);
     }
     for (const b of (s as any).cat2Books ?? []) {
       if (!has(b.title)) continue;
-      push('Book', [b.title ?? '', '', b.publisher ?? '', '', '', '', '', '', b.isbn ?? '', '', '', '', scopeLabel(b.scope), b.authors ?? '', '', '', '', '', '', '']);
+      push('Book', [scopeLabel(b.scope), b.authors ?? '', '', '', b.title ?? '', '', '', '', '', '', '', b.isbn ?? '', '', '', b.publisher ?? '', '', '', '', '']);
     }
   }
 
   const headers = [
-    'Type', 'Employee ID', 'Faculty', 'Title of the Article', 'Journal / Conference', 'Publisher',
-    'Volume', 'Issue No', 'Page Nos', 'Date of Publication', 'Month', 'ISSN / ISBN', 'Impact Factor',
-    'Indexed In', 'Quartile', 'Level of Circulation', 'Authors', 'Author Position', 'Status', 'DOI',
-    'Link of the Paper', 'Link of the Journal / Conference', 'UGC Care Listed',
+    'Faculty Name', 'Designation', 'Publication Type', 'Level of Circulation',
+    'Authors (as appeared in the paper)', 'Author Position', 'Quartile', 'Title of the Article',
+    'Name of the Journal / Conference', 'Volume', 'Issue No', 'Page Nos', 'Date of Publication',
+    'Month of Publication', 'ISSN No. / ISBN No.', 'Impact Factor', 'Indexed In', 'Name of the Publisher',
+    'DOI Link', 'Link of the Paper', 'Link of the Journal / Conference', 'UGC Care Listed',
   ];
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   ws['!cols'] = [
-    { wch: 16 }, { wch: 13 }, { wch: 24 }, { wch: 40 }, { wch: 30 }, { wch: 22 },
-    { wch: 8 }, { wch: 8 }, { wch: 10 }, { wch: 15 }, { wch: 11 }, { wch: 18 }, { wch: 11 },
-    { wch: 16 }, { wch: 9 }, { wch: 16 }, { wch: 30 }, { wch: 14 }, { wch: 11 }, { wch: 24 },
-    { wch: 28 }, { wch: 28 }, { wch: 13 },
+    { wch: 24 }, { wch: 20 }, { wch: 16 }, { wch: 16 }, { wch: 30 }, { wch: 14 }, { wch: 9 }, { wch: 40 },
+    { wch: 30 }, { wch: 8 }, { wch: 8 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 11 },
+    { wch: 16 }, { wch: 22 }, { wch: 24 }, { wch: 28 }, { wch: 28 }, { wch: 13 },
   ];
   const wb = XLSX.utils.book_new();
   const dept = await prisma.department.findUnique({ where: { id: departmentId }, select: { code: true } });
