@@ -168,8 +168,12 @@ export default function DeptReportsPage() {
         help="Your department’s statistics. Pick a criterion to rank your faculty and export the table as CSV."
         subtitle={seesAllDepts ? 'Reviewed appraisals — all departments, or pick one' : 'Reviewed appraisals in your department'}
         breadcrumbs={[{ label: 'Home' }, { label: 'Department Reports' }]}
-        actions={
-          <div className="flex items-center gap-2 flex-wrap">
+      />
+
+      {/* Report downloads + filters. A full-width toolbar that wraps, so no
+          button is pushed off-screen as the report list grows (it did when this
+          sat in the header's non-wrapping actions slot). */}
+      <div className="flex items-center gap-2 flex-wrap mb-5">
             {seesAllDepts && (
               <select
                 value={deptFilter}
@@ -241,9 +245,7 @@ export default function DeptReportsPage() {
             >
               <Download size={14} /> {exportingPubs ? 'Exporting...' : 'Publications (Excel)'}
             </button>
-          </div>
-        }
-      />
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         <StatTile icon={<Users size={18} />} label="Reviewed" value={stats.total} color="primary" />
