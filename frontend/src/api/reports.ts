@@ -24,7 +24,20 @@ export const reportApi = {
   // Publications sheet: one row per publication, every IQAC field (all 2.1 types).
   publicationsExcel: (params?: { dept?: string; academicYearId?: string }): Promise<Blob> =>
     api.get('/reports/publications-excel', { params, responseType: 'blob' }).then((r) => r.data),
+  // Analytics dashboard aggregates (HoD = own dept, dean/principal = campus).
+  analytics: (params?: { academicYearId?: string; dept?: string }): Promise<AnalyticsData> =>
+    api.get('/reports/analytics', { params }).then((r) => r.data),
 };
+
+export interface AnalyticsData {
+  scope: 'campus' | 'department';
+  year: { id: string; label: string } | null;
+  totals: { faculty: number; journals: number; conferences: number; bookChapters: number; confBookChapters: number; books: number; publications: number; patents: number; projects: number };
+  byDepartment: { code: string; name: string; faculty: number; publications: number; journals: number; conferences: number; patents: number; projects: number }[];
+  publicationTypes: { type: string; count: number }[];
+  indexBreakdown: { index: string; count: number }[];
+  topFaculty: { name: string; department: string; publications: number; patents: number; projects: number }[];
+}
 
 export interface CategoryBreakdown { total: number; [k: string]: number }
 export interface ScoreBreakdown {

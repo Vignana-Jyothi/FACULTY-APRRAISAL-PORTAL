@@ -751,3 +751,114 @@ export async function exportPublicationsExcel(req: Request, res: Response) {
   return res.send(buf);
 }
 
+// GET /reports/analytics?academicYearId=&dept= — aggregated research output for the
+// analytics dashboard. HoD = own department; dean/principal = whole campus (or a
+// single ?dept). academicYearId: an id, 'all' (every year), or omitted (open year).
+// Publications count only PUBLISHED/INDEXED papers (a legacy row with no status but
+// a real index still counts). Books / book chapters have no status, so they count
+// as published. Patents and projects count every recorded row.
+export async function getAnalytics(req: Request, res: Response) {
+  const user = req.user!;
+  const deptParam = typeof req.query.dept === 'string' ? req.query.dept : undefined;
+  const userWhere = reportUserWhere(user, deptParam);
+  const scope = hasAnyRole(user, CONFIG) ? 'campus' : 'department';
+
+  const yq = typeof req.query.academicYearId === 'string' ? req.query.academicYearId : undefined;
+  let year: { id: string; label: string } | null = null;
+  if (yq && yq !== 'all') {
+    year = await prisma.academicYear.findUnique({ where: { id: yq }, select: { id: true, label: true } });
+    if (!year) return res.status(404).json({ error: 'Academic year not found' });
+  } else if (!yq) {
+    year = await prisma.academicYear.findFirst({ where: { submissionOpen: true }, orderBy: { startDate: 'desc' }, select: { id: true, label: true } });
+  }
+
+  const subs = await prisma.appraisalSubmission.findMany({
+    where: { ...(year ? { academicYearId: year.id } : {}), user: userWhere },
+    include: {
+      user: { select: { id: true, name: true, departmentId: true, department: { select: { code: true, name: true } } } },
+      cat2Journals: { select: { status: true, indexed: true } },
+      cat2Conferences: { select: { status: true, indexed: true } },
+      cat2ConfBookChapters: { select: { indexed: true } }, // no status field; published when indexed
+      cat2BookChapters: { select: { id: true } },
+      cat2Books: { select: { id: true } },
+      cat2Patents: { select: { id: true } },
+      cat2Projects: { select: { id: true } },
+    },
+    orderBy: { submissionNumber: 'desc' },
+  });
+
+  // One submission per faculty per year (prefer approved, else newest).
+  const picked = new Map<string, (typeof subs)[number]>();
+  for (const s of subs) {
+    const key = `${s.userId}:${s.academicYearId}`;
+    const cur = picked.get(key);
+    if (!cur || (cur.status !== SubmissionStatus.APPROVED && s.status === SubmissionStatus.APPROVED)) picked.set(key, s);
+  }
+
+  // A paper counts only once it is published (or a legacy row indexed with no status).
+  const isPub = (r: { status: string | null; indexed: string }) =>
+    r.status === 'PUBLISHED' || r.status === 'INDEXED' || (r.status == null && r.indexed !== 'NONE');
+  const INDEX_LABEL: Record<string, string> = { SCOPUS: 'Scopus', WOS: 'Web of Science', ESCI: 'ESCI', ICI: 'ICI', NONE: 'Not indexed' };
+
+  const totals = { faculty: 0, journals: 0, conferences: 0, bookChapters: 0, confBookChapters: 0, books: 0, publications: 0, patents: 0, projects: 0 };
+  const indexCounts = new Map<string, number>();
+  const deptMap = new Map<string, { code: string; name: string; faculty: number; publications: number; journals: number; conferences: number; patents: number; projects: number }>();
+  const facultyMap = new Map<string, { name: string; department: string; publications: number; patents: number; projects: number }>();
+
+  for (const s of picked.values()) {
+    const u = (s as any).user;
+    const deptCode = u.department?.code ?? '—';
+    const deptName = u.department?.name ?? 'Unassigned';
+    const journals = (s as any).cat2Journals.filter(isPub);
+    const confs = (s as any).cat2Conferences.filter(isPub);
+    const confBooks = (s as any).cat2ConfBookChapters.filter(isPub);
+    const bookCh = (s as any).cat2BookChapters.length;
+    const books = (s as any).cat2Books.length;
+    const patents = (s as any).cat2Patents.length;
+    const projects = (s as any).cat2Projects.length;
+    const pubs = journals.length + confs.length + confBooks.length + bookCh + books;
+
+    totals.journals += journals.length;
+    totals.conferences += confs.length;
+    totals.confBookChapters += confBooks.length;
+    totals.bookChapters += bookCh;
+    totals.books += books;
+    totals.publications += pubs;
+    totals.patents += patents;
+    totals.projects += projects;
+
+    for (const r of [...journals, ...confs, ...confBooks]) {
+      const k = INDEX_LABEL[r.indexed] ?? 'Not indexed';
+      indexCounts.set(k, (indexCounts.get(k) ?? 0) + 1);
+    }
+
+    const d = deptMap.get(deptCode) ?? { code: deptCode, name: deptName, faculty: 0, publications: 0, journals: 0, conferences: 0, patents: 0, projects: 0 };
+    d.faculty += 1;
+    d.publications += pubs;
+    d.journals += journals.length;
+    d.conferences += confs.length;
+    d.patents += patents;
+    d.projects += projects;
+    deptMap.set(deptCode, d);
+
+    const f = facultyMap.get(u.id) ?? { name: u.name ?? '', department: deptCode, publications: 0, patents: 0, projects: 0 };
+    f.publications += pubs;
+    f.patents += patents;
+    f.projects += projects;
+    facultyMap.set(u.id, f);
+  }
+  totals.faculty = facultyMap.size;
+
+  const byDepartment = [...deptMap.values()].sort((a, b) => b.publications - a.publications);
+  const publicationTypes = [
+    { type: 'Journals', count: totals.journals },
+    { type: 'Conferences', count: totals.conferences },
+    { type: 'Book Chapters', count: totals.bookChapters + totals.confBookChapters },
+    { type: 'Books', count: totals.books },
+  ].filter((t) => t.count > 0);
+  const indexBreakdown = [...indexCounts.entries()].map(([index, count]) => ({ index, count })).sort((a, b) => b.count - a.count);
+  const topFaculty = [...facultyMap.values()].sort((a, b) => b.publications - a.publications).slice(0, 10);
+
+  return res.json({ scope, year, totals, byDepartment, publicationTypes, indexBreakdown, topFaculty });
+}
+

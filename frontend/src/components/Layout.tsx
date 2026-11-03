@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import {
   BarChart2, FileText, FilePen, BookOpen, User, Users, Settings, LayoutDashboard, Mail, Activity, Menu, X, Target, ShieldCheck, AlertTriangle, Gauge, CalendarClock, Gavel, UploadCloud,
-  MessageSquare,
+  MessageSquare, PieChart,
 } from 'lucide-react';
 import BrandHeader from './BrandHeader';
 import Footer from './Footer';
@@ -119,6 +119,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     // The institute report is open to both (backend /reports/institute is
     // guarded with CONFIG), hence the role-neutral path.
     add('/reports/institute', 'Institute Reports', BarChart2);
+    add('/analytics', 'Analytics', PieChart);
     // Department report with a department picker; rows come back without Cat 6
     // / the /550 for the dean (the server strips them).
     add('/reports/department', 'Department Reports', BarChart2);
@@ -156,6 +157,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     if (hasRole('HOD')) add('/reports/department', 'Reports', BarChart2);
     // The HoD's own feedback log — search a faculty, read the feedback issued.
     if (hasRole('HOD')) add('/department/feedback', 'Feedback', MessageSquare);
+    if (hasRole('HOD')) add('/analytics', 'Analytics', PieChart);
   }
 
   // Scrutinizers work only through the final-review queue, so it is a standing

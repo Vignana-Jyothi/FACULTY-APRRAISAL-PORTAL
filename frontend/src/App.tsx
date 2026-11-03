@@ -24,6 +24,7 @@ import AdminAppraisalsPage from './pages/admin/AdminAppraisalsPage';
 import AdminDepartmentsPage from './pages/admin/AdminDepartmentsPage';
 import AdminReportsPage from './pages/admin/AdminReportsPage';
 import DeptReportsPage from './pages/reviewer/DeptReportsPage';
+import AnalyticsPage from './pages/reviewer/AnalyticsPage';
 import DeptReviewersPage from './pages/reviewer/DeptReviewersPage';
 import DeptFeedbackPage from './pages/reviewer/DeptFeedbackPage';
 import RedListPage from './pages/reviewer/RedListPage';
@@ -112,6 +113,10 @@ export default function App() {
         } />
         <Route path="/reports/department" element={
           <ProtectedRoute roles={DEPT_REPORTS}><DeptReportsPage /></ProtectedRoute>
+        } />
+        {/* Analytics dashboard — HoD (own dept), dean/principal (campus). */}
+        <Route path="/analytics" element={
+          <ProtectedRoute roles={DEPT_REPORTS}><AnalyticsPage /></ProtectedRoute>
         } />
         <Route path="/red-list" element={
           <ProtectedRoute roles={RED_LIST}><RedListPage /></ProtectedRoute>

@@ -251,6 +251,8 @@ router.get('/reports/quarterly-summary', authenticate, roleGuard(DEPT_CONTENT_RE
 router.get('/reports/iqac-excel', authenticate, roleGuard(DEPT_CONTENT_READ), report.exportIqacQuarterlyExcel);
 // Publications (Excel): one row per publication across all 2.1 types, every IQAC field.
 router.get('/reports/publications-excel', authenticate, roleGuard(DEPT_CONTENT_READ), report.exportPublicationsExcel);
+// Analytics dashboard: aggregated research output (HoD = own dept, dean/principal = campus).
+router.get('/reports/analytics', authenticate, roleGuard(DEPT_CONTENT_READ), report.getAnalytics);
 
 // Admin: email notifications. A DEPT_ADMIN may READ the queue (scoped to their
 // department's recipients in the controller); retrying and manually triggering
