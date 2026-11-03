@@ -757,17 +757,16 @@ export async function exportPublicationsExcel(req: Request, res: Response) {
 // Publications count only PUBLISHED/INDEXED papers (a legacy row with no status but
 // a real index still counts). Books / book chapters have no status, so they count
 // as published. Patents and projects count every recorded row.
-export async function getAnalytics(req: Request, res: Response) {
-  const user = req.user!;
-  const deptParam = typeof req.query.dept === 'string' ? req.query.dept : undefined;
+async function computeAnalytics(
+  user: AuthUser, deptParam: string | undefined, yq: string | undefined,
+): Promise<{ ok: false; status: number; error: string } | { ok: true; data: any }> {
   const userWhere = reportUserWhere(user, deptParam);
   const scope = hasAnyRole(user, CONFIG) ? 'campus' : 'department';
 
-  const yq = typeof req.query.academicYearId === 'string' ? req.query.academicYearId : undefined;
   let year: { id: string; label: string } | null = null;
   if (yq && yq !== 'all') {
     year = await prisma.academicYear.findUnique({ where: { id: yq }, select: { id: true, label: true } });
-    if (!year) return res.status(404).json({ error: 'Academic year not found' });
+    if (!year) return { ok: false, status: 404, error: 'Academic year not found' };
   } else if (!yq) {
     year = await prisma.academicYear.findFirst({ where: { submissionOpen: true }, orderBy: { startDate: 'desc' }, select: { id: true, label: true } });
   }
@@ -781,7 +780,7 @@ export async function getAnalytics(req: Request, res: Response) {
       cat2ConfBookChapters: { select: { indexed: true } }, // no status field; published when indexed
       cat2BookChapters: { select: { id: true } },
       cat2Books: { select: { id: true } },
-      cat2Patents: { select: { id: true } },
+      cat2Patents: { select: { status: true } },
       cat2Projects: { select: { id: true } },
     },
     orderBy: { submissionNumber: 'desc' },
@@ -799,9 +798,11 @@ export async function getAnalytics(req: Request, res: Response) {
   const isPub = (r: { status: string | null; indexed: string }) =>
     r.status === 'PUBLISHED' || r.status === 'INDEXED' || (r.status == null && r.indexed !== 'NONE');
   const INDEX_LABEL: Record<string, string> = { SCOPUS: 'Scopus', WOS: 'Web of Science', ESCI: 'ESCI', ICI: 'ICI', NONE: 'Not indexed' };
+  const PATENT_LABEL: Record<string, string> = { FILED: 'Filed', PUBLISHED: 'Published', GRANTED: 'Granted' };
 
   const totals = { faculty: 0, journals: 0, conferences: 0, bookChapters: 0, confBookChapters: 0, books: 0, publications: 0, patents: 0, projects: 0 };
   const indexCounts = new Map<string, number>();
+  const patentCounts = new Map<string, number>();
   const deptMap = new Map<string, { code: string; name: string; faculty: number; publications: number; journals: number; conferences: number; patents: number; projects: number }>();
   const facultyMap = new Map<string, { name: string; department: string; publications: number; patents: number; projects: number }>();
 
@@ -831,6 +832,10 @@ export async function getAnalytics(req: Request, res: Response) {
       const k = INDEX_LABEL[r.indexed] ?? 'Not indexed';
       indexCounts.set(k, (indexCounts.get(k) ?? 0) + 1);
     }
+    for (const p of (s as any).cat2Patents) {
+      const k = PATENT_LABEL[p.status] ?? 'Other';
+      patentCounts.set(k, (patentCounts.get(k) ?? 0) + 1);
+    }
 
     const d = deptMap.get(deptCode) ?? { code: deptCode, name: deptName, faculty: 0, publications: 0, journals: 0, conferences: 0, patents: 0, projects: 0 };
     d.faculty += 1;
@@ -857,8 +862,75 @@ export async function getAnalytics(req: Request, res: Response) {
     { type: 'Books', count: totals.books },
   ].filter((t) => t.count > 0);
   const indexBreakdown = [...indexCounts.entries()].map(([index, count]) => ({ index, count })).sort((a, b) => b.count - a.count);
-  const topFaculty = [...facultyMap.values()].sort((a, b) => b.publications - a.publications).slice(0, 10);
+  // Patents by IPR stage (Filed / Published / Granted), in lifecycle order.
+  const PATENT_ORDER = ['Filed', 'Published', 'Granted', 'Other'];
+  const patentStatus = [...patentCounts.entries()].map(([status, count]) => ({ status, count }))
+    .sort((a, b) => PATENT_ORDER.indexOf(a.status) - PATENT_ORDER.indexOf(b.status));
+  // Every faculty, most publications first — the frontend compares them all.
+  const facultyList = [...facultyMap.values()].sort((a, b) => b.publications - a.publications);
 
-  return res.json({ scope, year, totals, byDepartment, publicationTypes, indexBreakdown, topFaculty });
+  return { ok: true, data: { scope, year, totals, byDepartment, publicationTypes, indexBreakdown, patentStatus, facultyList } };
+}
+
+export async function getAnalytics(req: Request, res: Response) {
+  const deptParam = typeof req.query.dept === 'string' ? req.query.dept : undefined;
+  const yq = typeof req.query.academicYearId === 'string' ? req.query.academicYearId : undefined;
+  const r = await computeAnalytics(req.user!, deptParam, yq);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  return res.json(r.data);
+}
+
+// GET /reports/analytics-excel — the analytics numbers as a workbook (summary,
+// by department, by faculty, by indexing, by type). Same scope as the dashboard.
+export async function exportAnalyticsExcel(req: Request, res: Response) {
+  const deptParam = typeof req.query.dept === 'string' ? req.query.dept : undefined;
+  const yq = typeof req.query.academicYearId === 'string' ? req.query.academicYearId : undefined;
+  const r = await computeAnalytics(req.user!, deptParam, yq);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const d = r.data;
+  const t = d.totals;
+
+  const wb = XLSX.utils.book_new();
+  const addSheet = (name: string, rows: any[][], cols: number[]) => {
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = cols.map((wch) => ({ wch }));
+    XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 28));
+  };
+
+  addSheet('Summary', [
+    ['Scope', d.scope === 'campus' ? 'Whole campus' : 'Department'],
+    ['Academic year', d.year?.label ?? 'All years'],
+    [],
+    ['Metric', 'Count'],
+    ['Faculty', t.faculty],
+    ['Publications (published)', t.publications],
+    ['Journals', t.journals],
+    ['Conference papers', t.conferences],
+    ['Book chapters', t.bookChapters + t.confBookChapters],
+    ['Books', t.books],
+    ['Patents', t.patents],
+    ['Projects', t.projects],
+  ], [26, 14]);
+
+  addSheet('By Department', [
+    ['Code', 'Department', 'Faculty', 'Publications', 'Journals', 'Conferences', 'Patents', 'Projects'],
+    ...d.byDepartment.map((x: any) => [x.code, x.name, x.faculty, x.publications, x.journals, x.conferences, x.patents, x.projects]),
+  ], [10, 30, 9, 13, 10, 12, 9, 9]);
+
+  addSheet('By Faculty', [
+    ['Faculty', 'Department', 'Publications', 'Patents', 'Projects'],
+    ...d.facultyList.map((x: any) => [x.name, x.department, x.publications, x.patents, x.projects]),
+  ], [26, 12, 13, 9, 9]);
+
+  addSheet('By Indexing', [['Indexing', 'Papers'], ...d.indexBreakdown.map((x: any) => [x.index, x.count])], [20, 9]);
+  addSheet('By Type', [['Type', 'Count'], ...d.publicationTypes.map((x: any) => [x.type, x.count])], [20, 9]);
+  addSheet('Patents by Stage', [['IPR stage', 'Count'], ...d.patentStatus.map((x: any) => [x.status, x.count])], [20, 9]);
+
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  const tag = d.scope === 'campus' ? 'campus' : (d.byDepartment[0]?.code ?? 'dept');
+  const fname = `analytics-${tag}-${d.year?.label ?? 'all-years'}.xlsx`.replace(/\s+/g, '_');
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename=${fname}`);
+  return res.send(buf);
 }
 

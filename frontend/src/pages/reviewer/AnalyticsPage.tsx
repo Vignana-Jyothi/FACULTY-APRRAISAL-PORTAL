@@ -4,7 +4,7 @@ import {
   BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, Legend,
   ResponsiveContainer, CartesianGrid,
 } from 'recharts';
-import { BookOpen, FileText, Award, Briefcase, Users } from 'lucide-react';
+import { BookOpen, FileText, Award, Briefcase, Users, Download } from 'lucide-react';
 import { reportApi, type AnalyticsData } from '../../api/reports';
 import { userApi } from '../../api/users';
 import { useAuthStore, INSTITUTE_READ_ROLES } from '../../store/authStore';
@@ -15,9 +15,9 @@ import StatTile from '../../components/StatTile';
 // Qualitative palette (brand-leaning, readable in light and dark).
 const COLORS = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#dc2626', '#0891b2', '#db2777'];
 
-function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+function ChartCard({ title, children, className = '' }: { title: string; children: React.ReactNode; className?: string }) {
   return (
-    <Card>
+    <Card className={className}>
       <h2 className="text-sm font-semibold text-ink-primary mb-3 font-serif">{title}</h2>
       {children}
     </Card>
@@ -32,6 +32,29 @@ export default function AnalyticsPage() {
   const [yearSel, setYearSel] = useState(''); // '' = current open year, 'all' = every year, else an id
   const [deptSel, setDeptSel] = useState('');
   const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState(false);
+
+  const params = () => ({
+    ...(yearSel === '' ? {} : { academicYearId: yearSel }),
+    ...(seesAllDepts && deptSel ? { dept: deptSel } : {}),
+  });
+
+  const download = async () => {
+    setDownloading(true);
+    try {
+      const blob = await reportApi.analyticsExcel(params());
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `analytics-${data?.year?.label ?? 'all-years'}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Download failed');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   useEffect(() => {
     userApi.listAcademicYears().then(setYears).catch(() => {});
@@ -40,10 +63,7 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     setLoading(true);
-    reportApi.analytics({
-      ...(yearSel === '' ? {} : { academicYearId: yearSel }),
-      ...(seesAllDepts && deptSel ? { dept: deptSel } : {}),
-    })
+    reportApi.analytics(params())
       .then(setData)
       .catch(() => toast.error('Failed to load analytics'))
       .finally(() => setLoading(false));
@@ -83,6 +103,14 @@ export default function AnalyticsPage() {
               <option value="all">All years</option>
               {years.map((y) => <option key={y.id} value={y.id}>{y.label}</option>)}
             </select>
+            <button
+              onClick={download}
+              disabled={downloading || loading}
+              className="flex items-center gap-2 bg-primary-600 text-white px-3 py-2 rounded text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
+              title="Download the analytics as an Excel workbook"
+            >
+              <Download size={14} /> {downloading ? 'Exporting…' : 'Download (Excel)'}
+            </button>
           </div>
         }
       />
@@ -158,21 +186,48 @@ export default function AnalyticsPage() {
               )}
             </ChartCard>
 
-            {/* Top faculty by publications */}
-            <ChartCard title="Top faculty by publications">
-              {data!.topFaculty.filter((f) => f.publications > 0).length === 0 ? (
-                <p className="text-sm text-ink-muted py-10 text-center">No published papers yet.</p>
+            {/* Patents by IPR stage */}
+            <ChartCard title="Patents by stage (IPR)">
+              {data!.patentStatus.length === 0 ? (
+                <p className="text-sm text-ink-muted py-10 text-center">No patents yet.</p>
               ) : (
                 <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={data!.topFaculty.filter((f) => f.publications > 0)} layout="vertical" margin={{ top: 4, right: 12, left: 8, bottom: 0 }}>
+                  <BarChart data={data!.patentStatus} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-surface-border, #e5e7eb)" />
-                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />
-                    <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11 }} />
+                    <XAxis dataKey="status" tick={{ fontSize: 12 }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                     <Tooltip />
-                    <Bar dataKey="publications" name="Publications" fill={COLORS[0]} radius={[0, 3, 3, 0]} />
+                    <Bar dataKey="count" name="Patents" radius={[3, 3, 0, 0]}>
+                      {data!.patentStatus.map((_, i) => <Cell key={i} fill={COLORS[(i + 2) % COLORS.length]} />)}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               )}
+            </ChartCard>
+
+            {/* Publications by faculty — every faculty, side by side */}
+            <ChartCard title="Publications by faculty" className="lg:col-span-2">
+              {data!.facultyList.length === 0 ? (
+                <p className="text-sm text-ink-muted py-10 text-center">No faculty yet.</p>
+              ) : (() => {
+                // Vertical columns (names along the bottom). Bar width shrinks as
+                // the roster grows, so 60–70 faculty stay readable, not huge.
+                const n = data!.facultyList.length;
+                const barSize = n <= 15 ? 28 : n <= 30 ? 16 : n <= 50 ? 9 : 6;
+                return (
+                  <ResponsiveContainer width="100%" height={340}>
+                    <BarChart data={data!.facultyList} margin={{ top: 4, right: 8, left: -16, bottom: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-surface-border, #e5e7eb)" />
+                      {/* No per-bar names (they pile up at scale) — a plain axis;
+                          hover a bar for the faculty's name and count. */}
+                      <XAxis dataKey="name" tick={false} label={{ value: 'Faculty', position: 'insideBottom', offset: -2, fontSize: 12 }} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                      <Tooltip />
+                      <Bar dataKey="publications" name="Publications" fill={COLORS[0]} radius={[2, 2, 0, 0]} barSize={barSize} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                );
+              })()}
             </ChartCard>
           </div>
         </>

@@ -27,6 +27,9 @@ export const reportApi = {
   // Analytics dashboard aggregates (HoD = own dept, dean/principal = campus).
   analytics: (params?: { academicYearId?: string; dept?: string }): Promise<AnalyticsData> =>
     api.get('/reports/analytics', { params }).then((r) => r.data),
+  // The same analytics numbers as a multi-sheet workbook.
+  analyticsExcel: (params?: { academicYearId?: string; dept?: string }): Promise<Blob> =>
+    api.get('/reports/analytics-excel', { params, responseType: 'blob' }).then((r) => r.data),
 };
 
 export interface AnalyticsData {
@@ -36,7 +39,8 @@ export interface AnalyticsData {
   byDepartment: { code: string; name: string; faculty: number; publications: number; journals: number; conferences: number; patents: number; projects: number }[];
   publicationTypes: { type: string; count: number }[];
   indexBreakdown: { index: string; count: number }[];
-  topFaculty: { name: string; department: string; publications: number; patents: number; projects: number }[];
+  patentStatus: { status: string; count: number }[];
+  facultyList: { name: string; department: string; publications: number; patents: number; projects: number }[];
 }
 
 export interface CategoryBreakdown { total: number; [k: string]: number }
