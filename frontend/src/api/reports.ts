@@ -30,7 +30,27 @@ export const reportApi = {
   // The same analytics numbers as a multi-sheet workbook.
   analyticsExcel: (params?: { academicYearId?: string; dept?: string }): Promise<Blob> =>
     api.get('/reports/analytics-excel', { params, responseType: 'blob' }).then((r) => r.data),
+  // Drill-down: one type filtered by date window + status (items + charts).
+  analyticsDetail: (params: AnalyticsDetailParams): Promise<AnalyticsDetail> =>
+    api.get('/reports/analytics-detail', { params }).then((r) => r.data),
+  analyticsDetailExcel: (params: AnalyticsDetailParams): Promise<Blob> =>
+    api.get('/reports/analytics-detail-excel', { params, responseType: 'blob' }).then((r) => r.data),
 };
+
+export type AnalyticsDetailType = 'publications' | 'patents' | 'projects';
+export interface AnalyticsDetailParams {
+  type: AnalyticsDetailType;
+  from?: string; to?: string; status?: string; dept?: string; academicYearId?: string;
+}
+export interface AnalyticsDetail {
+  type: AnalyticsDetailType;
+  scope: 'campus' | 'department';
+  year: { id: string; label: string } | null;
+  from: string | null; to: string | null; status: string;
+  count: number;
+  items: Record<string, any>[];
+  charts: Record<string, { label: string; count: number }[] | number>;
+}
 
 export interface AnalyticsData {
   scope: 'campus' | 'department';

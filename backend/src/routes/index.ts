@@ -255,6 +255,9 @@ router.get('/reports/publications-excel', authenticate, roleGuard(DEPT_CONTENT_R
 router.get('/reports/analytics', authenticate, roleGuard(DEPT_CONTENT_READ), report.getAnalytics);
 // Analytics as a workbook (summary + by department / faculty / indexing / type).
 router.get('/reports/analytics-excel', authenticate, roleGuard(DEPT_CONTENT_READ), report.exportAnalyticsExcel);
+// Analytics drill-down: one type (publications|patents|projects) filtered by date + status.
+router.get('/reports/analytics-detail', authenticate, roleGuard(DEPT_CONTENT_READ), report.getAnalyticsDetail);
+router.get('/reports/analytics-detail-excel', authenticate, roleGuard(DEPT_CONTENT_READ), report.exportAnalyticsDetailExcel);
 
 // Admin: email notifications. A DEPT_ADMIN may READ the queue (scoped to their
 // department's recipients in the controller); retrying and manually triggering

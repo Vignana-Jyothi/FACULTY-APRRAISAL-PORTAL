@@ -957,3 +957,168 @@ export async function exportAnalyticsExcel(req: Request, res: Response) {
   return res.send(buf);
 }
 
+// ── Analytics drill-down: one research type (publications | patents | projects),
+// filtered by a date window + status. Returns the matching items (for a table)
+// and type-specific chart aggregates computed over just those items. The date a
+// row is tested against is the milestone for its status (publication date, filing/
+// publication/grant date for patents, application/grant date for projects).
+type DetailType = 'publications' | 'patents' | 'projects';
+async function computeAnalyticsDetail(
+  user: AuthUser,
+  p: { type: DetailType; from?: string; to?: string; status?: string; deptParam?: string; yq?: string },
+): Promise<{ ok: false; status: number; error: string } | { ok: true; data: any }> {
+  const userWhere = reportUserWhere(user, p.deptParam);
+  const scope = hasAnyRole(user, CONFIG) ? 'campus' : 'department';
+
+  let year: { id: string; label: string } | null = null;
+  if (p.yq && p.yq !== 'all') {
+    year = await prisma.academicYear.findUnique({ where: { id: p.yq }, select: { id: true, label: true } });
+    if (!year) return { ok: false, status: 404, error: 'Academic year not found' };
+  } else if (!p.yq) {
+    year = await prisma.academicYear.findFirst({ where: { submissionOpen: true }, orderBy: { startDate: 'desc' }, select: { id: true, label: true } });
+  }
+
+  const fromD = p.from ? new Date(p.from) : null;
+  const toD = p.to ? new Date(`${p.to}T23:59:59.999`) : null;
+  const hasRange = !!(fromD || toD);
+  const inRange = (d: any): boolean => {
+    if (!d) return !hasRange; // a row with no milestone date only passes when no window is set
+    const dt = new Date(d);
+    if (fromD && dt < fromD) return false;
+    if (toD && dt > toD) return false;
+    return true;
+  };
+  const fmt = (d: any) => (d ? new Date(d).toLocaleDateString('en-GB') : '');
+  const want = (p.status ?? '').toUpperCase();
+  const statusOk = (s: string | null) => !want || want === 'ALL' || s === want;
+
+  const include: any = { user: { select: { id: true, name: true, employeeCode: true, department: { select: { code: true, name: true } } } } };
+  if (p.type === 'publications') { include.cat2Journals = true; include.cat2Conferences = true; }
+  else if (p.type === 'patents') include.cat2Patents = true;
+  else include.cat2Projects = true;
+
+  const subs = await prisma.appraisalSubmission.findMany({
+    where: { ...(year ? { academicYearId: year.id } : {}), user: userWhere },
+    include,
+    orderBy: { submissionNumber: 'desc' },
+  });
+  const picked = new Map<string, (typeof subs)[number]>();
+  for (const s of subs) {
+    const key = `${s.userId}:${s.academicYearId}`;
+    const cur = picked.get(key);
+    if (!cur || (cur.status !== SubmissionStatus.APPROVED && s.status === SubmissionStatus.APPROVED)) picked.set(key, s);
+  }
+
+  const INDEX_LABEL: Record<string, string> = { SCOPUS: 'Scopus', WOS: 'Web of Science', ESCI: 'ESCI', ICI: 'ICI', NONE: 'Not indexed' };
+  const titleCase = (v: string) => (v ? v.charAt(0) + v.slice(1).toLowerCase() : '');
+  const items: any[] = [];
+
+  for (const s of picked.values()) {
+    const u = (s as any).user;
+    const dept = u.department?.code ?? '—';
+    const base = { faculty: u.name ?? '', employeeCode: u.employeeCode ?? '', department: dept };
+
+    if (p.type === 'publications') {
+      const rows = [
+        ...(s as any).cat2Journals.map((r: any) => ({ kind: 'Journal', venue: r.journalName, ...r })),
+        ...(s as any).cat2Conferences.map((r: any) => ({ kind: 'Conference', venue: r.conferenceName, ...r })),
+      ];
+      for (const r of rows) {
+        // Only published papers are in scope; status filter is exact (Published vs Indexed).
+        const published = r.status === 'PUBLISHED' || r.status === 'INDEXED' || (r.status == null && r.indexed !== 'NONE');
+        if (!published) continue;
+        const effStatus = r.status ?? (r.indexed !== 'NONE' ? 'INDEXED' : 'PUBLISHED');
+        if (!statusOk(effStatus)) continue;
+        if (!inRange(r.dateOfPub)) continue;
+        items.push({ ...base, type: r.kind, title: r.title ?? '', venue: r.venue ?? '', status: titleCase(effStatus), indexed: INDEX_LABEL[r.indexed] ?? '', quartile: r.quartile ?? '', date: fmt(r.dateOfPub), _date: r.dateOfPub });
+      }
+    } else if (p.type === 'patents') {
+      for (const r of (s as any).cat2Patents) {
+        if (!statusOk(r.status)) continue;
+        // Milestone date for the row's status (grant → pub → filing as the fallback order).
+        const d = r.status === 'FILED' ? r.dateOfFiling : r.status === 'PUBLISHED' ? r.dateOfPub : r.status === 'GRANTED' ? r.dateOfGrant : (r.dateOfGrant ?? r.dateOfPub ?? r.dateOfFiling);
+        if (!inRange(d)) continue;
+        items.push({ ...base, title: r.title ?? '', iprType: r.iprType ?? 'Patent', status: titleCase(r.status), country: r.country ?? '', date: fmt(d), _date: d });
+      }
+    } else {
+      for (const r of (s as any).cat2Projects) {
+        if (!statusOk(r.status)) continue;
+        const d = r.status === 'APPLIED' ? r.dateOfApplication : (r.dateOfGrant ?? r.dateOfApplication);
+        if (!inRange(d)) continue;
+        items.push({ ...base, title: r.title ?? '', fundingAgency: r.fundingAgency ?? '', amountLakhs: r.amountLakhs ?? 0, role: r.role ?? '', status: titleCase(r.status), date: fmt(d), _date: d });
+      }
+    }
+  }
+
+  items.sort((a, b) => (new Date(b._date || 0).getTime()) - (new Date(a._date || 0).getTime()));
+
+  // Type-specific chart aggregates over the filtered items.
+  const tally = (key: (x: any) => string) => {
+    const m = new Map<string, number>();
+    for (const it of items) { const k = key(it) || '—'; m.set(k, (m.get(k) ?? 0) + 1); }
+    return [...m.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
+  };
+  let charts: any = {};
+  if (p.type === 'publications') {
+    charts = { byType: tally((x) => x.type), byIndex: tally((x) => x.indexed), byQuartile: tally((x) => x.quartile || 'Unrated'), byDepartment: tally((x) => x.department) };
+  } else if (p.type === 'patents') {
+    charts = { byStage: tally((x) => x.status), byIprType: tally((x) => x.iprType), byDepartment: tally((x) => x.department) };
+  } else {
+    const funding = items.reduce((t, x) => t + (Number(x.amountLakhs) || 0), 0);
+    charts = { byStatus: tally((x) => x.status), byDepartment: tally((x) => x.department), totalFundingLakhs: Math.round(funding * 100) / 100 };
+  }
+
+  const clean = items.map(({ _date, ...rest }) => rest);
+  return { ok: true, data: { type: p.type, scope, year, from: p.from ?? null, to: p.to ?? null, status: want || 'ALL', count: clean.length, items: clean, charts } };
+}
+
+function detailParams(req: Request): { type: DetailType; from?: string; to?: string; status?: string; deptParam?: string; yq?: string } {
+  const t = String(req.query.type ?? 'publications').toLowerCase();
+  const type: DetailType = t === 'patents' ? 'patents' : t === 'projects' ? 'projects' : 'publications';
+  const str = (k: string) => (typeof req.query[k] === 'string' && req.query[k] ? String(req.query[k]) : undefined);
+  return { type, from: str('from'), to: str('to'), status: str('status'), deptParam: str('dept'), yq: str('academicYearId') };
+}
+
+export async function getAnalyticsDetail(req: Request, res: Response) {
+  const r = await computeAnalyticsDetail(req.user!, detailParams(req));
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  return res.json(r.data);
+}
+
+// GET /reports/analytics-detail-excel — the same filtered items as a workbook.
+export async function exportAnalyticsDetailExcel(req: Request, res: Response) {
+  const params = detailParams(req);
+  const r = await computeAnalyticsDetail(req.user!, params);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  const d = r.data;
+
+  const COLS: Record<DetailType, { header: string; key: string }[]> = {
+    publications: [
+      { header: 'Faculty', key: 'faculty' }, { header: 'Department', key: 'department' }, { header: 'Type', key: 'type' },
+      { header: 'Title', key: 'title' }, { header: 'Journal / Conference', key: 'venue' }, { header: 'Date of Publication', key: 'date' },
+      { header: 'Status', key: 'status' }, { header: 'Indexed In', key: 'indexed' }, { header: 'Quartile', key: 'quartile' },
+    ],
+    patents: [
+      { header: 'Faculty', key: 'faculty' }, { header: 'Department', key: 'department' }, { header: 'Title', key: 'title' },
+      { header: 'IPR Type', key: 'iprType' }, { header: 'Status', key: 'status' }, { header: 'Country', key: 'country' }, { header: 'Date', key: 'date' },
+    ],
+    projects: [
+      { header: 'Faculty', key: 'faculty' }, { header: 'Department', key: 'department' }, { header: 'Title', key: 'title' },
+      { header: 'Funding Agency', key: 'fundingAgency' }, { header: 'Amount (Lakhs)', key: 'amountLakhs' }, { header: 'Role', key: 'role' },
+      { header: 'Status', key: 'status' }, { header: 'Date', key: 'date' },
+    ],
+  };
+  const cols = COLS[params.type];
+  const rows = [cols.map((c) => c.header), ...d.items.map((it: any) => cols.map((c) => it[c.key] ?? ''))];
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = cols.map((c) => ({ wch: c.key === 'title' ? 40 : c.key === 'venue' || c.key === 'fundingAgency' ? 26 : 16 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, params.type.slice(0, 28));
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  const range = d.from || d.to ? `-${d.from ?? 'start'}_to_${d.to ?? 'end'}` : '';
+  const fname = `analytics-${params.type}${range}.xlsx`.replace(/\s+/g, '_');
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename=${fname}`);
+  return res.send(buf);
+}
+

@@ -8,6 +8,7 @@ import {
 import BrandHeader from './BrandHeader';
 import Footer from './Footer';
 import ReportsNavMenu from './ReportsNavMenu';
+import AnalyticsNavMenu from './AnalyticsNavMenu';
 import { finalReviewApi, appraisalApi } from '../api/appraisals';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -236,6 +237,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         .filter(([to]) => !(to === '/final-review' && finalCount > 0))
         .map(([to, label, Icon]) => to === '/reports/department'
           ? <ReportsNavMenu key={to} onNavigate={() => setDrawerOpen(false)} />
+          : to === '/analytics'
+          ? <AnalyticsNavMenu key={to} onNavigate={() => setDrawerOpen(false)} />
           : navLink(to, label, Icon, to === '/my-red-list' && facultyRedListed))}
       {finalCount > 0 && (!dual || activeWorkspace === 'staff') &&
         navLink('/final-review', `Final Review (${finalCount})`, Gavel)}
