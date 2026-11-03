@@ -215,9 +215,10 @@ export default function AnalyticsDetailPage() {
             )}
           </Card>
 
-          {/* Charts below the table */}
+          {/* Charts below the table. "By department" is campus-only — a HoD sees
+              a single department, so it carries no comparison for them. */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {cfg.charts.map((ch) => (
+            {cfg.charts.filter((ch) => ch.key !== 'byDepartment' || (data?.scope === 'campus')).map((ch) => (
               <Card key={ch.key}>
                 <h2 className="text-sm font-semibold text-ink-primary mb-3 font-serif">{ch.title}</h2>
                 <MiniBar data={(data?.charts?.[ch.key] as { label: string; count: number }[]) ?? []} />
