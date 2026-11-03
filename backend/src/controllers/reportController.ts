@@ -775,7 +775,7 @@ async function computeAnalytics(
     where: { ...(year ? { academicYearId: year.id } : {}), user: userWhere },
     include: {
       user: { select: { id: true, name: true, departmentId: true, department: { select: { code: true, name: true } } } },
-      cat2Journals: { select: { status: true, indexed: true } },
+      cat2Journals: { select: { status: true, indexed: true, quartile: true } },
       cat2Conferences: { select: { status: true, indexed: true } },
       cat2ConfBookChapters: { select: { indexed: true } }, // no status field; published when indexed
       cat2BookChapters: { select: { id: true } },
@@ -801,8 +801,15 @@ async function computeAnalytics(
   const PATENT_LABEL: Record<string, string> = { FILED: 'Filed', PUBLISHED: 'Published', GRANTED: 'Granted' };
 
   const totals = { faculty: 0, journals: 0, conferences: 0, bookChapters: 0, confBookChapters: 0, books: 0, publications: 0, patents: 0, projects: 0 };
-  const indexCounts = new Map<string, number>();
+  const indexMap = new Map<string, { journals: number; conferences: number }>();
   const patentCounts = new Map<string, number>();
+  const quartileCounts = new Map<string, number>();
+  const addIdx = (indexed: string, kind: 'journals' | 'conferences') => {
+    const k = INDEX_LABEL[indexed] ?? 'Not indexed';
+    const e = indexMap.get(k) ?? { journals: 0, conferences: 0 };
+    e[kind] += 1;
+    indexMap.set(k, e);
+  };
   const deptMap = new Map<string, { code: string; name: string; faculty: number; publications: number; journals: number; conferences: number; patents: number; projects: number }>();
   const facultyMap = new Map<string, { name: string; department: string; publications: number; patents: number; projects: number }>();
 
@@ -828,13 +835,16 @@ async function computeAnalytics(
     totals.patents += patents;
     totals.projects += projects;
 
-    for (const r of [...journals, ...confs, ...confBooks]) {
-      const k = INDEX_LABEL[r.indexed] ?? 'Not indexed';
-      indexCounts.set(k, (indexCounts.get(k) ?? 0) + 1);
-    }
+    // Indexing split by type: Scopus/WoS journals vs conference papers.
+    for (const r of journals) addIdx(r.indexed, 'journals');
+    for (const r of [...confs, ...confBooks]) addIdx(r.indexed, 'conferences');
     for (const p of (s as any).cat2Patents) {
       const k = PATENT_LABEL[p.status] ?? 'Other';
       patentCounts.set(k, (patentCounts.get(k) ?? 0) + 1);
+    }
+    for (const j of journals) {
+      const q = ['Q1', 'Q2', 'Q3', 'Q4'].includes(j.quartile ?? '') ? j.quartile : 'Unrated';
+      quartileCounts.set(q, (quartileCounts.get(q) ?? 0) + 1);
     }
 
     const d = deptMap.get(deptCode) ?? { code: deptCode, name: deptName, faculty: 0, publications: 0, journals: 0, conferences: 0, patents: 0, projects: 0 };
@@ -861,15 +871,24 @@ async function computeAnalytics(
     { type: 'Book Chapters', count: totals.bookChapters + totals.confBookChapters },
     { type: 'Books', count: totals.books },
   ].filter((t) => t.count > 0);
-  const indexBreakdown = [...indexCounts.entries()].map(([index, count]) => ({ index, count })).sort((a, b) => b.count - a.count);
+  const INDEX_ORDER = ['Scopus', 'Web of Science', 'SCI', 'SCIE', 'ESCI', 'ICI', 'Not indexed'];
+  const indexBreakdown = [...indexMap.entries()].map(([index, v]) => ({ index, journals: v.journals, conferences: v.conferences }))
+    .sort((a, b) => {
+      const ia = INDEX_ORDER.indexOf(a.index), ib = INDEX_ORDER.indexOf(b.index);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
   // Patents by IPR stage (Filed / Published / Granted), in lifecycle order.
   const PATENT_ORDER = ['Filed', 'Published', 'Granted', 'Other'];
   const patentStatus = [...patentCounts.entries()].map(([status, count]) => ({ status, count }))
     .sort((a, b) => PATENT_ORDER.indexOf(a.status) - PATENT_ORDER.indexOf(b.status));
+  // Published journals by quartile (Q1–Q4, then Unrated).
+  const Q_ORDER = ['Q1', 'Q2', 'Q3', 'Q4', 'Unrated'];
+  const quartileBreakdown = [...quartileCounts.entries()].map(([quartile, count]) => ({ quartile, count }))
+    .sort((a, b) => Q_ORDER.indexOf(a.quartile) - Q_ORDER.indexOf(b.quartile));
   // Every faculty, most publications first — the frontend compares them all.
   const facultyList = [...facultyMap.values()].sort((a, b) => b.publications - a.publications);
 
-  return { ok: true, data: { scope, year, totals, byDepartment, publicationTypes, indexBreakdown, patentStatus, facultyList } };
+  return { ok: true, data: { scope, year, totals, byDepartment, publicationTypes, indexBreakdown, patentStatus, quartileBreakdown, facultyList } };
 }
 
 export async function getAnalytics(req: Request, res: Response) {
@@ -922,9 +941,13 @@ export async function exportAnalyticsExcel(req: Request, res: Response) {
     ...d.facultyList.map((x: any) => [x.name, x.department, x.publications, x.patents, x.projects]),
   ], [26, 12, 13, 9, 9]);
 
-  addSheet('By Indexing', [['Indexing', 'Papers'], ...d.indexBreakdown.map((x: any) => [x.index, x.count])], [20, 9]);
+  addSheet('By Indexing', [
+    ['Indexing', 'Journals', 'Conference Papers', 'Total'],
+    ...d.indexBreakdown.map((x: any) => [x.index, x.journals, x.conferences, x.journals + x.conferences]),
+  ], [20, 11, 18, 9]);
   addSheet('By Type', [['Type', 'Count'], ...d.publicationTypes.map((x: any) => [x.type, x.count])], [20, 9]);
   addSheet('Patents by Stage', [['IPR stage', 'Count'], ...d.patentStatus.map((x: any) => [x.status, x.count])], [20, 9]);
+  addSheet('Journals by Quartile', [['Quartile', 'Journals'], ...d.quartileBreakdown.map((x: any) => [x.quartile, x.count])], [20, 9]);
 
   const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
   const tag = d.scope === 'campus' ? 'campus' : (d.byDepartment[0]?.code ?? 'dept');

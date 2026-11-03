@@ -38,8 +38,9 @@ export interface AnalyticsData {
   totals: { faculty: number; journals: number; conferences: number; bookChapters: number; confBookChapters: number; books: number; publications: number; patents: number; projects: number };
   byDepartment: { code: string; name: string; faculty: number; publications: number; journals: number; conferences: number; patents: number; projects: number }[];
   publicationTypes: { type: string; count: number }[];
-  indexBreakdown: { index: string; count: number }[];
+  indexBreakdown: { index: string; journals: number; conferences: number }[];
   patentStatus: { status: string; count: number }[];
+  quartileBreakdown: { quartile: string; count: number }[];
   facultyList: { name: string; department: string; publications: number; patents: number; projects: number }[];
 }
 

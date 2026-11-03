@@ -167,8 +167,8 @@ export default function AnalyticsPage() {
               )}
             </ChartCard>
 
-            {/* Journal / conference index breakdown */}
-            <ChartCard title="Papers by indexing">
+            {/* Indexing split by type — journals vs conference papers */}
+            <ChartCard title="Papers by indexing (journals vs conferences)">
               {indexData.length === 0 ? (
                 <p className="text-sm text-ink-muted py-10 text-center">No indexed papers yet.</p>
               ) : (
@@ -178,8 +178,27 @@ export default function AnalyticsPage() {
                     <XAxis dataKey="index" tick={{ fontSize: 11 }} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                     <Tooltip />
-                    <Bar dataKey="count" name="Papers" radius={[3, 3, 0, 0]}>
-                      {indexData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="journals" name="Journals" fill={COLORS[0]} radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="conferences" name="Conference Papers" fill={COLORS[1]} radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </ChartCard>
+
+            {/* Published journals by quartile */}
+            <ChartCard title="Journals by quartile">
+              {data!.quartileBreakdown.length === 0 ? (
+                <p className="text-sm text-ink-muted py-10 text-center">No published journals yet.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={data!.quartileBreakdown} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-surface-border, #e5e7eb)" />
+                    <XAxis dataKey="quartile" tick={{ fontSize: 12 }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                    <Tooltip />
+                    <Bar dataKey="count" name="Journals" radius={[3, 3, 0, 0]}>
+                      {data!.quartileBreakdown.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
