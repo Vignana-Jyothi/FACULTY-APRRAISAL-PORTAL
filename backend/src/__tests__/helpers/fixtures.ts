@@ -1,5 +1,6 @@
 import request from 'supertest';
 import bcrypt from 'bcryptjs';
+import { randomUUID } from 'node:crypto';
 import { RoleType } from '@prisma/client';
 import app from '../../app';
 import prisma from '../../utils/prismaClient';
@@ -55,8 +56,16 @@ export interface AddUserOpts {
 let counter = 0;
 
 /** A department nobody else uses, plus the machinery to tear it all down. */
+// A globally-unique suffix. The old `Date.now() % 100000` + a per-file `counter`
+// (which resets to 0 in each Vitest worker) collided across parallel suites and
+// tripped Department.name/code @unique, flaking `createFixture`. A UUID chunk is
+// unique across workers and runs. UPPERCASE because it feeds the employeeCode and
+// login looks users up by `employeeCode.toUpperCase()` — lowercase hex (a–f) would
+// never match and the fixture logins would silently 401.
+const uniqStamp = () => `${randomUUID().replace(/-/g, '').toUpperCase().slice(0, 10)}${counter++}`;
+
 export async function createFixture(tag: string): Promise<Fixture> {
-  const stamp = `${Date.now() % 100000}${counter++}`;
+  const stamp = uniqStamp();
   const dept = await prisma.department.create({
     data: { name: `${tag} Fixture Dept ${stamp}`, code: `${tag}${stamp}`.slice(0, 12), isActive: true },
   });
@@ -118,10 +127,11 @@ export async function createFixture(tag: string): Promise<Fixture> {
     },
 
     async addDepartment(otherTag: string): Promise<string> {
+      const ds = uniqStamp();
       const extra = await prisma.department.create({
         data: {
-          name: `${otherTag} Fixture Dept ${stamp}${counter++}`,
-          code: `${otherTag}${stamp}${counter}`.slice(0, 12),
+          name: `${otherTag} Fixture Dept ${ds}`,
+          code: `${otherTag}${ds}`.slice(0, 12),
           isActive: true,
         },
       });
