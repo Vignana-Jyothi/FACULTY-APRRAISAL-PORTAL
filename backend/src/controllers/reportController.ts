@@ -992,7 +992,7 @@ async function computeAnalyticsDetail(
   const want = (p.status ?? '').toUpperCase();
   const statusOk = (s: string | null) => !want || want === 'ALL' || s === want;
 
-  const include: any = { user: { select: { id: true, name: true, employeeCode: true, department: { select: { code: true, name: true } } } } };
+  const include: any = { user: { select: { id: true, name: true, employeeCode: true, designation: true, department: { select: { code: true, name: true } } } } };
   if (p.type === 'publications') { include.cat2Journals = true; include.cat2Conferences = true; }
   else if (p.type === 'patents') include.cat2Patents = true;
   else include.cat2Projects = true;
@@ -1011,12 +1011,16 @@ async function computeAnalyticsDetail(
 
   const INDEX_LABEL: Record<string, string> = { SCOPUS: 'Scopus', WOS: 'Web of Science', ESCI: 'ESCI', ICI: 'ICI', NONE: 'Not indexed' };
   const titleCase = (v: string) => (v ? v.charAt(0) + v.slice(1).toLowerCase() : '');
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const monthOf = (d: any) => (d ? MONTHS[new Date(d).getMonth()] : '');
+  const scopeLabel = (v: any) => (v === 'NATIONAL' ? 'National' : v === 'INTERNATIONAL' ? 'International' : '');
+  const ugcLabel = (v: any) => (v === true ? 'Yes' : v === false ? 'No' : '');
   const items: any[] = [];
 
   for (const s of picked.values()) {
     const u = (s as any).user;
     const dept = u.department?.code ?? '—';
-    const base = { faculty: u.name ?? '', employeeCode: u.employeeCode ?? '', department: dept };
+    const base = { faculty: u.name ?? '', employeeCode: u.employeeCode ?? '', department: dept, designation: u.designation ?? '' };
 
     if (p.type === 'publications') {
       const rows = [
@@ -1030,7 +1034,15 @@ async function computeAnalyticsDetail(
         const effStatus = r.status ?? (r.indexed !== 'NONE' ? 'INDEXED' : 'PUBLISHED');
         if (!statusOk(effStatus)) continue;
         if (!inRange(r.dateOfPub)) continue;
-        items.push({ ...base, type: r.kind, title: r.title ?? '', venue: r.venue ?? '', status: titleCase(effStatus), indexed: INDEX_LABEL[r.indexed] ?? '', quartile: r.quartile ?? '', date: fmt(r.dateOfPub), _date: r.dateOfPub });
+        items.push({
+          ...base, type: r.kind, title: r.title ?? '', venue: r.venue ?? '', circulation: scopeLabel(r.scope),
+          authors: r.authors ?? '', authorPosition: r.authorPosition ?? '', quartile: r.quartile ?? '',
+          volume: r.volume ?? '', issueNo: r.issueNo ?? '', pageNos: r.pageNos ?? '',
+          date: fmt(r.dateOfPub), month: monthOf(r.dateOfPub), issn: r.issn ?? '', impactFactor: r.impactFactor ?? '',
+          indexed: INDEX_LABEL[r.indexed] ?? '', publisher: r.publisher ?? '', doi: r.doi ?? '',
+          paperLink: r.paperLink ?? '', venueLink: r.venueLink ?? '', ugcCareListed: ugcLabel(r.ugcCareListed),
+          status: titleCase(effStatus), _date: r.dateOfPub,
+        });
       }
     } else if (p.type === 'patents') {
       for (const r of (s as any).cat2Patents) {
@@ -1038,14 +1050,24 @@ async function computeAnalyticsDetail(
         // Milestone date for the row's status (grant → pub → filing as the fallback order).
         const d = r.status === 'FILED' ? r.dateOfFiling : r.status === 'PUBLISHED' ? r.dateOfPub : r.status === 'GRANTED' ? r.dateOfGrant : (r.dateOfGrant ?? r.dateOfPub ?? r.dateOfFiling);
         if (!inRange(d)) continue;
-        items.push({ ...base, title: r.title ?? '', iprType: r.iprType ?? 'Patent', status: titleCase(r.status), country: r.country ?? '', date: fmt(d), _date: d });
+        items.push({
+          ...base, title: r.title ?? '', iprType: r.iprType ?? 'Patent', patentType: r.patentType ?? '',
+          status: titleCase(r.status), country: r.country ?? '', inventors: r.inventors ?? '', appNumber: r.appNumber ?? '',
+          applicantIsInstitute: r.applicantIsInstitute ? 'Yes' : 'No',
+          dateOfFiling: fmt(r.dateOfFiling), dateOfPub: fmt(r.dateOfPub), dateOfGrant: fmt(r.dateOfGrant),
+          date: fmt(d), _date: d,
+        });
       }
     } else {
       for (const r of (s as any).cat2Projects) {
         if (!statusOk(r.status)) continue;
         const d = r.status === 'APPLIED' ? r.dateOfApplication : (r.dateOfGrant ?? r.dateOfApplication);
         if (!inRange(d)) continue;
-        items.push({ ...base, title: r.title ?? '', fundingAgency: r.fundingAgency ?? '', amountLakhs: r.amountLakhs ?? 0, role: r.role ?? '', status: titleCase(r.status), date: fmt(d), _date: d });
+        items.push({
+          ...base, title: r.title ?? '', fundingAgency: r.fundingAgency ?? '', amountLakhs: r.amountLakhs ?? 0,
+          role: r.role ?? '', status: titleCase(r.status), durationPeriod: r.durationPeriod ?? '',
+          dateOfApplication: fmt(r.dateOfApplication), dateOfGrant: fmt(r.dateOfGrant), date: fmt(d), _date: d,
+        });
       }
     }
   }
@@ -1092,20 +1114,31 @@ export async function exportAnalyticsDetailExcel(req: Request, res: Response) {
   if (!r.ok) return res.status(r.status).json({ error: r.error });
   const d = r.data;
 
+  // Publications mirror the Reports → Publications export (the IQAC 22-column
+  // layout); patents and projects carry their full field set. All date-filtered.
   const COLS: Record<DetailType, { header: string; key: string }[]> = {
     publications: [
-      { header: 'Faculty', key: 'faculty' }, { header: 'Department', key: 'department' }, { header: 'Type', key: 'type' },
-      { header: 'Title', key: 'title' }, { header: 'Journal / Conference', key: 'venue' }, { header: 'Date of Publication', key: 'date' },
-      { header: 'Status', key: 'status' }, { header: 'Indexed In', key: 'indexed' }, { header: 'Quartile', key: 'quartile' },
+      { header: 'Faculty Name', key: 'faculty' }, { header: 'Designation', key: 'designation' }, { header: 'Publication Type', key: 'type' },
+      { header: 'Level of Circulation', key: 'circulation' }, { header: 'Authors (as appeared in the paper)', key: 'authors' },
+      { header: 'Author Position', key: 'authorPosition' }, { header: 'Quartile', key: 'quartile' }, { header: 'Title of the Article', key: 'title' },
+      { header: 'Name of the Journal / Conference', key: 'venue' }, { header: 'Volume', key: 'volume' }, { header: 'Issue No', key: 'issueNo' },
+      { header: 'Page Nos', key: 'pageNos' }, { header: 'Date of Publication', key: 'date' }, { header: 'Month of Publication', key: 'month' },
+      { header: 'ISSN No. / ISBN No.', key: 'issn' }, { header: 'Impact Factor', key: 'impactFactor' }, { header: 'Indexed In', key: 'indexed' },
+      { header: 'Name of the Publisher', key: 'publisher' }, { header: 'DOI Link', key: 'doi' }, { header: 'Link of the Paper', key: 'paperLink' },
+      { header: 'Link of the Journal / Conference', key: 'venueLink' }, { header: 'UGC Care Listed', key: 'ugcCareListed' },
     ],
     patents: [
-      { header: 'Faculty', key: 'faculty' }, { header: 'Department', key: 'department' }, { header: 'Title', key: 'title' },
-      { header: 'IPR Type', key: 'iprType' }, { header: 'Status', key: 'status' }, { header: 'Country', key: 'country' }, { header: 'Date', key: 'date' },
+      { header: 'Faculty Name', key: 'faculty' }, { header: 'Designation', key: 'designation' }, { header: 'Department', key: 'department' },
+      { header: 'Title', key: 'title' }, { header: 'IPR Type', key: 'iprType' }, { header: 'Patent Type', key: 'patentType' },
+      { header: 'Status', key: 'status' }, { header: 'Country', key: 'country' }, { header: 'Inventors', key: 'inventors' },
+      { header: 'Application No', key: 'appNumber' }, { header: 'Institute as Applicant', key: 'applicantIsInstitute' },
+      { header: 'Date of Filing', key: 'dateOfFiling' }, { header: 'Date of Publication', key: 'dateOfPub' }, { header: 'Date of Grant', key: 'dateOfGrant' },
     ],
     projects: [
-      { header: 'Faculty', key: 'faculty' }, { header: 'Department', key: 'department' }, { header: 'Title', key: 'title' },
-      { header: 'Funding Agency', key: 'fundingAgency' }, { header: 'Amount (Lakhs)', key: 'amountLakhs' }, { header: 'Role', key: 'role' },
-      { header: 'Status', key: 'status' }, { header: 'Date', key: 'date' },
+      { header: 'Faculty Name', key: 'faculty' }, { header: 'Designation', key: 'designation' }, { header: 'Department', key: 'department' },
+      { header: 'Title', key: 'title' }, { header: 'Funding Agency', key: 'fundingAgency' }, { header: 'Amount (Lakhs)', key: 'amountLakhs' },
+      { header: 'Role', key: 'role' }, { header: 'Status', key: 'status' }, { header: 'Duration', key: 'durationPeriod' },
+      { header: 'Date of Application', key: 'dateOfApplication' }, { header: 'Date of Grant / Sanction', key: 'dateOfGrant' },
     ],
   };
   const cols = COLS[params.type];

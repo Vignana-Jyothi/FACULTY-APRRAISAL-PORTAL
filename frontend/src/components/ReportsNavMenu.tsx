@@ -46,7 +46,6 @@ export default function ReportsNavMenu({ onNavigate }: { onNavigate?: () => void
   const items: { key: string; label: string; go: () => Promise<void> }[] = [
     { key: 'scores', label: 'Scores (Criteria-wise)', go: () => run('scores', async () => ({ blob: await reportApi.exportReport({ format: 'excel' }), name: 'scores.xlsx' })) },
     { key: 'consolidated', label: 'Consolidated (Excel)', go: () => run('consolidated', async () => ({ blob: await reportApi.appraisalExcel(), name: 'consolidated.xlsx' })) },
-    { key: 'publications', label: 'Publications (Excel)', go: () => run('publications', async () => ({ blob: await reportApi.publicationsExcel(), name: 'publications.xlsx' })) },
     { key: 'quarterly-pdf', label: `Quarterly Summary (PDF) — ${quarter}`, go: () => run('quarterly-pdf', async () => ({ blob: await reportApi.quarterlySummaryPdf({ period: quarter }), name: `quarterly-${quarter}.pdf` })) },
     { key: 'iqac', label: `Quarterly Summary (Excel) — ${quarter}`, go: () => run('iqac', async () => ({ blob: await reportApi.iqacExcel({ period: quarter }), name: `quarterly-summary-${quarter}.xlsx` })) },
   ];
