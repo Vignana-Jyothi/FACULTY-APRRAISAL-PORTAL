@@ -8,6 +8,7 @@ import { ArrowLeft, ArrowRight, Plus, Send, CheckCircle, XCircle, Clock, Lock } 
 import FileUpload from '../../components/FileUpload';
 import { verificationApi, type ProofRow } from '../../api/verification';
 import SelectWithOther from '../../components/SelectWithOther';
+import DeptMultiSelect from '../../components/DeptMultiSelect';
 import { toDateInputs } from '../../utils/dateInputs';
 import { useAuthStore } from '../../store/authStore';
 import {
@@ -1522,6 +1523,26 @@ export default function AppraisalEditPage() {
                     )}
                     {proofField(`cat2Projects.${i}.proofFile`)}
                   </div>
+                  <div className="mt-3 rounded-md border border-dashed border-surface-border bg-surface-muted/40 p-3">
+                    <p className="text-[11px] font-semibold text-ink-secondary mb-2">Project details (not scored — for project reporting)</p>
+                    {/* Set through DeptMultiSelect's setValue; registered so RHF keeps them in the saved row. */}
+                    <input type="hidden" {...register(`cat2Projects.${i}.piDepartments`)} />
+                    <input type="hidden" {...register(`cat2Projects.${i}.collaborativeDepartments`)} />
+                    <div className="mb-2">
+                      <label className={labelCls}>Investigators (e.g. PI: xxx, Co-PI: 1.yyy, 2.zzz)</label>
+                      <textarea {...register(`cat2Projects.${i}.investigators`)} className={inputCls} rows={2} />
+                    </div>
+                    <DeptMultiSelect
+                      label="Dept. of Principal Investigator"
+                      value={row.piDepartments ?? ''}
+                      onChange={(v) => setValue(`cat2Projects.${i}.piDepartments`, v, { shouldDirty: true })}
+                    />
+                    <DeptMultiSelect
+                      label="Collaborative Depts."
+                      value={row.collaborativeDepartments ?? ''}
+                      onChange={(v) => setValue(`cat2Projects.${i}.collaborativeDepartments`, v, { shouldDirty: true })}
+                    />
+                  </div>
                   {/* Same helper the engines score with; warnings never block or change the score. */}
                   <div className={`mt-2 text-xs ${r.score ? 'text-ink-muted' : 'text-amber-700'}`}>
                     {r.reason} → <span className="font-medium">{r.score}</span>
@@ -1531,7 +1552,7 @@ export default function AppraisalEditPage() {
                 </div>
                 );
               })}
-              {addRowBtn('Add Project', () => cat2Proj.append({ title: '', fundingAgency: '', amountLakhs: 0, role: 'PI', status: 'APPLIED', durationPeriod: '', dateOfApplication: '', dateOfGrant: '' }))}
+              {addRowBtn('Add Project', () => cat2Proj.append({ title: '', fundingAgency: '', amountLakhs: 0, role: 'PI', status: 'APPLIED', durationPeriod: '', dateOfApplication: '', dateOfGrant: '', investigators: '', piDepartments: '', collaborativeDepartments: '' }))}
             </details>
 
             <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">

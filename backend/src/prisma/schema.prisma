@@ -838,6 +838,10 @@ model Cat2Project {
   dateOfApplication DateTime?
   dateOfGrant       DateTime? // project grant/sanction date, separate from dateOfApplication
   proofFile         String?
+  // Supplementary project-reporting fields: captured on the form, never scored.
+  investigators            String?
+  piDepartments            String? // comma-joined department list
+  collaborativeDepartments String? // comma-joined department list
 
   submission AppraisalSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 }

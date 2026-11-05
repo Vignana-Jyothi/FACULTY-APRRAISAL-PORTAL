@@ -1046,17 +1046,38 @@ async function computeAnalyticsDetail(
       }
     } else if (p.type === 'patents') {
       for (const r of (s as any).cat2Patents) {
-        if (!statusOk(r.status)) continue;
-        // Milestone date for the row's status (grant → pub → filing as the fallback order).
-        const d = r.status === 'FILED' ? r.dateOfFiling : r.status === 'PUBLISHED' ? r.dateOfPub : r.status === 'GRANTED' ? r.dateOfGrant : (r.dateOfGrant ?? r.dateOfPub ?? r.dateOfFiling);
-        if (!inRange(d)) continue;
-        items.push({
-          ...base, title: r.title ?? '', iprType: r.iprType ?? 'Patent', patentType: r.patentType ?? '',
-          status: titleCase(r.status), country: r.country ?? '', inventors: r.inventors ?? '', appNumber: r.appNumber ?? '',
-          applicantIsInstitute: r.applicantIsInstitute ? 'Yes' : 'No',
-          dateOfFiling: fmt(r.dateOfFiling), dateOfPub: fmt(r.dateOfPub), dateOfGrant: fmt(r.dateOfGrant),
-          date: fmt(d), _date: d,
-        });
+        const mil: Record<string, any> = { FILED: r.dateOfFiling, PUBLISHED: r.dateOfPub, GRANTED: r.dateOfGrant };
+        if (hasRange) {
+          // Monthly report: include by the milestone whose DATE lands in the
+          // window, not the patent's current record status — a patent published
+          // in the window may since have advanced to Granted. The Status filter
+          // selects which milestone; "All" considers filing / publication /
+          // grant and reports the latest one that lands in-window. The reported
+          // status is that milestone event (so "published or granted in October"
+          // reads true even for a now-Granted patent published that month).
+          const order = (!want || want === 'ALL') ? ['GRANTED', 'PUBLISHED', 'FILED'] : [want];
+          const hitKey = order.find((k) => mil[k] && inRange(mil[k]));
+          if (!hitKey) continue;
+          const d = mil[hitKey];
+          items.push({
+            ...base, title: r.title ?? '', iprType: r.iprType ?? 'Patent', patentType: r.patentType ?? '',
+            status: titleCase(hitKey), country: r.country ?? '', inventors: r.inventors ?? '', appNumber: r.appNumber ?? '',
+            applicantIsInstitute: r.applicantIsInstitute ? 'Yes' : 'No',
+            dateOfFiling: fmt(r.dateOfFiling), dateOfPub: fmt(r.dateOfPub), dateOfGrant: fmt(r.dateOfGrant),
+            date: fmt(d), _date: d,
+          });
+        } else {
+          // No date window: current-status view (unchanged behaviour).
+          if (!statusOk(r.status)) continue;
+          const d = r.status === 'FILED' ? r.dateOfFiling : r.status === 'PUBLISHED' ? r.dateOfPub : r.status === 'GRANTED' ? r.dateOfGrant : (r.dateOfGrant ?? r.dateOfPub ?? r.dateOfFiling);
+          items.push({
+            ...base, title: r.title ?? '', iprType: r.iprType ?? 'Patent', patentType: r.patentType ?? '',
+            status: titleCase(r.status), country: r.country ?? '', inventors: r.inventors ?? '', appNumber: r.appNumber ?? '',
+            applicantIsInstitute: r.applicantIsInstitute ? 'Yes' : 'No',
+            dateOfFiling: fmt(r.dateOfFiling), dateOfPub: fmt(r.dateOfPub), dateOfGrant: fmt(r.dateOfGrant),
+            date: fmt(d), _date: d,
+          });
+        }
       }
     } else {
       for (const r of (s as any).cat2Projects) {
@@ -1064,7 +1085,8 @@ async function computeAnalyticsDetail(
         const d = r.status === 'APPLIED' ? r.dateOfApplication : (r.dateOfGrant ?? r.dateOfApplication);
         if (!inRange(d)) continue;
         items.push({
-          ...base, title: r.title ?? '', fundingAgency: r.fundingAgency ?? '', amountLakhs: r.amountLakhs ?? 0,
+          ...base, title: r.title ?? '', investigators: r.investigators ?? '', piDepartments: r.piDepartments ?? '',
+          collaborativeDepartments: r.collaborativeDepartments ?? '', fundingAgency: r.fundingAgency ?? '', amountLakhs: r.amountLakhs ?? 0,
           role: r.role ?? '', status: titleCase(r.status), durationPeriod: r.durationPeriod ?? '',
           dateOfApplication: fmt(r.dateOfApplication), dateOfGrant: fmt(r.dateOfGrant), date: fmt(d), _date: d,
         });
@@ -1136,7 +1158,11 @@ export async function exportAnalyticsDetailExcel(req: Request, res: Response) {
     ],
     projects: [
       { header: 'Faculty Name', key: 'faculty' }, { header: 'Designation', key: 'designation' }, { header: 'Department', key: 'department' },
-      { header: 'Title', key: 'title' }, { header: 'Funding Agency', key: 'fundingAgency' }, { header: 'Amount (Lakhs)', key: 'amountLakhs' },
+      { header: 'Title', key: 'title' },
+      { header: 'Investigators', key: 'investigators' },
+      { header: 'Dept. of PI', key: 'piDepartments' },
+      { header: 'Collaborative Depts.', key: 'collaborativeDepartments' },
+      { header: 'Funding Agency', key: 'fundingAgency' }, { header: 'Amount (Lakhs)', key: 'amountLakhs' },
       { header: 'Role', key: 'role' }, { header: 'Status', key: 'status' }, { header: 'Duration', key: 'durationPeriod' },
       { header: 'Date of Application', key: 'dateOfApplication' }, { header: 'Date of Grant / Sanction', key: 'dateOfGrant' },
     ],
