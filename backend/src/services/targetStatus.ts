@@ -41,11 +41,18 @@ export function targetStatus(requirements: TargetRequirement[] | null | undefine
   const rows: TargetRow[] = [];
   for (const r of requirements ?? []) {
     // Only ">= N" targets are measurable; e.g. the quartile row is a manual check.
-    const m = /^>=\s*(\d+(?:\.\d+)?)$/.exec(String(r.target ?? '').trim());
+    // The target may carry a suffix (">= 2, incl. 1 journal"), so match the
+    // leading number rather than anchoring to end-of-string.
+    const m = /^>=\s*(\d+(?:\.\d+)?)/.exec(String(r.target ?? '').trim());
     if (!m) continue;
     const required = Number(m[1]);
+    // A 0 requirement is not a target for this cadre — drop the row entirely
+    // rather than showing a meaningless "0 / 0 achieved" card.
+    if (required <= 0) continue;
 
-    const raw = r.key === 'totalScore' ? Number(facultyTotal) : Number(r.actual);
+    // actual may also carry a suffix ("2 (1 journals)") — take its leading number.
+    const lead = /(\d+(?:\.\d+)?)/.exec(String(r.actual ?? '').trim());
+    const raw = r.key === 'totalScore' ? Number(facultyTotal) : lead ? Number(lead[1]) : NaN;
     // Blank or non-numeric counts as 0 — never as progress.
     const current = Number.isFinite(raw) && raw > 0 ? round(raw) : 0;
     const achieved = current >= required;
