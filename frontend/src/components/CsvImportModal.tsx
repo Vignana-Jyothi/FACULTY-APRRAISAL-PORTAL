@@ -8,11 +8,12 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  lockedDepartmentId?: string;
 }
 
 type Stage = 'upload' | 'preview' | 'importing' | 'done';
 
-export default function CsvImportModal({ open, onClose, onSuccess }: Props) {
+export default function CsvImportModal({ open, onClose, onSuccess, lockedDepartmentId }: Props) {
   const [stage, setStage] = useState<Stage>('upload');
   const [csvText, setCsvText] = useState('');
   const [fileName, setFileName] = useState('');
@@ -20,7 +21,7 @@ export default function CsvImportModal({ open, onClose, onSuccess }: Props) {
   const [result, setResult] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [departments, setDepartments] = useState<any[]>([]);
-  const [departmentId, setDepartmentId] = useState('');
+  const [departmentId, setDepartmentId] = useState(lockedDepartmentId ?? '');
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Load departments once when the modal opens (needed to assign all imported rows).
@@ -36,7 +37,7 @@ export default function CsvImportModal({ open, onClose, onSuccess }: Props) {
     setPreview(null);
     setResult(null);
     setBusy(false);
-    setDepartmentId('');
+    setDepartmentId(lockedDepartmentId ?? '');
     if (fileRef.current) fileRef.current.value = '';
   };
 
@@ -166,16 +167,22 @@ export default function CsvImportModal({ open, onClose, onSuccess }: Props) {
                 <label className="block text-xs font-medium text-ink-secondary mb-1">
                   Department <span className="text-danger-500">*</span> <span className="text-ink-muted font-normal">— applied to every row</span>
                 </label>
-                <select
-                  value={departmentId}
-                  onChange={(e) => setDepartmentId(e.target.value)}
-                  className="w-full text-sm border border-surface-border rounded px-3 py-2 bg-surface-card"
-                >
-                  <option value="">Select department…</option>
-                  {departments.map((d: any) => (
-                    <option key={d.id} value={d.id}>{d.name}{d.code ? ` (${d.code})` : ''}</option>
-                  ))}
-                </select>
+                {lockedDepartmentId ? (
+                  <div className="w-full text-sm border border-surface-border rounded px-3 py-2 bg-surface-muted text-ink-primary">
+                    {departments.find((d: any) => d.id === lockedDepartmentId)?.name ?? 'Your department'}
+                  </div>
+                ) : (
+                  <select
+                    value={departmentId}
+                    onChange={(e) => setDepartmentId(e.target.value)}
+                    className="w-full text-sm border border-surface-border rounded px-3 py-2 bg-surface-card"
+                  >
+                    <option value="">Select department…</option>
+                    {departments.map((d: any) => (
+                      <option key={d.id} value={d.id}>{d.name}{d.code ? ` (${d.code})` : ''}</option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <label

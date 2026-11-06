@@ -695,6 +695,11 @@ const bulkImportSchema = z.object({
 
 export async function bulkImportUsers(req: Request, res: Response) {
   const { csv, departmentId, dryRun } = bulkImportSchema.parse(req.body);
+  // A HoD / DEPT_ADMIN may only import into their own department. Full admin: unrestricted.
+  const scope = accountAdminScope(req);
+  if (scope !== null && !deptInScope(scope, departmentId)) {
+    return res.status(403).json({ error: 'You can only import accounts in your own department' });
+  }
 
   // Department is chosen once in the UI and applied to every row.
   const dept = await prisma.department.findUnique({

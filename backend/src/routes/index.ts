@@ -79,8 +79,9 @@ router.post('/users/me/change-password', authenticate, user.changePasswordWithOt
 // Admin: user management. Account maintenance (list / create / edit /
 // deactivate / reactivate / reset password) is open to the institute ADMIN and
 // to a DEPT_ADMIN — the controllers confine a DEPT_ADMIN to their own
-// department. Role assignment and bulk import stay ADMIN-only (MAINTENANCE): a
-// dept-admin cannot hand out roles or import rosters.
+// department. Role assignment stays ADMIN-only (MAINTENANCE): a dept-admin
+// cannot hand out roles. Bulk import is USER_MANAGE, locked to the caller's
+// own department in the controller.
 // A HoD may create and list accounts in their own department (USER_MANAGE);
 // the handlers confine them via accountAdminScope. Editing, deactivating,
 // resetting and role assignment stay ACCOUNT_ADMIN / MAINTENANCE below.
@@ -100,8 +101,8 @@ router.delete('/admin/users/:id/roles/:roleId', authenticate, roleGuard(MAINTENA
 router.get('/department/reviewers', authenticate, roleGuard([RoleType.HOD]), deptReviewer.listDeptReviewers);
 router.post('/department/reviewers', authenticate, roleGuard([RoleType.HOD]), deptReviewer.addDeptReviewer);
 router.delete('/department/reviewers/:userId', authenticate, roleGuard([RoleType.HOD]), deptReviewer.removeDeptReviewer);
-router.get('/admin/users/bulk-import/template', authenticate, roleGuard(MAINTENANCE), user.bulkImportTemplate);
-router.post('/admin/users/bulk-import', authenticate, roleGuard(MAINTENANCE), user.bulkImportUsers);
+router.get('/admin/users/bulk-import/template', authenticate, roleGuard(USER_MANAGE), user.bulkImportTemplate);
+router.post('/admin/users/bulk-import', authenticate, roleGuard(USER_MANAGE), user.bulkImportUsers);
 
 // Admin: departments
 // Departments are structural: the dean owns them as configuration, and the

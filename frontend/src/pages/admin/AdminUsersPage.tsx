@@ -165,11 +165,9 @@ export default function AdminUsersPage() {
         breadcrumbs={isHodManager ? [{ label: 'Users' }] : [{ label: 'Admin', to: '/admin/dashboard' }, { label: 'Users' }]}
         actions={
           <div className="flex items-center gap-2">
-            {!deptScoped && (
-              <button onClick={() => setShowImport(true)} className="flex items-center gap-2 border border-surface-border bg-surface-card text-ink-primary px-4 py-2 rounded text-sm font-medium hover:bg-surface-muted">
-                <Upload size={16} /> Import CSV
-              </button>
-            )}
+            <button onClick={() => setShowImport(true)} className="flex items-center gap-2 border border-surface-border bg-surface-card text-ink-primary px-4 py-2 rounded text-sm font-medium hover:bg-surface-muted">
+              <Upload size={16} /> Import CSV
+            </button>
             <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-primary-700">
               <Plus size={16} /> New User
             </button>
@@ -181,6 +179,7 @@ export default function AdminUsersPage() {
         open={showImport}
         onClose={() => setShowImport(false)}
         onSuccess={load}
+        lockedDepartmentId={deptScoped ? myDeptId : undefined}
       />
 
       <RoleAssignModal
