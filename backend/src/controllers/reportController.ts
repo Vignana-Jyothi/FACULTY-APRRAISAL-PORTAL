@@ -6,6 +6,13 @@ import { deriveCadre, computeExperienceYears, CADRE_LABEL } from '../services/ca
 const CADRE_RANK: Record<Cadre, number> = {
   PROFESSOR: 4, ASSOCIATE_PROFESSOR: 3, SR_ASSISTANT_PROFESSOR: 2, ASSISTANT_PROFESSOR: 1,
 };
+// Faculty ordering for every roster export: by cadre (seniormost first), then
+// most-experienced (earliest dateOfJoining) first, then name.
+const cadreRankOf = (u: any) => { const c = deriveCadre(u?.designation); return c ? CADRE_RANK[c] : 0; };
+const byCadreThenExp = (ua: any, ub: any) =>
+  cadreRankOf(ub) - cadreRankOf(ua)
+  || computeExperienceYears(ub?.dateOfJoining) - computeExperienceYears(ua?.dateOfJoining)
+  || (ua?.name ?? '').localeCompare(ub?.name ?? '');
 import prisma from '../utils/prismaClient';
 import * as XLSX from 'xlsx';
 import { renderHtmlToPdf, renderQuarterlyDeptSummaryHtml } from '../services/pdfService';
@@ -199,7 +206,7 @@ export async function exportReport(req: Request, res: Response) {
     typeof n === 'number' && Number.isFinite(n) ? Math.round(n * 100) / 100 : '';
 
   const rows = [...picked.values()]
-    .sort((a, b) => (((a as any).user.name ?? '') as string).localeCompare((b as any).user.name ?? ''))
+    .sort((a, b) => byCadreThenExp((a as any).user, (b as any).user))
     .map((sub) => {
       const u = (sub as any).user;
       const rev = (sub as any).review ?? null;
@@ -351,7 +358,7 @@ export async function exportAppraisalExcel(req: Request, res: Response) {
     if (!cur) picked.set(s.userId, s);
     else if (cur.status !== SubmissionStatus.APPROVED && s.status === SubmissionStatus.APPROVED) picked.set(s.userId, s);
   }
-  const chosen = [...picked.values()].sort((a, b) => (a as any).user.name.localeCompare((b as any).user.name));
+  const chosen = [...picked.values()].sort((a, b) => byCadreThenExp((a as any).user, (b as any).user));
 
   // Highest qualification lives on the user, not in TRACKING_INCLUDE's select.
   const quals = new Map<string, string>();
@@ -468,7 +475,7 @@ export async function exportQuarterlyDeptPdf(req: Request, res: Response) {
   const submissions = await prisma.appraisalSubmission.findMany({
     where: { academicYearId: year.id, user: { departmentId } },
     include: {
-      user: { select: { id: true, name: true, employeeCode: true, designation: true, department: { select: { name: true } } } },
+      user: { select: { id: true, name: true, employeeCode: true, designation: true, dateOfJoining: true, department: { select: { name: true } } } },
       feedbacks: {
         where: { period, status: 'ISSUED' },
         include: { issuedBy: { select: { name: true } } },
@@ -490,7 +497,7 @@ export async function exportQuarterlyDeptPdf(req: Request, res: Response) {
       const fb = (s as any).feedbacks?.[0] ?? null;
       return { user: (s as any).user, feedback: fb, snapshot: fb?.snapshot ?? null };
     })
-    .sort((a, b) => (a.user?.name ?? '').localeCompare(b.user?.name ?? ''));
+    .sort((a, b) => byCadreThenExp(a.user, b.user));
 
   const dept = await prisma.department.findUnique({ where: { id: departmentId }, select: { code: true, name: true } });
   const html = renderQuarterlyDeptSummaryHtml(items, {
@@ -572,15 +579,8 @@ export async function exportIqacQuarterlyExcel(req: Request, res: Response) {
 
   // Order: by cadre, seniormost (Professor) first; within a cadre, most
   // experienced first; name as a final tiebreak.
-  const rankOf = (u: any) => { const c = deriveCadre(u.designation); return c ? CADRE_RANK[c] : 0; };
-  const expOf = (u: any) => computeExperienceYears(u.dateOfJoining);
   const rows = [...picked.values()]
-    .sort((a, b) => {
-      const ua = (a as any).user, ub = (b as any).user;
-      return rankOf(ub) - rankOf(ua)
-        || expOf(ub) - expOf(ua)
-        || (ua.name ?? '').localeCompare(ub.name ?? '');
-    })
+    .sort((a, b) => byCadreThenExp((a as any).user, (b as any).user))
     .map((s) => {
       const a = s as any;
       const journals = nonEmpty(a.cat2Journals, 'title');
@@ -688,12 +688,7 @@ export async function exportPublicationsExcel(req: Request, res: Response) {
   const has = (v: any) => String(v ?? '').trim();
 
   // Sort faculty: by cadre seniority, then experience, then name (as IQAC).
-  const rankOf = (u: any) => { const c = deriveCadre(u.designation); return c ? CADRE_RANK[c] : 0; };
-  const expOf = (u: any) => computeExperienceYears(u.dateOfJoining);
-  const people = [...picked.values()].sort((a, b) => {
-    const ua = (a as any).user, ub = (b as any).user;
-    return rankOf(ub) - rankOf(ua) || expOf(ub) - expOf(ua) || (ua.name ?? '').localeCompare(ub.name ?? '');
-  });
+  const people = [...picked.values()].sort((a, b) => byCadreThenExp((a as any).user, (b as any).user));
 
   const rows: any[][] = [];
   for (const s of people) {

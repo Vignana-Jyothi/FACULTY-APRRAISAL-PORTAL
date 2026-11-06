@@ -132,7 +132,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   // Tier allocation (dean, special scrutinizer, principal) and the HoD's own
   // department both land on Tracking.
-  if (canAllocateTier() || hasRole('HOD')) {
+  if (canAllocateTier()) {
     add('/tracking', 'Tracking', Gauge);
   }
 

@@ -44,7 +44,7 @@ const CONFIG = ['DEAN', 'PRINCIPAL'] as const;                // dean-owned conf
 const SEES_ALL = ['PRINCIPAL'] as const;                      // institute-wide content
 // Cross-department readers of tracking; HoD is scoped to their own department
 // server-side.
-const TRACKING = ['HOD', 'DEAN', 'SPECIAL_SCRUTINIZER', 'PRINCIPAL'] as const;
+const TRACKING = ['DEAN', 'SPECIAL_SCRUTINIZER', 'PRINCIPAL'] as const;
 const DEPT_REVIEW = ['HOD', 'REVIEWER'] as const;
 // Reports: the backend guards /reports/department, /criteria and /export with
 // DEPT_CONTENT_READ, which includes the dean. The dean's rows come back
