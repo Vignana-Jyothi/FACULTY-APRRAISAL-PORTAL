@@ -25,6 +25,7 @@ let hodTok = '';
 let facTok = '';
 let faculty: FixtureUser;
 let openYearId = '';
+let submissionId = '';
 
 beforeAll(async () => {
   try {
@@ -59,7 +60,7 @@ beforeAll(async () => {
     });
     openYearId = year.id;
     // A draft in that year, so the faculty has a row on /tracking.
-    await fixture.createSubmission(faculty, { academicYearId: openYearId });
+    submissionId = await fixture.createSubmission(faculty, { academicYearId: openYearId });
     ready = !!openYearId;
   } catch {
     console.warn('[v2] DB unreachable — skipping V2 suite.');
@@ -248,6 +249,12 @@ describe('W3/W5 tracking', () => {
     expect(row).toBeTruthy();
     if (!row) return; // no faculty in scope
     const userId = row.faculty.id;
+    // Tier gate: faculty must be academic-verified (a VERIFIED proof on a
+    // submitted form) and dean-verified (an APPROVED final review) first.
+    const scrutinizer = await fixture!.addUser({ name: 'SCR', role: RoleType.SPECIAL_SCRUTINIZER });
+    await prisma.appraisalSubmission.update({ where: { id: submissionId }, data: { status: 'SUBMITTED' } });
+    await prisma.proofVerification.create({ data: { submissionId, section: 't', item: 't', field: 'Proof', url: `http://v/${submissionId}`, status: 'VERIFIED', verifiedAt: new Date() } });
+    await prisma.finalReview.create({ data: { submissionId, reviewerId: scrutinizer.id, decision: 'APPROVED', decidedAt: new Date() } });
 
     const set = await request(app).put('/api/admin/faculty-tiers').set(bearer(principalTok))
       .send({ userId, academicYearId: openYearId, tier: 'T2' });
