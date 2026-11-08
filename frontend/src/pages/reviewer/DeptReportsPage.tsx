@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { reportApi } from '../../api/reports';
 import { userApi } from '../../api/users';
 import toast from 'react-hot-toast';
@@ -8,7 +7,8 @@ import PageHeader from '../../components/PageHeader';
 import Card from '../../components/Card';
 import StatTile from '../../components/StatTile';
 import CriteriaCompare from '../../components/CriteriaCompare';
-import FacultyUploadsButton from '../../components/FacultyUploadsButton';
+import ConsolidatedFacultyTable from '../../components/ConsolidatedFacultyTable';
+import { trackingApi, type TrackingRow } from '../../api/tracking';
 import { useAuthStore, INSTITUTE_READ_ROLES } from '../../store/authStore';
 
 // A HoD reads their own department only (the server holds them to it). The
@@ -24,7 +24,6 @@ export default function DeptReportsPage() {
   const [departments, setDepartments] = useState<{ id: string; name: string; code: string }[]>([]);
   const [yearFilter, setYearFilter] = useState('');
   const [deptFilter, setDeptFilter] = useState('');
-  const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [exportingForm, setExportingForm] = useState(false);
   const [quarter, setQuarter] = useState('Q1');
@@ -37,15 +36,38 @@ export default function DeptReportsPage() {
   }, [seesAllDepts]);
 
   useEffect(() => {
-    setLoading(true);
     reportApi.getDeptReport({
       ...(yearFilter ? { year: yearFilter } : {}),
       ...(seesAllDepts && deptFilter ? { dept: deptFilter } : {}),
     })
       .then(setReviews)
-      .catch(() => toast.error('Failed to load department report'))
-      .finally(() => setLoading(false));
+      .catch(() => toast.error('Failed to load department report'));
   }, [yearFilter, deptFilter, seesAllDepts]);
+
+  const canAllocateTier = useAuthStore((s) => s.canAllocateTier);
+  const yearId = years.find((y) => y.label === yearFilter)?.id as string | undefined;
+  const [trackRows, setTrackRows] = useState<TrackingRow[]>([]);
+  const [trackLoading, setTrackLoading] = useState(false);
+  const [trackTick, setTrackTick] = useState(0);
+
+  useEffect(() => {
+    if (!yearId) { setTrackRows([]); return; }
+    setTrackLoading(true);
+    trackingApi.get(yearId)
+      .then((d) => setTrackRows(d.rows))
+      .catch(() => toast.error('Failed to load consolidated report'))
+      .finally(() => setTrackLoading(false));
+  }, [yearId, trackTick]);
+
+  const handleSetTier = async (userId: string, tier: string | null, reason?: string | null) => {
+    if (!yearId) return;
+    try {
+      await trackingApi.setTier(userId, yearId, tier as any, reason);
+      setTrackTick((n) => n + 1);
+    } catch {
+      toast.error('Failed to set tier');
+    }
+  };
 
   const deptParam = seesAllDepts && deptFilter ? deptFilter : undefined;
   const deptCode = departments.find((d) => d.id === deptFilter)?.code;
@@ -231,68 +253,16 @@ export default function DeptReportsPage() {
         />
       </div>
 
-      {loading ? (
-        <div className="text-sm text-ink-muted">Loading...</div>
-      ) : reviews.length === 0 ? (
-        <Card className="text-center py-8">
-          <p className="text-ink-muted text-sm">No reviewed appraisals yet.</p>
-        </Card>
-      ) : (
-        <Card padding="none">
-          <div className="px-5 py-3 border-b border-surface-border">
-            <h2 className="text-sm font-semibold text-ink-primary">Faculty-wise Breakdown</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-primary-700 text-white text-xs">
-                  <th className="text-left px-4 py-2.5 font-medium">Faculty</th>
-                  {seesAllDepts && <th className="text-left px-4 py-2.5 font-medium">Dept</th>}
-                  <th className="text-left px-4 py-2.5 font-medium">Designation</th>
-                  <th className="text-left px-3 py-2.5 font-medium">C1 /150</th>
-                  <th className="text-left px-3 py-2.5 font-medium">C2 /150</th>
-                  <th className="text-left px-3 py-2.5 font-medium">C3 /100</th>
-                  <th className="text-left px-3 py-2.5 font-medium">C4 /50</th>
-                  <th className="text-left px-3 py-2.5 font-medium">C5 /50</th>
-                  <th className="text-left px-3 py-2.5 font-medium">Reviewed /500</th>
-                  {showGrand && <th className="text-left px-3 py-2.5 font-medium">Core values /50</th>}
-                  {showGrand && <th className="text-left px-3 py-2.5 font-medium">Grand total /550</th>}
-                  <th className="text-left px-4 py-2.5 font-medium">Uploads</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-surface-border">
-                {reviews.map((r, i) => {
-                  const cat6 = (r.cat6Punctuality ?? 0) + (r.cat6Professionalism ?? 0) + (r.cat6Willingness ?? 0) + (r.cat6Cordiality ?? 0) + (r.cat6Classroom ?? 0);
-                  const fmt = (n: any) => (typeof n === 'number' ? n.toFixed(2) : '—');
-                  return (
-                    <tr key={r.id} className={i % 2 === 1 ? 'bg-surface-muted/50' : ''}>
-                      <td className="px-4 py-2.5">
-                        <Link to={`/appraisal/${r.submissionId}`} className="font-medium text-primary-700 hover:underline">
-                          {r.submission?.user?.name}
-                        </Link>
-                        <div className="font-mono text-[11px] text-ink-muted">{r.submission?.user?.employeeCode}</div>
-                      </td>
-                      {seesAllDepts && <td className="px-4 py-2.5 text-ink-secondary">{r.submission?.user?.department?.code ?? '—'}</td>}
-                      <td className="px-4 py-2.5 text-ink-secondary">{r.submission?.user?.designation ?? '—'}</td>
-                      <td className="px-3 py-2.5 text-ink-secondary">{fmt(r.cat1Score)}</td>
-                      <td className="px-3 py-2.5 text-ink-secondary">{fmt(r.cat2Score)}</td>
-                      <td className="px-3 py-2.5 text-ink-secondary">{fmt(r.cat3Score)}</td>
-                      <td className="px-3 py-2.5 text-ink-secondary">{fmt(r.cat4Score)}</td>
-                      <td className="px-3 py-2.5 text-ink-secondary">{fmt(r.cat5Score)}</td>
-                      <td className="px-3 py-2.5 font-medium text-ink-primary">{fmt(r.totalScore)}</td>
-                      {showGrand && <td className="px-3 py-2.5 text-ink-secondary">{cat6.toFixed(2)}</td>}
-                      {showGrand && <td className="px-3 py-2.5 text-primary-700 font-semibold">{fmt(r.grandTotal)}</td>}
-                      <td className="px-4 py-2.5">
-                        <FacultyUploadsButton submissionId={r.submissionId} facultyName={r.submission?.user?.name ?? 'Faculty'} />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
+      <h2 className="text-sm font-semibold text-ink-primary mb-2">Consolidated Faculty Report</h2>
+      <div className="mb-5">
+        {!yearId ? (
+          <Card className="text-center py-8"><p className="text-ink-muted text-sm">Select an academic year to view the consolidated report.</p></Card>
+        ) : trackLoading ? (
+          <div className="text-sm text-ink-muted">Loading...</div>
+        ) : (
+          <ConsolidatedFacultyTable rows={trackRows} canAllocate={canAllocateTier()} onSetTier={handleSetTier} />
+        )}
+      </div>
 
       <CriteriaCompare academicYearId={years.find((y) => y.label === yearFilter)?.id} dept={deptParam} />
     </div>

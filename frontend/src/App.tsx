@@ -12,6 +12,7 @@ import FinalReviewPage from './pages/reviewer/FinalReviewPage';
 import UploadsPage from './pages/reviewer/UploadsPage';
 import FacultyUploadsPage from './pages/reviewer/FacultyUploadsPage';
 import ReviewAppraisalPage from './pages/reviewer/ReviewAppraisalPage';
+import ProofVerifyPage from './pages/reviewer/ProofVerifyPage';
 import DraftsPage from './pages/reviewer/DraftsPage';
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import AdminUsersPage from './pages/admin/AdminUsersPage';
@@ -111,6 +112,9 @@ export default function App() {
         } />
         <Route path="/reviews/:id" element={
           <ProtectedRoute roles={DEPT_REVIEW}><ReviewAppraisalPage /></ProtectedRoute>
+        } />
+        <Route path="/proofs/:id" element={
+          <ProtectedRoute roles={DEPT_REPORTS}><ProofVerifyPage /></ProtectedRoute>
         } />
         <Route path="/reports/department" element={
           <ProtectedRoute roles={DEPT_REPORTS}><DeptReportsPage /></ProtectedRoute>

@@ -34,6 +34,7 @@ export interface TrackingRow {
   // Manual decisions by the admin/dean, null until decided.
   tier: 'T1' | 'T2' | 'T3' | 'T4' | null;
   eligible: boolean | null;
+  scoreScale: 500 | 550;
   academicVerified: boolean;
   deanVerified: boolean;
   tierReason: string | null;

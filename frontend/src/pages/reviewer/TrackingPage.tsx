@@ -57,72 +57,6 @@ function VerifiedBadge({ value }: { value: boolean }) {
     : <span className="text-ink-muted" title="Not verified">✗</span>;
 }
 
-type TierValue = 'T1' | 'T2' | 'T3' | 'T4';
-
-// Tier 3/4 need a written justification; the select only commits T1/T2/clear
-// straight away, otherwise it waits for the reason and an explicit Save.
-function TierControl({ row, onSave }: { row: TrackingRow; onSave: (tier: TierValue | null, reason: string | null) => void }) {
-  const [tier, setTierLocal] = useState<TierValue | null>(row.tier);
-  const [reason, setReason] = useState(row.tierReason ?? '');
-  useEffect(() => {
-    setTierLocal(row.tier);
-    setReason(row.tierReason ?? '');
-  }, [row.tier, row.tierReason]);
-  const verified = row.academicVerified && row.deanVerified;
-  const needsReason = tier === 'T3' || tier === 'T4';
-  const dirty = tier !== row.tier || reason.trim() !== (row.tierReason ?? '').trim();
-
-  const choose = (v: TierValue | null) => {
-    setTierLocal(v);
-    if (v !== 'T3' && v !== 'T4') onSave(v, null);
-  };
-  const save = () => {
-    if (needsReason && !reason.trim()) {
-      toast.error('Justification required for Tier 3/4');
-      return;
-    }
-    onSave(tier, needsReason ? reason.trim() : null);
-  };
-
-  return (
-    <div className="space-y-1 min-w-[9rem]">
-      <select
-        value={tier ?? ''}
-        onChange={(e) => choose((e.target.value || null) as TierValue | null)}
-        disabled={!verified}
-        className="text-xs border border-surface-border rounded px-1.5 py-1 bg-surface-base focus:outline-none focus:ring-1 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
-        title={verified ? 'Assign tier' : 'Verify at department and dean level first'}
-      >
-        <option value="">—</option>
-        <option value="T1">T1</option>
-        <option value="T2">T2</option>
-        <option value="T3">T3</option>
-        <option value="T4">T4</option>
-      </select>
-      {!verified && <div className="text-[10px] text-ink-muted">Verify at department and dean level first</div>}
-      {verified && needsReason && (
-        <>
-          <textarea
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            rows={2}
-            placeholder="Justification (required)"
-            className="block w-full text-xs border border-surface-border rounded px-1.5 py-1 bg-surface-base focus:outline-none focus:ring-1 focus:ring-primary-500"
-          />
-          <button
-            type="button"
-            onClick={save}
-            disabled={!dirty}
-            className="text-[11px] px-2 py-0.5 rounded bg-primary-600 text-white hover:opacity-90 disabled:opacity-50"
-          >
-            Save tier
-          </button>
-        </>
-      )}
-    </div>
-  );
-}
-
 function RequirementRows({ row }: { row: TrackingRow }) {
   if (!row.eligibility.requirements.length) {
     return <div className="text-xs text-ink-muted px-3 py-2">No cadre target configured for this faculty ({row.cadreLabel ?? 'unknown cadre'}).</div>;
@@ -246,15 +180,6 @@ export default function TrackingPage() {
   // so the segregation matrix + filters stay in sync.
   const refresh = async () => setData(await trackingApi.get(yearId));
 
-  const setTier = async (userId: string, tier: TierValue | null, reason?: string | null) => {
-    try {
-      await trackingApi.setTier(userId, yearId, tier, reason);
-      await refresh();
-    } catch {
-      toast.error('Failed to set tier');
-    }
-  };
-
   const setEligible = async (userId: string, eligible: boolean | null) => {
     try {
       await trackingApi.setEligible(userId, yearId, eligible);
@@ -315,7 +240,7 @@ export default function TrackingPage() {
       <PageHeader
         title="Criteria Tracking"
         help="Each faculty's actuals against their cadre targets. Set each faculty's tier and eligibility by hand, download the cadre and tier report as Excel, or snapshot the quarter and email each faculty their feedback."
-        subtitle="Each faculty's actuals against their cadre targets. Tier and eligibility are set by the dean."
+        subtitle="Each faculty's actuals against their cadre targets. Eligibility is set here; tier is allocated on the Department Reports page."
         breadcrumbs={[{ label: 'Criteria Tracking' }]}
         actions={
           <div className="flex items-center gap-2">
@@ -404,7 +329,7 @@ export default function TrackingPage() {
       )}
       {data && canAllocateTier() && data.rows.length > 0 && (
         <div className="mb-3 text-xs text-ink-muted bg-surface-muted/40 border border-surface-border rounded px-3 py-2">
-          Expand a row to compare a faculty's actuals with their cadre targets, then record your decision in the Tier and Eligible columns on the right.
+          Expand a row to compare a faculty's actuals with their cadre targets, then set the Eligible column. Tier is allocated on the Department Reports page.
         </div>
       )}
 
@@ -549,9 +474,7 @@ export default function TrackingPage() {
                       <td className="py-2 px-2"><VerifiedBadge value={r.academicVerified} /></td>
                       <td className="py-2 px-2"><VerifiedBadge value={r.deanVerified} /></td>
                       <td className="py-2 px-2" onClick={(e) => e.stopPropagation()}>
-                        {canAllocateTier() ? (
-                          <TierControl row={r} onSave={(t, reason) => setTier(r.faculty.id, t, reason)} />
-                        ) : <TierBadge tier={r.tier} />}
+                        <TierBadge tier={r.tier} />
                       </td>
                       <td className="py-2 px-2" onClick={(e) => e.stopPropagation()}>
                         {canAllocateTier()

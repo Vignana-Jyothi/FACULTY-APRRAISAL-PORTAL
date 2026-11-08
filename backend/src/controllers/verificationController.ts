@@ -26,7 +26,7 @@ export function proofDeadlineFrom(heldAt: Date): Date {
 // appraisal content off the maintenance account.
 function canVerifyProof(user: NonNullable<Request['user']>, ownerId: string, ownerDept: string | null): boolean {
   if (user.id === ownerId) return false;
-  if (hasAnyRole(user, SEES_ALL)) return true;
+  if (hasAnyRole(user, SEES_ALL) || hasAnyRole(user, [RoleType.DEAN])) return true;
   return user.roles.some(
     (r) => (r.role === RoleType.HOD || r.role === RoleType.REVIEWER) && r.departmentId != null && r.departmentId === ownerDept
   );

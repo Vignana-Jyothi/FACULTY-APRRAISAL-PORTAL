@@ -176,7 +176,7 @@ router.post('/appraisals/:id/final-review', authenticate, finalReview.submitFina
 // Owner may read their own list (it drives the "Rejected proofs" card);
 // listProofs checks owner / same-dept HoD or incharge / principal itself.
 router.get('/appraisals/:id/proofs', authenticate, verification.listProofs);
-router.post('/appraisals/:id/proofs/verify', authenticate, roleGuard([...DEPT_REVIEW, ...SEES_ALL]), verification.verifyProof);
+router.post('/appraisals/:id/proofs/verify', authenticate, roleGuard([...DEPT_REVIEW, RoleType.DEAN, ...SEES_ALL]), verification.verifyProof);
 // Per-row HoD yes/no approval for the no-proof sections (4.1, 4.2, 5.1, 5.3, 5.4).
 router.post('/appraisals/:id/item-approval', authenticate, roleGuard([...DEPT_REVIEW, ...SEES_ALL]), verification.setItemApproval);
 // Faculty replaces a rejected proof before the correction deadline (owner-only).
