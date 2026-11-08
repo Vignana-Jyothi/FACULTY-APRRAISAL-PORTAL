@@ -11,6 +11,7 @@ const TIER_STYLE: Record<string, string> = {
   T1: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   T2: 'bg-blue-50 text-blue-700 border-blue-200',
   T3: 'bg-amber-50 text-amber-700 border-amber-200',
+  T4: 'bg-purple-50 text-purple-700 border-purple-200',
 };
 
 function TierBadge({ tier }: { tier: string | null }) {
@@ -50,6 +51,78 @@ function EligibleBadge({ value }: { value: boolean | null }) {
     : <XCircle size={16} className="text-red-500" />;
 }
 
+function VerifiedBadge({ value }: { value: boolean }) {
+  return value
+    ? <span className="text-emerald-600 font-semibold" title="Verified">✓</span>
+    : <span className="text-ink-muted" title="Not verified">✗</span>;
+}
+
+type TierValue = 'T1' | 'T2' | 'T3' | 'T4';
+
+// Tier 3/4 need a written justification; the select only commits T1/T2/clear
+// straight away, otherwise it waits for the reason and an explicit Save.
+function TierControl({ row, onSave }: { row: TrackingRow; onSave: (tier: TierValue | null, reason: string | null) => void }) {
+  const [tier, setTierLocal] = useState<TierValue | null>(row.tier);
+  const [reason, setReason] = useState(row.tierReason ?? '');
+  useEffect(() => {
+    setTierLocal(row.tier);
+    setReason(row.tierReason ?? '');
+  }, [row.tier, row.tierReason]);
+  const verified = row.academicVerified && row.deanVerified;
+  const needsReason = tier === 'T3' || tier === 'T4';
+  const dirty = tier !== row.tier || reason.trim() !== (row.tierReason ?? '').trim();
+
+  const choose = (v: TierValue | null) => {
+    setTierLocal(v);
+    if (v !== 'T3' && v !== 'T4') onSave(v, null);
+  };
+  const save = () => {
+    if (needsReason && !reason.trim()) {
+      toast.error('Justification required for Tier 3/4');
+      return;
+    }
+    onSave(tier, needsReason ? reason.trim() : null);
+  };
+
+  return (
+    <div className="space-y-1 min-w-[9rem]">
+      <select
+        value={tier ?? ''}
+        onChange={(e) => choose((e.target.value || null) as TierValue | null)}
+        disabled={!verified}
+        className="text-xs border border-surface-border rounded px-1.5 py-1 bg-surface-base focus:outline-none focus:ring-1 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        title={verified ? 'Assign tier' : 'Verify at department and dean level first'}
+      >
+        <option value="">—</option>
+        <option value="T1">T1</option>
+        <option value="T2">T2</option>
+        <option value="T3">T3</option>
+        <option value="T4">T4</option>
+      </select>
+      {!verified && <div className="text-[10px] text-ink-muted">Verify at department and dean level first</div>}
+      {verified && needsReason && (
+        <>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={2}
+            placeholder="Justification (required)"
+            className="block w-full text-xs border border-surface-border rounded px-1.5 py-1 bg-surface-base focus:outline-none focus:ring-1 focus:ring-primary-500"
+          />
+          <button
+            type="button"
+            onClick={save}
+            disabled={!dirty}
+            className="text-[11px] px-2 py-0.5 rounded bg-primary-600 text-white hover:opacity-90 disabled:opacity-50"
+          >
+            Save tier
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function RequirementRows({ row }: { row: TrackingRow }) {
   if (!row.eligibility.requirements.length) {
     return <div className="text-xs text-ink-muted px-3 py-2">No cadre target configured for this faculty ({row.cadreLabel ?? 'unknown cadre'}).</div>;
@@ -77,16 +150,17 @@ function RequirementRows({ row }: { row: TrackingRow }) {
   );
 }
 
-const TIER_GROUPS: { key: 'T1' | 'T2' | 'T3' | 'none'; label: string }[] = [
+const TIER_GROUPS: { key: 'T1' | 'T2' | 'T3' | 'T4' | 'none'; label: string }[] = [
   { key: 'T1', label: 'Tier 1' },
   { key: 'T2', label: 'Tier 2' },
   { key: 'T3', label: 'Tier 3' },
+  { key: 'T4', label: 'Tier 4' },
   { key: 'none', label: 'Unassigned' },
 ];
 
 // End-of-year tier-wise roster: faculty grouped under their assigned tier.
 function TierGroupedList({ rows }: { rows: TrackingRow[] }) {
-  const groups: Record<string, TrackingRow[]> = { T1: [], T2: [], T3: [], none: [] };
+  const groups: Record<string, TrackingRow[]> = { T1: [], T2: [], T3: [], T4: [], none: [] };
   for (const r of rows) groups[r.tier ?? 'none'].push(r);
   return (
     <div className="space-y-4">
@@ -172,9 +246,9 @@ export default function TrackingPage() {
   // so the segregation matrix + filters stay in sync.
   const refresh = async () => setData(await trackingApi.get(yearId));
 
-  const setTier = async (userId: string, tier: 'T1' | 'T2' | 'T3' | null) => {
+  const setTier = async (userId: string, tier: TierValue | null, reason?: string | null) => {
     try {
-      await trackingApi.setTier(userId, yearId, tier);
+      await trackingApi.setTier(userId, yearId, tier, reason);
       await refresh();
     } catch {
       toast.error('Failed to set tier');
@@ -345,6 +419,7 @@ export default function TrackingPage() {
                   <th className={th}>T1</th>
                   <th className={th}>T2</th>
                   <th className={th}>T3</th>
+                  <th className={th}>T4</th>
                   <th className={th}>No tier</th>
                   <th className={th}>Eligible</th>
                   <th className={th}>Total</th>
@@ -357,6 +432,7 @@ export default function TrackingPage() {
                     <td className="py-1.5 px-2 text-ink-secondary">{a.tiers.T1}</td>
                     <td className="py-1.5 px-2 text-ink-secondary">{a.tiers.T2}</td>
                     <td className="py-1.5 px-2 text-ink-secondary">{a.tiers.T3}</td>
+                    <td className="py-1.5 px-2 text-ink-secondary">{a.tiers.T4 ?? 0}</td>
                     <td className="py-1.5 px-2 text-ink-muted">{a.tiers.none}</td>
                     <td className="py-1.5 px-2 text-emerald-700">{a.eligible}</td>
                     <td className="py-1.5 px-2 font-medium">{a.total}</td>
@@ -367,6 +443,7 @@ export default function TrackingPage() {
                   <td className="py-1.5 px-2">{data.aggregates.byTier.T1}</td>
                   <td className="py-1.5 px-2">{data.aggregates.byTier.T2}</td>
                   <td className="py-1.5 px-2">{data.aggregates.byTier.T3}</td>
+                  <td className="py-1.5 px-2">{data.aggregates.byTier.T4 ?? 0}</td>
                   <td className="py-1.5 px-2 text-ink-muted">{data.aggregates.byTier.none}</td>
                   <td className="py-1.5 px-2 text-emerald-700">{data.aggregates.eligible}</td>
                   <td className="py-1.5 px-2">{data.aggregates.total}</td>
@@ -396,6 +473,7 @@ export default function TrackingPage() {
                 <option value="T1">T1</option>
                 <option value="T2">T2</option>
                 <option value="T3">T3</option>
+                <option value="T4">T4</option>
                 <option value="none">No tier</option>
               </select>
             )}
@@ -435,6 +513,8 @@ export default function TrackingPage() {
                 <th className={th}>Pat</th>
                 <th className={th}>Proj</th>
                 <th className={th}>Cons</th>
+                <th className={th}>Academic Verified</th>
+                <th className={th}>Dean Verified</th>
                 <th className={th}>Tier</th>
                 <th className={th}>Eligible</th>
               </tr>
@@ -466,19 +546,11 @@ export default function TrackingPage() {
                       <td className="py-2 px-2 text-ink-secondary">{r.actuals.patentCount}</td>
                       <td className="py-2 px-2 text-ink-secondary">{r.actuals.projectCount}</td>
                       <td className="py-2 px-2 text-ink-secondary">{r.actuals.consultancyCount}</td>
+                      <td className="py-2 px-2"><VerifiedBadge value={r.academicVerified} /></td>
+                      <td className="py-2 px-2"><VerifiedBadge value={r.deanVerified} /></td>
                       <td className="py-2 px-2" onClick={(e) => e.stopPropagation()}>
                         {canAllocateTier() ? (
-                          <select
-                            value={r.tier ?? ''}
-                            onChange={(e) => setTier(r.faculty.id, (e.target.value || null) as 'T1' | 'T2' | 'T3' | null)}
-                            className="text-xs border border-surface-border rounded px-1.5 py-1 bg-surface-base focus:outline-none focus:ring-1 focus:ring-primary-500"
-                            title="Assign tier"
-                          >
-                            <option value="">—</option>
-                            <option value="T1">T1</option>
-                            <option value="T2">T2</option>
-                            <option value="T3">T3</option>
-                          </select>
+                          <TierControl row={r} onSave={(t, reason) => setTier(r.faculty.id, t, reason)} />
                         ) : <TierBadge tier={r.tier} />}
                       </td>
                       <td className="py-2 px-2" onClick={(e) => e.stopPropagation()}>
@@ -489,7 +561,7 @@ export default function TrackingPage() {
                     </tr>
                     {isOpen && (
                       <tr>
-                        <td colSpan={13}><RequirementRows row={r} /></td>
+                        <td colSpan={15}><RequirementRows row={r} /></td>
                       </tr>
                     )}
                   </Fragment>

@@ -19,6 +19,8 @@ export const TRACKING_INCLUDE = {
   // the quarterly mail surfaces (buildQuarterlyPayload). Null until the HoD notes
   // one; loading it is additive and harmless for the other TRACKING_INCLUDE uses.
   draftReview: true,
+  proofVerifications: { select: { status: true } },
+  finalReviews: { select: { decision: true } },
   user: { select: { id: true, name: true, employeeCode: true, designation: true, dateOfJoining: true, departmentId: true, department: { select: { name: true, code: true } } } },
 } as const;
 
@@ -29,6 +31,7 @@ export interface TrackingContext {
   // auto-computed. Absent from the map = not yet decided.
   manualTiers: Map<string, Tier>;
   manualEligible: Map<string, boolean>;
+  manualTierReason: Map<string, string | null>;
   hasTargets: boolean;
 }
 
@@ -40,7 +43,9 @@ export async function loadTrackingContext(academicYearId: string): Promise<Track
 
   const manualTiers = new Map<string, Tier>();
   const manualEligible = new Map<string, boolean>();
+  const manualTierReason = new Map<string, string | null>();
   for (const ft of facultyTiers) {
+    manualTierReason.set(ft.userId, ft.tierReason);
     if (ft.tier) manualTiers.set(ft.userId, ft.tier);
     if (ft.eligible != null) manualEligible.set(ft.userId, ft.eligible);
   }
@@ -49,6 +54,7 @@ export async function loadTrackingContext(academicYearId: string): Promise<Track
     cadreTargets,
     manualTiers,
     manualEligible,
+    manualTierReason,
     hasTargets: cadreTargets.length > 0,
   };
 }
@@ -108,6 +114,9 @@ export function computeRow(
     // Manual decisions (admin/dean), null until decided.
     tier: ctx.manualTiers.get(u.id) ?? null,
     eligible: ctx.manualEligible.get(u.id) ?? null,
+    academicVerified: sub.status !== 'DRAFT' && Array.isArray(sub.proofVerifications) && sub.proofVerifications.length > 0 && sub.proofVerifications.every((p: any) => p.status === 'VERIFIED'),
+    deanVerified: Array.isArray(sub.finalReviews) && sub.finalReviews.some((f: any) => f.decision === 'APPROVED'),
+    tierReason: ctx.manualTierReason.get(u.id) ?? null,
   };
 }
 

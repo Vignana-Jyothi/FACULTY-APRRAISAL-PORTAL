@@ -160,6 +160,7 @@ enum Tier {
   T1
   T2
   T3
+  T4
 }
 
 // Fixed calendar quarters aligned to the assessment period (01-Jul -> 30-Jun).
@@ -441,6 +442,7 @@ model FacultyTier {
   academicYearId String
   tier           Tier?
   eligible       Boolean? // dean's manual eligibility call; null = not yet decided
+  tierReason     String?
   assignedById   String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

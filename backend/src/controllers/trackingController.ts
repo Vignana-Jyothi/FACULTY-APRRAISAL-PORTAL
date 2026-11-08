@@ -48,6 +48,7 @@ const setTierSchema = z.object({
   academicYearId: z.string().min(1),
   tier: z.nativeEnum(Tier).nullable().optional(),
   eligible: z.boolean().nullable().optional(),
+  tierReason: z.string().max(1000).optional().nullable(),
 }).refine((v) => v.tier !== undefined || v.eligible !== undefined, {
   message: 'Provide tier and/or eligible',
 });
@@ -57,16 +58,32 @@ const setTierSchema = z.object({
 // neither is auto-computed. Passing null clears that decision; omitting a field
 // leaves it untouched.
 export async function setFacultyTier(req: Request, res: Response) {
-  const { userId, academicYearId, tier, eligible } = setTierSchema.parse(req.body);
+  const { userId, academicYearId, tier, eligible, tierReason } = setTierSchema.parse(req.body);
+  if (tier) {
+    const sub = await prisma.appraisalSubmission.findFirst({
+      where: { userId, academicYearId },
+      orderBy: { submissionNumber: 'desc' },
+      select: { status: true, proofVerifications: { select: { status: true } }, finalReviews: { select: { decision: true } } },
+    });
+    const academicVerified = !!sub && sub.status !== 'DRAFT' && Array.isArray(sub.proofVerifications) && sub.proofVerifications.length > 0 && sub.proofVerifications.every((p: any) => p.status === 'VERIFIED');
+    const deanVerified = !!sub && Array.isArray(sub.finalReviews) && sub.finalReviews.some((f: any) => f.decision === 'APPROVED');
+    if (!academicVerified || !deanVerified) {
+      return res.status(409).json({ error: 'Tier can be assigned only after department (HoD) and dean verification are both complete.' });
+    }
+    if ((tier === 'T3' || tier === 'T4') && !(tierReason ?? '').trim()) {
+      return res.status(400).json({ error: 'A justification is required when assigning Tier 3 or Tier 4.' });
+    }
+  }
+  const reason = (tier === 'T3' || tier === 'T4') ? (tierReason ?? null) : null;
   const row = await prisma.facultyTier.upsert({
     where: { userId_academicYearId: { userId, academicYearId } },
     create: {
       userId, academicYearId, assignedById: req.user!.id,
-      tier: tier ?? null, eligible: eligible ?? null,
+      tier: tier ?? null, eligible: eligible ?? null, tierReason: reason,
     },
     update: {
       assignedById: req.user!.id,
-      ...(tier !== undefined ? { tier } : {}),
+      ...(tier !== undefined ? { tier, tierReason: reason } : {}),
       ...(eligible !== undefined ? { eligible } : {}),
     },
   });
@@ -82,6 +99,9 @@ function exportRow(r: TrackingRow) {
     Cadre: r.cadreLabel ?? 'Unassigned',
     'Exp (yr)': r.expYears,
     Tier: r.tier ?? '',
+    'Tier Reason': csvSafe(r.tierReason ?? ''),
+    'Academic Verified': r.academicVerified ? 'Yes' : 'No',
+    'Dean Verified': r.deanVerified ? 'Yes' : 'No',
     Eligible: r.eligible == null ? 'Not decided' : r.eligible ? 'Yes' : 'No',
     // One column used to hold a self total /500, a reviewed /500 and a grand
     // total /550 with nothing saying which. The scale and its basis now travel

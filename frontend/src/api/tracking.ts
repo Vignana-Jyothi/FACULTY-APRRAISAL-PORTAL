@@ -32,11 +32,14 @@ export interface TrackingRow {
   actuals: Actuals;
   eligibility: { requirements: Requirement[]; eligible: boolean; target: any };
   // Manual decisions by the admin/dean, null until decided.
-  tier: 'T1' | 'T2' | 'T3' | null;
+  tier: 'T1' | 'T2' | 'T3' | 'T4' | null;
   eligible: boolean | null;
+  academicVerified: boolean;
+  deanVerified: boolean;
+  tierReason: string | null;
 }
 
-export type TierKey = 'T1' | 'T2' | 'T3' | 'none';
+export type TierKey = 'T1' | 'T2' | 'T3' | 'T4' | 'none';
 
 export interface Aggregates {
   total: number;
@@ -73,8 +76,8 @@ export const trackingApi = {
     api
       .post('/admin/tracking/snapshot', { ...(academicYearId ? { academicYearId } : {}), ...(confirm ? { confirm: true } : {}) })
       .then((r) => r.data),
-  setTier: (userId: string, academicYearId: string, tier: 'T1' | 'T2' | 'T3' | null) =>
-    api.put('/admin/faculty-tiers', { userId, academicYearId, tier }).then((r) => r.data),
+  setTier: (userId: string, academicYearId: string, tier: 'T1' | 'T2' | 'T3' | 'T4' | null, tierReason?: string | null) =>
+    api.put('/admin/faculty-tiers', { userId, academicYearId, tier, tierReason }).then((r) => r.data),
   setEligible: (userId: string, academicYearId: string, eligible: boolean | null) =>
     api.put('/admin/faculty-tiers', { userId, academicYearId, eligible }).then((r) => r.data),
   exportExcel: async (academicYearId: string, label: string) => {
