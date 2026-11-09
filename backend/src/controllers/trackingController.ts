@@ -65,7 +65,7 @@ export async function setFacultyTier(req: Request, res: Response) {
       orderBy: { submissionNumber: 'desc' },
       select: { status: true, proofVerifications: { select: { status: true } }, finalReviews: { select: { decision: true } } },
     });
-    const academicVerified = !!sub && sub.status !== 'DRAFT' && Array.isArray(sub.proofVerifications) && sub.proofVerifications.length > 0 && sub.proofVerifications.every((p: any) => p.status === 'VERIFIED');
+    const academicVerified = !!sub && Array.isArray(sub.proofVerifications) && sub.proofVerifications.length > 0 && sub.proofVerifications.every((p: any) => p.status === 'VERIFIED');
     const deanVerified = !!sub && Array.isArray(sub.finalReviews) && sub.finalReviews.some((f: any) => f.decision === 'APPROVED');
     if (!academicVerified || !deanVerified) {
       return res.status(409).json({ error: 'Tier can be assigned only after department (HoD) and dean verification are both complete.' });

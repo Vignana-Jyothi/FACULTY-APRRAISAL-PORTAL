@@ -114,7 +114,7 @@ export function computeRow(
     // Manual decisions (admin/dean), null until decided.
     tier: ctx.manualTiers.get(u.id) ?? null,
     eligible: ctx.manualEligible.get(u.id) ?? null,
-    academicVerified: sub.status !== 'DRAFT' && Array.isArray(sub.proofVerifications) && sub.proofVerifications.length > 0 && sub.proofVerifications.every((p: any) => p.status === 'VERIFIED'),
+    academicVerified: Array.isArray(sub.proofVerifications) && sub.proofVerifications.length > 0 && sub.proofVerifications.every((p: any) => p.status === 'VERIFIED'),
     deanVerified: Array.isArray(sub.finalReviews) && sub.finalReviews.some((f: any) => f.decision === 'APPROVED'),
     tierReason: ctx.manualTierReason.get(u.id) ?? null,
   };
