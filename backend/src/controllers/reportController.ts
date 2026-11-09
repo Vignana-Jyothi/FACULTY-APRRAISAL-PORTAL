@@ -1092,14 +1092,14 @@ async function computeAnalyticsDetail(
   items.sort((a, b) => (new Date(b._date || 0).getTime()) - (new Date(a._date || 0).getTime()));
 
   // Type-specific chart aggregates over the filtered items.
-  const tally = (key: (x: any) => string) => {
+  const tally = (key: (x: any) => string, filter?: (x: any) => boolean) => {
     const m = new Map<string, number>();
-    for (const it of items) { const k = key(it) || '—'; m.set(k, (m.get(k) ?? 0) + 1); }
+    for (const it of items) { if (filter && !filter(it)) continue; const k = key(it) || '—'; m.set(k, (m.get(k) ?? 0) + 1); }
     return [...m.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
   };
   let charts: any = {};
   if (p.type === 'publications') {
-    charts = { byType: tally((x) => x.type), byIndex: tally((x) => x.indexed), byQuartile: tally((x) => x.quartile || 'Unrated'), byDepartment: tally((x) => x.department) };
+    charts = { byType: tally((x) => x.type), byIndex: tally((x) => x.indexed), byQuartile: tally((x) => x.quartile || 'Unrated', (x) => x.type === 'Journal'), byDepartment: tally((x) => x.department) };
   } else if (p.type === 'patents') {
     charts = { byStage: tally((x) => x.status), byIprType: tally((x) => x.iprType), byDepartment: tally((x) => x.department) };
   } else {
