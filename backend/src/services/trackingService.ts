@@ -82,7 +82,18 @@ export function computeRow(
   const u = sub.user;
   const expYears = computeExperienceYears(u.dateOfJoining, yearStart);
   const cadre = deriveCadre(u.designation);
-  const actuals = computeActuals(sub, sub.review?.grandTotal ?? null);
+  // Reviewed total: prefer the final AppraisalReview; otherwise fall back to the
+  // HoD's quarterly DraftReview, so the reviewed score shows from Q1 before the
+  // annual review exists. The /550 grand total stays masked below for readers
+  // who may not see Category 6 — they get the /500 total.
+  const _fr = sub.review, _dr = sub.draftReview;
+  const _sum5 = (r: any) => (r.cat1Score ?? 0) + (r.cat2Score ?? 0) + (r.cat3Score ?? 0) + (r.cat4Score ?? 0) + (r.cat5Score ?? 0);
+  const _sum6 = (r: any) => (r.cat6Punctuality ?? 0) + (r.cat6Professionalism ?? 0) + (r.cat6Willingness ?? 0) + (r.cat6Cordiality ?? 0) + (r.cat6Classroom ?? 0);
+  const _drMarks = _dr && [_dr.cat1Score, _dr.cat2Score, _dr.cat3Score, _dr.cat4Score, _dr.cat5Score].some((v: any) => v != null);
+  let _reviewTotal500: number | null = null, _reviewGrand550: number | null = null;
+  if (_fr && _fr.grandTotal != null) { _reviewTotal500 = _fr.totalScore ?? null; _reviewGrand550 = _fr.grandTotal; }
+  else if (_drMarks) { const t = _sum5(_dr); _reviewTotal500 = t; _reviewGrand550 = t + _sum6(_dr); }
+  const actuals = computeActuals(sub, _reviewGrand550);
   const target = cadre ? pickCadreTarget(ctx.cadreTargets, cadre, expYears) : null;
   // Eligibility is always decided on the full grand total, so the verdict does
   // not change with who is looking. Only the number shown is masked: a reader
@@ -92,7 +103,7 @@ export function computeRow(
   const eligibility = checkEligibility(actuals, target);
   const maskCoreValues = !canSeeAssessment(u.id, u.departmentId ?? null);
   const shownActuals = maskCoreValues && actuals.totalScoreSource === 'HOD'
-    ? { ...actuals, totalScore: sub.review?.totalScore ?? 0 }
+    ? { ...actuals, totalScore: _reviewTotal500 ?? 0 }
     : actuals;
 
   return {
