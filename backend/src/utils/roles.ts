@@ -15,6 +15,7 @@ import { RoleType } from '@prisma/client';
 
 /** Institute-wide app maintenance only. No appraisal content, no Cat 6, no tier. */
 export const MAINTENANCE: RoleType[] = [RoleType.ADMIN];
+export const ROLE_ASSIGN: RoleType[] = [RoleType.ADMIN, RoleType.HOD, RoleType.DEPT_ADMIN];
 
 /**
  * Account maintenance: managing faculty accounts, resetting passwords, and

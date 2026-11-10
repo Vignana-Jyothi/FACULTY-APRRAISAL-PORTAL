@@ -338,15 +338,14 @@ export default function AdminUsersPage() {
                 </td>
                 <td className="px-4 py-2.5">
                   <div className="flex items-center gap-3">
-                    {!deptScoped && (
-                      <button
-                        onClick={() => setRoleUser(u)}
-                        className="flex items-center gap-1 text-xs text-primary-600 hover:underline font-medium"
-                        title="Manage roles"
-                      >
-                        <Shield size={11} /> Roles
-                      </button>
-                    )}
+                    <button
+                      onClick={() => setRoleUser(u)}
+                      className="flex items-center gap-1 text-xs text-primary-600 hover:underline font-medium"
+                      title="Manage roles"
+                    >
+                      <Shield size={11} /> Roles
+                    </button>
+
                     {canModifyExisting && u.isActive !== false && (
                       <button
                         onClick={() => resetPassword(u)}

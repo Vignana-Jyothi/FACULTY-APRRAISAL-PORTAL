@@ -476,6 +476,22 @@ export async function assignRole(req: Request, res: Response) {
   const targetUser = await prisma.user.findUnique({ where: { id } });
   if (!targetUser) return res.status(404).json({ error: 'User not found' });
 
+  // A HoD / DEPT_ADMIN may assign only a limited set, only within their own
+  // department. The full admin (scope === null) is unrestricted.
+  const assignScope = accountAdminScope(req);
+  if (assignScope !== null) {
+    const ALLOWED: RoleType[] = [RoleType.FACULTY, RoleType.REVIEWER, RoleType.DEPT_ADMIN];
+    if (!ALLOWED.includes(role)) {
+      return res.status(403).json({ error: 'You can only assign Faculty, Reviewer or Department Admin roles.' });
+    }
+    if (!deptInScope(assignScope, targetUser.departmentId)) {
+      return res.status(403).json({ error: 'You can only assign roles to faculty in your own department.' });
+    }
+    if (DEPARTMENT_SCOPED.includes(role) && !deptInScope(assignScope, deptId)) {
+      return res.status(403).json({ error: 'That role must be assigned in your own department.' });
+    }
+  }
+
   // HOD and REVIEWER are the only department-scoped roles. PRINCIPAL, DEAN,
   // SCRUTINIZER, SPECIAL_SCRUTINIZER, ADMIN and FACULTY are institute-wide and
   // must not carry a department — one attached here would silently narrow a
@@ -547,6 +563,18 @@ export async function revokeRole(req: Request, res: Response) {
     include: { department: { select: { code: true, name: true } } },
   });
   if (!existing) return res.status(404).json({ error: 'Role not found' });
+
+  const revokeScope = accountAdminScope(req);
+  if (revokeScope !== null) {
+    const ALLOWED: RoleType[] = [RoleType.FACULTY, RoleType.REVIEWER, RoleType.DEPT_ADMIN];
+    if (!ALLOWED.includes(existing.role)) {
+      return res.status(403).json({ error: 'You can only remove Faculty, Reviewer or Department Admin roles.' });
+    }
+    const tu = await prisma.user.findUnique({ where: { id: targetUserId }, select: { departmentId: true } });
+    if (!deptInScope(revokeScope, tu?.departmentId ?? null)) {
+      return res.status(403).json({ error: 'You can only change roles for faculty in your own department.' });
+    }
+  }
 
   await prisma.$transaction(async (tx) => {
     await tx.userRole.update({ where: { id: roleId }, data: { isActive: false } });

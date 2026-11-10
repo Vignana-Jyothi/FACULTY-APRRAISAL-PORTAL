@@ -8,6 +8,7 @@ import { RoleType } from '@prisma/client';
 // One source of truth for who may do what — utils/roles.ts.
 import {
   MAINTENANCE,
+  ROLE_ASSIGN,
   ACCOUNT_ADMIN,
   USER_MANAGE,
   SEES_ALL,
@@ -93,8 +94,8 @@ router.put('/admin/users/:id', authenticate, roleGuard(ACCOUNT_ADMIN), user.upda
 router.delete('/admin/users/:id', authenticate, roleGuard(ACCOUNT_ADMIN), user.deactivateUser);
 router.post('/admin/users/:id/reactivate', authenticate, roleGuard(ACCOUNT_ADMIN), user.reactivateUser);
 router.post('/admin/users/:id/reset-password', authenticate, roleGuard(ACCOUNT_ADMIN), user.adminResetPassword);
-router.post('/admin/users/:id/roles', authenticate, roleGuard(MAINTENANCE), user.assignRole);
-router.delete('/admin/users/:id/roles/:roleId', authenticate, roleGuard(MAINTENANCE), user.revokeRole);
+router.post('/admin/users/:id/roles', authenticate, roleGuard(ROLE_ASSIGN), user.assignRole);
+router.delete('/admin/users/:id/roles/:roleId', authenticate, roleGuard(ROLE_ASSIGN), user.revokeRole);
 
 // HoD appoints / stands down department reviewers (incharges). Locked to the
 // REVIEWER role and the HoD's own department inside the controller.

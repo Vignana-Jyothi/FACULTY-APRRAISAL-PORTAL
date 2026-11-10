@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { X, Trash2, Plus, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { userApi } from '../api/users';
-import { ALL_ROLES, DEPT_SCOPED_ROLES, type Role } from '../store/authStore';
+import { ALL_ROLES, DEPT_SCOPED_ROLES, useAuthStore, type Role } from '../store/authStore';
 
 interface Props {
   open: boolean;
@@ -32,6 +32,12 @@ export default function RoleAssignModal({ open, user, onClose, onChanged }: Prop
   const [newRole, setNewRole] = useState<Role>('FACULTY');
   const [newDeptId, setNewDeptId] = useState('');
   const [busy, setBusy] = useState(false);
+  const { isAdmin, isDeptAdmin, hasRole } = useAuthStore();
+  const authUser = useAuthStore((s) => s.user);
+  // A HoD / DEPT_ADMIN (not a full admin) may only grant a few roles, in their own dept.
+  const deptScoped = (isDeptAdmin() || hasRole('HOD')) && !isAdmin();
+  const myDeptId = authUser?.roles.find((r) => r.role === 'DEPT_ADMIN' || r.role === 'HOD')?.departmentId ?? '';
+  const roleOptions: readonly Role[] = deptScoped ? ['FACULTY', 'REVIEWER', 'DEPT_ADMIN'] : ROLES;
 
   useEffect(() => {
     if (open) {
@@ -46,13 +52,14 @@ export default function RoleAssignModal({ open, user, onClose, onChanged }: Prop
   const activeRoles = (user.userRoles ?? []).filter((r: any) => r.isActive !== false);
 
   const addRole = async () => {
-    if (needsDept(newRole) && !newDeptId) {
+    const deptId = deptScoped ? myDeptId : newDeptId;
+    if (needsDept(newRole) && !deptId) {
       toast.error(`${newRole} requires a department`);
       return;
     }
     setBusy(true);
     try {
-      await userApi.assignRole(user.id, newRole, needsDept(newRole) ? newDeptId : undefined);
+      await userApi.assignRole(user.id, newRole, needsDept(newRole) ? deptId : undefined);
       toast.success(`${newRole} assigned`);
       onChanged();
       setNewDeptId('');
@@ -141,7 +148,7 @@ export default function RoleAssignModal({ open, user, onClose, onChanged }: Prop
                 }}
                 className="w-full border border-surface-border rounded px-3 py-2 text-sm bg-surface-base"
               >
-                {ROLES.map((r) => <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>)}
+                {roleOptions.map((r) => <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>)}
               </select>
             </div>
             <div>
@@ -151,9 +158,9 @@ export default function RoleAssignModal({ open, user, onClose, onChanged }: Prop
                   : <span className="text-ink-subtle">(institute-wide)</span>}
               </label>
               <select
-                value={newDeptId}
+                value={deptScoped && needsDept(newRole) ? myDeptId : newDeptId}
                 onChange={(e) => setNewDeptId(e.target.value)}
-                disabled={!needsDept(newRole)}
+                disabled={!needsDept(newRole) || deptScoped}
                 className="w-full border border-surface-border rounded px-3 py-2 text-sm bg-surface-base disabled:bg-surface-muted disabled:text-ink-subtle"
               >
                 <option value="">— None —</option>
