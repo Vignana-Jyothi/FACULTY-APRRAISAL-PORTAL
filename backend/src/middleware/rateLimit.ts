@@ -25,9 +25,11 @@ function userOrIpKey(req: Request): string {
 export const authLimiter = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 min
   max: 10, // 10 failed attempts per IP+account (campus NAT shares one public IP, so key on email too)
-  // Key on IP + email so one user's bad password doesn't lock everyone behind the same campus IP.
-  // Empty email (e.g. reset-password, which carries a token not an email) falls back to IP-only.
-  keyGenerator: (req) => `${ipKeyGenerator(req.ip ?? '')}:${String(req.body?.email || '').toLowerCase()}`,
+  // Key on IP + the login identifier so one user's bad password doesn't lock
+  // everyone behind the same campus NAT IP. The login and reset bodies carry
+  // `employeeCode`; some flows carry `email`. Only when neither is present does
+  // it fall back to IP-only.
+  keyGenerator: (req) => `${ipKeyGenerator(req.ip ?? '')}:${String(req.body?.employeeCode || req.body?.email || '').toLowerCase()}`,
   message: { error: 'Too many auth attempts. Try again in 5 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
