@@ -284,7 +284,7 @@ export async function createUser(req: Request, res: Response) {
   const user = await prisma.$transaction(async (tx) => {
     const newUser = await tx.user.create({
       // The admin chose this password, so the user must replace it at first sign-in.
-      data: { employeeCode, name, email, passwordHash, departmentId, designation, mustChangePassword: true },
+      data: { employeeCode: employeeCode.toUpperCase(), name, email, passwordHash, departmentId, designation, mustChangePassword: true },
     });
 
     await tx.userRole.create({
@@ -818,7 +818,7 @@ export async function bulkImportUsers(req: Request, res: Response) {
       await prisma.$transaction(async (tx) => {
         const newUser = await tx.user.create({
           data: {
-            employeeCode: p.data.employeeCode,
+            employeeCode: p.data.employeeCode.toUpperCase(),
             name: p.data.name,
             email: p.data.email,
             passwordHash,
