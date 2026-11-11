@@ -71,7 +71,10 @@ export default function CsvImportModal({ open, onClose, onSuccess, lockedDepartm
       const wb = XLSX.read(buf, { type: 'array' });
       const sheet = wb.Sheets[wb.SheetNames[0]];
       if (!sheet) throw new Error('no sheet');
-      const csv = XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
+      // rawNumbers:true emits the underlying numeric value (full digits) instead
+      // of Excel's formatted text — otherwise a mobile number shown in scientific
+      // notation ("9.88E+09") would be written to the CSV that way and corrupted.
+      const csv = XLSX.utils.sheet_to_csv(sheet, { blankrows: false, rawNumbers: true });
       setCsvText(csv);
       setFileName(file.name);
     } catch {

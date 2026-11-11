@@ -701,6 +701,21 @@ function parseJoiningDate(s: string): string | null {
   return dt.toISOString().slice(0, 10);
 }
 
+// Phone numbers suffer from Excel storing them as numbers: a CSV export then
+// renders the cell in scientific/mantissa notation ("9.8765E+9") or as a float
+// ("9876543210.0") instead of the plain digits. Recover the integer digits in
+// those cases, then keep an optional leading "+" (country code) and digits only.
+function normalizePhone(s: string): string {
+  let v = String(s ?? '').trim();
+  if (!v) return '';
+  if (/^[+-]?\d+(\.\d+)?[eE][+-]?\d+$/.test(v) || /^\d+\.\d+$/.test(v)) {
+    const n = Number(v);
+    if (Number.isFinite(n)) v = n.toLocaleString('fullwide', { useGrouping: false });
+  }
+  const plus = v.startsWith('+') ? '+' : '';
+  return plus + v.replace(/\D/g, '');
+}
+
 // Cells that identify the real header row — lets us skip title/section rows
 // above it (e.g. a merged "CSE-TEACHING" banner) instead of assuming row 1.
 const HEADER_HINTS = new Set<string>([
@@ -721,6 +736,9 @@ interface ParsedRow {
 function validateRow(rowNum: number, raw: any, seenCodes: Set<string>, seenEmails: Set<string>): ParsedRow {
   const data = mapRow(raw);
   const errors: string[] = [];
+
+  // Recover phone digits from Excel's scientific/float rendering before use.
+  data.phone = normalizePhone(data.phone);
 
   if (!data.employeeCode) errors.push('Missing EMP ID');
   if (!data.name) errors.push('Missing Name of the Faculty');

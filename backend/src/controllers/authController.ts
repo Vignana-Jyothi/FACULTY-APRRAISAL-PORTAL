@@ -169,7 +169,9 @@ const forgotSchema = z.object({
 export async function forgotPassword(req: Request, res: Response) {
   const { employeeCode } = forgotSchema.parse(req.body);
 
-  const user = await prisma.user.findUnique({ where: { employeeCode } });
+  // Stored codes are upper-case (login normalises the same way); match that so a
+  // lowercase entry still finds the account.
+  const user = await prisma.user.findUnique({ where: { employeeCode: employeeCode.trim().toUpperCase() } });
 
   // Always return success to prevent user enumeration
   const genericMsg = { message: 'If your account exists, an OTP has been emailed.' };
@@ -220,7 +222,7 @@ export async function resetPassword(req: Request, res: Response) {
   const { employeeCode, otp, newPassword } = resetSchema.parse(req.body);
 
   const user = await prisma.user.findUnique({
-    where: { employeeCode },
+    where: { employeeCode: employeeCode.trim().toUpperCase() },
     include: { passwordOtp: true },
   });
   // Generic error to prevent enumeration

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { userApi } from '../../api/users';
-import { useAuthStore } from '../../store/authStore';
+import { useAuthStore, ALL_ROLES } from '../../store/authStore';
 import toast from 'react-hot-toast';
 import { Plus, Search, Upload, Shield, UserMinus, RotateCcw, KeyRound, Pencil } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
@@ -30,6 +30,10 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [depts, setDepts] = useState<any[]>([]);
   const [search, setSearch] = useState('');
+  // Filters: branch (department) and role. Dept filter is hidden for a
+  // dept-scoped manager — they already see only their own department.
+  const [deptFilter, setDeptFilter] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -49,6 +53,8 @@ export default function AdminUsersPage() {
     setLoading(true);
     const params: any = { limit: PAGE_SIZE, offset };
     if (search) params.search = search;
+    if (deptFilter) params.dept = deptFilter;
+    if (roleFilter) params.role = roleFilter;
     if (showInactive) params.includeInactive = 'true';
     userApi.listUsers(params)
       .then((r: any) => {
@@ -59,12 +65,12 @@ export default function AdminUsersPage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, [search, offset, showInactive]);
+  useEffect(() => { load(); }, [search, offset, showInactive, deptFilter, roleFilter]);
 
-  useEffect(() => { setOffset(0); }, [search, showInactive]);
+  useEffect(() => { setOffset(0); }, [search, showInactive, deptFilter, roleFilter]);
 
   // Selection is page-scoped — clear it when the visible set changes.
-  useEffect(() => { setSelected(new Set()); }, [search, offset, showInactive]);
+  useEffect(() => { setSelected(new Set()); }, [search, offset, showInactive, deptFilter, roleFilter]);
 
   const toggleRow = (id: string) =>
     setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -233,6 +239,38 @@ export default function AdminUsersPage() {
             className="w-full pl-9 border border-surface-border rounded px-3 py-2 text-sm bg-surface-base focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
+        {!deptScoped && (
+          <select
+            value={deptFilter}
+            onChange={(e) => setDeptFilter(e.target.value)}
+            className="border border-surface-border rounded px-3 py-2 text-sm bg-surface-base focus:outline-none focus:ring-2 focus:ring-primary-500"
+            title="Filter by branch"
+          >
+            <option value="">All branches</option>
+            {depts.map((d) => (
+              <option key={d.id} value={d.id}>{d.code} — {d.name}</option>
+            ))}
+          </select>
+        )}
+        <select
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value)}
+          className="border border-surface-border rounded px-3 py-2 text-sm bg-surface-base focus:outline-none focus:ring-2 focus:ring-primary-500"
+          title="Filter by role"
+        >
+          <option value="">All roles</option>
+          {ALL_ROLES.map((r) => (
+            <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>
+          ))}
+        </select>
+        {(deptFilter || roleFilter) && (
+          <button
+            onClick={() => { setDeptFilter(''); setRoleFilter(''); }}
+            className="text-xs text-primary-600 hover:underline whitespace-nowrap"
+          >
+            Clear filters
+          </button>
+        )}
         <label className="flex items-center gap-2 text-xs text-ink-secondary whitespace-nowrap cursor-pointer">
           <input
             type="checkbox"
