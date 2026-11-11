@@ -883,6 +883,10 @@ export default function AppraisalEditPage() {
                       <input {...register(`cat1Courses.${i}.courseName`)} className={inputCls} />
                     </div>
                     <div>
+                      <label className={labelCls}>Section</label>
+                      <input {...register(`cat1Courses.${i}.section`)} className={inputCls} placeholder="e.g. A" />
+                    </div>
+                    <div>
                       <label className={labelCls}>Level</label>
                       <select {...register(`cat1Courses.${i}.level`)} className={inputCls}>
                         <option value="BTECH">B.Tech</option>
@@ -953,7 +957,7 @@ export default function AppraisalEditPage() {
                   <button type="button" onClick={() => courses.remove(i)} className="text-red-400 text-xs mt-2">Remove</button>
                 </div>
               ))}
-              {addRowBtn('Add Course', () => courses.append({ courseName: '', level: 'BTECH', courseType: 'THEORY', yearSem: '', periodPlanned: 0, periodsConducted: 0, novelPedagogyUsed: false, novelPedagogyMethod: '' }))}
+              {addRowBtn('Add Course', () => courses.append({ courseName: '', section: '',level: 'BTECH', courseType: 'THEORY', yearSem: '', periodPlanned: 0, periodsConducted: 0, novelPedagogyUsed: false, novelPedagogyMethod: '' }))}
             </details>
 
             <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">
@@ -972,6 +976,10 @@ export default function AppraisalEditPage() {
                     <div className="col-span-2">
                       <label className={labelCls}>Name of the Course</label>
                       <input {...register(`cat1CourseResults.${i}.courseName`)} className={inputCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Section</label>
+                      <input {...register(`cat1CourseResults.${i}.section`)} className={inputCls} placeholder="e.g. A" />
                     </div>
                     <div>
                       <label className={labelCls}>Course Status</label>
@@ -1005,7 +1013,7 @@ export default function AppraisalEditPage() {
                 </div>
                 );
               })}
-              {addRowBtn('Add Course Result', () => courseResults.append({ courseName: '', courseStatus: 'COMPLETED', classSize: 0, avgAttendancePct: 0, feedbackReceived: 0, passPercentage: 0 }))}
+              {addRowBtn('Add Course Result', () => courseResults.append({ courseName: '', section: '',courseStatus: 'COMPLETED', classSize: 0, avgAttendancePct: 0, feedbackReceived: 0, passPercentage: 0 }))}
             </details>
 
             <details className="group border border-surface-border rounded-lg px-4 py-3 open:pb-4">

@@ -597,6 +597,7 @@ model Cat1Course {
   id                  String      @id @default(uuid())
   submissionId        String
   courseName          String
+  section             String?
   level               CourseLevel
   courseType          CourseType  @default(THEORY) // theory (periods) or lab (sessions)
   yearSem             String
@@ -616,6 +617,7 @@ model Cat1CourseResults {
   id                String @id @default(uuid())
   submissionId      String
   courseName        String
+  section           String?
   courseStatus      CourseStatus @default(COMPLETED) // ongoing = attendance only; completed = all fields
   classSize         Int // Y — size of the class
   avgAttendancePct  Float  @default(0) // a — A = (a/100) * 5
