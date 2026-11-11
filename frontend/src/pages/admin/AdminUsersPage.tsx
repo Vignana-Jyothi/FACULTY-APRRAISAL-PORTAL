@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { userApi } from '../../api/users';
 import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
-import { Plus, Search, Upload, Shield, UserMinus, RotateCcw, KeyRound } from 'lucide-react';
+import { Plus, Search, Upload, Shield, UserMinus, RotateCcw, KeyRound, Pencil } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Card from '../../components/Card';
 import CsvImportModal from '../../components/CsvImportModal';
@@ -38,6 +38,9 @@ export default function AdminUsersPage() {
   const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [form, setForm] = useState({ employeeCode: '', name: '', email: '', password: '', designation: '', departmentId: '' });
+  // Edit an existing account (name/email/designation; employee code for full admin only).
+  const [editUser, setEditUser] = useState<any>(null);
+  const [editForm, setEditForm] = useState({ employeeCode: '', name: '', email: '', designation: '' });
   // Deactivated accounts are hidden by default, as they are everywhere else;
   // an admin turns them on to find and restore one.
   const [showInactive, setShowInactive] = useState(false);
@@ -104,6 +107,32 @@ export default function AdminUsersPage() {
       toast.success('User created');
       setShowCreate(false);
       setForm({ employeeCode: '', name: '', email: '', password: '', designation: '', departmentId: '' });
+      load();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error ?? 'Failed');
+    }
+  };
+
+  const openEdit = (u: any) => {
+    setEditForm({
+      employeeCode: u.employeeCode ?? '',
+      name: u.name ?? '',
+      email: u.email ?? '',
+      designation: u.designation ?? '',
+    });
+    setEditUser(u);
+  };
+
+  const saveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editUser) return;
+    const payload: any = { name: editForm.name, email: editForm.email, designation: editForm.designation };
+    // Only the full admin may change the employee code.
+    if (isAdmin()) payload.employeeCode = editForm.employeeCode.trim().toUpperCase();
+    try {
+      await userApi.updateUser(editUser.id, payload);
+      toast.success('User updated');
+      setEditUser(null);
       load();
     } catch (err: any) {
       toast.error(err.response?.data?.error ?? 'Failed');
@@ -266,6 +295,45 @@ export default function AdminUsersPage() {
         </Card>
       )}
 
+      {editUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setEditUser(null)}>
+          <div className="bg-surface-card rounded-md max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-surface-border bg-primary-700 text-white rounded-t-md">
+              <h2 className="font-bold font-serif flex items-center gap-2"><Pencil size={16} /> Edit User</h2>
+              <button onClick={() => setEditUser(null)} className="text-white/70 hover:text-white text-lg leading-none">×</button>
+            </div>
+            <form onSubmit={saveEdit} className="p-5 grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-ink-secondary mb-1">Employee Code</label>
+                <input
+                  value={editForm.employeeCode}
+                  onChange={(e) => setEditForm({ ...editForm, employeeCode: e.target.value })}
+                  disabled={!isAdmin()}
+                  className={`${inputCls} font-mono disabled:bg-surface-muted disabled:text-ink-muted`}
+                />
+                {!isAdmin() && <p className="mt-1 text-[11px] text-ink-muted">Only the institute admin can change this.</p>}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-ink-secondary mb-1">Name</label>
+                <input required value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className={inputCls} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-ink-secondary mb-1">Email</label>
+                <input required type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} className={inputCls} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-ink-secondary mb-1">Designation</label>
+                <input value={editForm.designation} onChange={(e) => setEditForm({ ...editForm, designation: e.target.value })} placeholder="e.g. Assistant Professor" className={inputCls} />
+              </div>
+              <div className="col-span-2 flex gap-2 justify-end pt-2">
+                <button type="button" onClick={() => setEditUser(null)} className="text-sm text-ink-secondary px-4 py-2 border border-surface-border rounded hover:bg-surface-muted">Cancel</button>
+                <button type="submit" className="text-sm bg-primary-600 text-white px-4 py-2 rounded hover:bg-primary-700">Save</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {canModifyExisting && someSelected && (
         <div className="mb-3 flex items-center justify-between bg-primary-50 border border-primary-200 rounded px-4 py-2.5 text-sm">
           <span className="text-primary-700 font-medium">{selected.size} selected</span>
@@ -346,6 +414,15 @@ export default function AdminUsersPage() {
                       <Shield size={11} /> Roles
                     </button>
 
+                    {canModifyExisting && u.isActive !== false && (
+                      <button
+                        onClick={() => openEdit(u)}
+                        className="flex items-center gap-1 text-xs text-primary-600 hover:underline font-medium"
+                        title="Edit account"
+                      >
+                        <Pencil size={11} /> Edit
+                      </button>
+                    )}
                     {canModifyExisting && u.isActive !== false && (
                       <button
                         onClick={() => resetPassword(u)}

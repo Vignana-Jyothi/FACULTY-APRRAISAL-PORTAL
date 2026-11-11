@@ -58,6 +58,13 @@ const profileUpdateSchema = z.object({
   expBeforeResearch: optNum,
 });
 
+// Admin edit of an existing account. Adds the identity fields (employee code)
+// on top of the self-service profile fields. `employeeCode` is normalised to
+// upper-case and may only be changed by the full institute admin.
+const adminUpdateUserSchema = profileUpdateSchema.extend({
+  employeeCode: z.string().min(1).optional(),
+});
+
 const createUserSchema = z.object({
   employeeCode: z.string().min(1),
   name: z.string().min(1),
@@ -313,18 +320,49 @@ export async function createUser(req: Request, res: Response) {
 
 export async function updateUser(req: Request, res: Response) {
   const { id } = req.params;
-  const data = profileUpdateSchema.parse(req.body);
+  const data = adminUpdateUserSchema.parse(req.body);
 
   const scope = accountAdminScope(req);
-  if (scope !== null) {
-    const target = await prisma.user.findUnique({ where: { id }, select: { departmentId: true } });
-    if (!target) return res.status(404).json({ error: 'Not found' });
-    if (!deptInScope(scope, target.departmentId)) {
-      return res.status(403).json({ error: 'That account is not in your department' });
-    }
+  const target = await prisma.user.findUnique({
+    where: { id },
+    select: { departmentId: true, employeeCode: true, email: true },
+  });
+  if (!target) return res.status(404).json({ error: 'Not found' });
+  if (scope !== null && !deptInScope(scope, target.departmentId)) {
+    return res.status(403).json({ error: 'That account is not in your department' });
   }
 
+  // Changing an employee code is an institute-identity change — only the full
+  // ADMIN may do it, never a department-scoped admin or HoD.
+  if (data.employeeCode !== undefined && scope !== null) {
+    return res.status(403).json({ error: 'Only the institute admin can change an employee code' });
+  }
+  // Normalise to upper-case to match login lookup and bulk import.
+  if (data.employeeCode) data.employeeCode = data.employeeCode.toUpperCase();
+
+  const identityChanged =
+    (!!data.employeeCode && data.employeeCode !== target.employeeCode) ||
+    (!!data.email && data.email !== target.email);
+
+  // Unique collisions on employeeCode/email surface as Prisma P2002 and are
+  // turned into a 400 by the global error handler.
   const user = await prisma.user.update({ where: { id }, data });
+
+  if (identityChanged) {
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.id,
+        action: 'USER_IDENTITY_CHANGED',
+        entityType: 'User',
+        entityId: id,
+        metadata: {
+          from: { employeeCode: target.employeeCode, email: target.email },
+          to: { employeeCode: user.employeeCode, email: user.email },
+        },
+      },
+    });
+  }
+
   const { passwordHash, ...safeUser } = user;
   return res.json(safeUser);
 }
