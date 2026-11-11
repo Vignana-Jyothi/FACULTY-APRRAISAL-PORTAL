@@ -36,10 +36,13 @@ export const authLimiter = rateLimit({
   skipSuccessfulRequests: true, // Don't count successful logins
 });
 
-// OTP request — even stricter (prevent email spam)
+// OTP request — even stricter (prevent email spam). Keyed per account (the
+// logged-in user id, else the employee code / email) so a whole campus behind
+// one NAT IP doesn't share a single 3-per-minute budget.
 export const otpLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 min
-  max: 3, // 3 OTP requests / IP / min
+  max: 3, // 3 OTP requests / account / min
+  keyGenerator: (req) => `${ipKeyGenerator(req.ip ?? '')}:${String(req.user?.id || req.body?.employeeCode || req.body?.email || '').toLowerCase()}`,
   message: { error: 'Too many OTP requests. Wait 1 minute.' },
   standardHeaders: true,
   legacyHeaders: false,
