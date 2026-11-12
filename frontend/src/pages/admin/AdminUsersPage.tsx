@@ -134,7 +134,7 @@ export default function AdminUsersPage() {
     if (!editUser) return;
     const payload: any = { name: editForm.name, email: editForm.email, designation: editForm.designation };
     // Only the full admin may change the employee code.
-    if (isAdmin()) payload.employeeCode = editForm.employeeCode.trim().toUpperCase();
+    if (isAdmin() || isDeptAdmin()) payload.employeeCode = editForm.employeeCode.trim().toUpperCase();
     try {
       await userApi.updateUser(editUser.id, payload);
       toast.success('User updated');
@@ -346,10 +346,10 @@ export default function AdminUsersPage() {
                 <input
                   value={editForm.employeeCode}
                   onChange={(e) => setEditForm({ ...editForm, employeeCode: e.target.value })}
-                  disabled={!isAdmin()}
+                  disabled={!(isAdmin() || isDeptAdmin())}
                   className={`${inputCls} font-mono disabled:bg-surface-muted disabled:text-ink-muted`}
                 />
-                {!isAdmin() && <p className="mt-1 text-[11px] text-ink-muted">Only the institute admin can change this.</p>}
+                {!(isAdmin() || isDeptAdmin()) && <p className="mt-1 text-[11px] text-ink-muted">Only the institute admin can change this.</p>}
               </div>
               <div>
                 <label className="block text-xs font-medium text-ink-secondary mb-1">Name</label>

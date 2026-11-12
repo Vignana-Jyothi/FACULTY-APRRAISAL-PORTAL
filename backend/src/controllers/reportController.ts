@@ -27,6 +27,29 @@ import {
   stripReviewerAssessment,
 } from '../utils/reviewVisibility';
 
+// Proof section labels — mirror proofService PROOF_SOURCES exactly. A research
+// row counts in analytics only when its proof is verified at least at
+// department level: a ProofVerification for that submission/section/item exists
+// with status VERIFIED. The item key matches proofService's enumerateProofs,
+// which uses the row title or '(untitled)'.
+const ANALYTICS_PROOF_SECTION = {
+  journals: '2.1-A Journals',
+  conferences: '2.1-B Conferences',
+  confBookChapters: '2.1-C Conference Book Chapters',
+  bookChapters: '2.3 Book Chapters',
+  books: '2.3 Books',
+  patents: '2.4 Patents / IPR',
+  projects: '2.5 Sponsored Projects',
+} as const;
+
+function verifiedKeySet(pvs: Array<{ section: string; item: string; status: string }>): Set<string> {
+  const s = new Set<string>();
+  for (const p of pvs) if (p.status === 'VERIFIED') s.add(`${p.section}|${p.item}`);
+  return s;
+}
+const analyticsVKey = (section: string, title: string | null | undefined) =>
+  `${section}|${(title || '(untitled)').toString()}`;
+
 // Dept scoping for report reads. The dean and the principal see every
 // department (or an optional single-dept filter); a department caller is
 // hard-scoped to their own dept(s), so a foreign ?dept can't leak another
@@ -770,13 +793,14 @@ async function computeAnalytics(
     where: { ...(year ? { academicYearId: year.id } : {}), user: userWhere },
     include: {
       user: { select: { id: true, name: true, departmentId: true, department: { select: { code: true, name: true } } } },
-      cat2Journals: { select: { status: true, indexed: true, quartile: true } },
-      cat2Conferences: { select: { status: true, indexed: true } },
-      cat2ConfBookChapters: { select: { indexed: true } }, // no status field; published when indexed
-      cat2BookChapters: { select: { id: true } },
-      cat2Books: { select: { id: true } },
-      cat2Patents: { select: { status: true } },
-      cat2Projects: { select: { id: true } },
+      cat2Journals: { select: { title: true, status: true, indexed: true, quartile: true } },
+      cat2Conferences: { select: { title: true, status: true, indexed: true } },
+      cat2ConfBookChapters: { select: { title: true, indexed: true } }, // no status field; published when indexed
+      cat2BookChapters: { select: { id: true, title: true } },
+      cat2Books: { select: { id: true, title: true } },
+      cat2Patents: { select: { title: true, status: true } },
+      cat2Projects: { select: { id: true, title: true } },
+      proofVerifications: { select: { section: true, item: true, status: true } },
     },
     orderBy: { submissionNumber: 'desc' },
   });
@@ -812,13 +836,15 @@ async function computeAnalytics(
     const u = (s as any).user;
     const deptCode = u.department?.code ?? '—';
     const deptName = u.department?.name ?? 'Unassigned';
-    const journals = (s as any).cat2Journals.filter(isPub);
-    const confs = (s as any).cat2Conferences.filter(isPub);
-    const confBooks = (s as any).cat2ConfBookChapters.filter(isPub);
-    const bookCh = (s as any).cat2BookChapters.length;
-    const books = (s as any).cat2Books.length;
-    const patents = (s as any).cat2Patents.length;
-    const projects = (s as any).cat2Projects.length;
+    const vk = verifiedKeySet((s as any).proofVerifications ?? []);
+    const journals = (s as any).cat2Journals.filter((r: any) => isPub(r) && vk.has(analyticsVKey(ANALYTICS_PROOF_SECTION.journals, r.title)));
+    const confs = (s as any).cat2Conferences.filter((r: any) => isPub(r) && vk.has(analyticsVKey(ANALYTICS_PROOF_SECTION.conferences, r.title)));
+    const confBooks = (s as any).cat2ConfBookChapters.filter((r: any) => isPub(r) && vk.has(analyticsVKey(ANALYTICS_PROOF_SECTION.confBookChapters, r.title)));
+    const bookCh = (s as any).cat2BookChapters.filter((r: any) => vk.has(analyticsVKey(ANALYTICS_PROOF_SECTION.bookChapters, r.title))).length;
+    const books = (s as any).cat2Books.filter((r: any) => vk.has(analyticsVKey(ANALYTICS_PROOF_SECTION.books, r.title))).length;
+    const patentRows = (s as any).cat2Patents.filter((r: any) => vk.has(analyticsVKey(ANALYTICS_PROOF_SECTION.patents, r.title)));
+    const patents = patentRows.length;
+    const projects = (s as any).cat2Projects.filter((r: any) => vk.has(analyticsVKey(ANALYTICS_PROOF_SECTION.projects, r.title))).length;
     const pubs = journals.length + confs.length + confBooks.length + bookCh + books;
 
     totals.journals += journals.length;
@@ -833,7 +859,7 @@ async function computeAnalytics(
     // Indexing split by type: Scopus/WoS journals vs conference papers.
     for (const r of journals) addIdx(r.indexed, 'journals');
     for (const r of [...confs, ...confBooks]) addIdx(r.indexed, 'conferences');
-    for (const p of (s as any).cat2Patents) {
+    for (const p of patentRows) {
       const k = PATENT_LABEL[p.status] ?? 'Other';
       patentCounts.set(k, (patentCounts.get(k) ?? 0) + 1);
     }
@@ -881,7 +907,7 @@ async function computeAnalytics(
   const quartileBreakdown = [...quartileCounts.entries()].map(([quartile, count]) => ({ quartile, count }))
     .sort((a, b) => Q_ORDER.indexOf(a.quartile) - Q_ORDER.indexOf(b.quartile));
   // Every faculty, most publications first — the frontend compares them all.
-  const facultyList = [...facultyMap.values()].sort((a, b) => b.publications - a.publications);
+  const facultyList = [...facultyMap.values()].filter((f) => f.publications > 0).sort((a, b) => b.publications - a.publications);
 
   return { ok: true, data: { scope, year, totals, byDepartment, publicationTypes, indexBreakdown, patentStatus, quartileBreakdown, facultyList } };
 }
@@ -991,6 +1017,7 @@ async function computeAnalyticsDetail(
   if (p.type === 'publications') { include.cat2Journals = true; include.cat2Conferences = true; }
   else if (p.type === 'patents') include.cat2Patents = true;
   else include.cat2Projects = true;
+  include.proofVerifications = { select: { section: true, item: true, status: true } };
 
   const subs = await prisma.appraisalSubmission.findMany({
     where: { ...(year ? { academicYearId: year.id } : {}), user: userWhere },
@@ -1016,6 +1043,7 @@ async function computeAnalyticsDetail(
     const u = (s as any).user;
     const dept = u.department?.code ?? '—';
     const base = { faculty: u.name ?? '', employeeCode: u.employeeCode ?? '', department: dept, designation: u.designation ?? '' };
+    const vk = verifiedKeySet((s as any).proofVerifications ?? []);
 
     if (p.type === 'publications') {
       const rows = [
@@ -1026,6 +1054,8 @@ async function computeAnalyticsDetail(
         // Only published papers are in scope; status filter is exact (Published vs Indexed).
         const published = r.status === 'PUBLISHED' || r.status === 'INDEXED' || (r.status == null && r.indexed !== 'NONE');
         if (!published) continue;
+        const sec = r.kind === 'Conference' ? ANALYTICS_PROOF_SECTION.conferences : ANALYTICS_PROOF_SECTION.journals;
+        if (!vk.has(analyticsVKey(sec, r.title))) continue;
         const effStatus = r.status ?? (r.indexed !== 'NONE' ? 'INDEXED' : 'PUBLISHED');
         if (!statusOk(effStatus)) continue;
         if (!inRange(r.dateOfPub)) continue;
@@ -1041,6 +1071,7 @@ async function computeAnalyticsDetail(
       }
     } else if (p.type === 'patents') {
       for (const r of (s as any).cat2Patents) {
+        if (!vk.has(analyticsVKey(ANALYTICS_PROOF_SECTION.patents, r.title))) continue;
         const mil: Record<string, any> = { FILED: r.dateOfFiling, PUBLISHED: r.dateOfPub, GRANTED: r.dateOfGrant };
         if (hasRange) {
           // Monthly report: include by the milestone whose DATE lands in the
@@ -1076,6 +1107,7 @@ async function computeAnalyticsDetail(
       }
     } else {
       for (const r of (s as any).cat2Projects) {
+        if (!vk.has(analyticsVKey(ANALYTICS_PROOF_SECTION.projects, r.title))) continue;
         if (!statusOk(r.status)) continue;
         const d = r.status === 'APPLIED' ? r.dateOfApplication : (r.dateOfGrant ?? r.dateOfApplication);
         if (!inRange(d)) continue;

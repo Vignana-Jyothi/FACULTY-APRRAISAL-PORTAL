@@ -334,8 +334,10 @@ export async function updateUser(req: Request, res: Response) {
 
   // Changing an employee code is an institute-identity change — only the full
   // ADMIN may do it, never a department-scoped admin or HoD.
-  if (data.employeeCode !== undefined && scope !== null) {
-    return res.status(403).json({ error: 'Only the institute admin can change an employee code' });
+  // Employee-code changes are allowed for the full ADMIN and for a DEPT_ADMIN
+  // (within their own department — already enforced above). A plain HoD may not.
+  if (data.employeeCode !== undefined && scope !== null && deptAdminScope(req.user!).length === 0) {
+    return res.status(403).json({ error: 'Only an admin can change an employee code' });
   }
   // Normalise to upper-case to match login lookup and bulk import.
   if (data.employeeCode) data.employeeCode = data.employeeCode.toUpperCase();
