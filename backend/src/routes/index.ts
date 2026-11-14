@@ -38,6 +38,7 @@ import * as tracking from '../controllers/trackingController';
 import * as feedback from '../controllers/feedbackController';
 import * as oversight from '../controllers/oversightController';
 import * as deptReviewer from '../controllers/deptReviewerController';
+import * as event from '../controllers/eventController';
 import type { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 
@@ -189,6 +190,15 @@ router.post('/appraisals/:id/clear-hold', authenticate, roleGuard([...DEPT_REVIE
 
 // W3 — criteria tracking / tier / eligibility (HoD own dept; TIER institute-wide)
 router.get('/tracking', authenticate, roleGuard([RoleType.HOD, ...TIER]), tracking.getTracking);
+// Department events (HoD / dept admin own dept; dean/principal/admin campus-wide).
+// Static /events/report/* must stay before /events/:id.
+router.get('/events', authenticate, roleGuard([...USER_MANAGE, ...CONFIG]), event.listEvents);
+router.get('/events/report/excel', authenticate, roleGuard([RoleType.HOD, RoleType.DEPT_ADMIN, ...CONFIG]), event.eventsReportExcel);
+router.get('/events/report/pdf', authenticate, roleGuard([RoleType.HOD, RoleType.DEPT_ADMIN, ...CONFIG]), event.eventsReportPdf);
+router.get('/events/:id', authenticate, roleGuard([...USER_MANAGE, ...CONFIG]), event.getEvent);
+router.post('/events', authenticate, roleGuard([RoleType.DEPT_ADMIN, RoleType.HOD]), event.createEvent);
+router.put('/events/:id', authenticate, roleGuard([RoleType.DEPT_ADMIN, RoleType.HOD]), event.updateEvent);
+router.delete('/events/:id', authenticate, roleGuard([RoleType.DEPT_ADMIN, RoleType.HOD]), event.deleteEvent);
 // W5 — segregated cadre+tier report export
 router.get('/tracking/export', authenticate, roleGuard([RoleType.HOD, ...TIER]), tracking.exportTracking);
 // W4 — quarterly snapshot manual trigger (cron runs it at quarter-end)

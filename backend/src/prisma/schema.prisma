@@ -242,6 +242,7 @@ model User {
   feedbacks        Feedback[]          @relation("FeedbackFaculty")
   feedbacksIssued  Feedback[]          @relation("FeedbackIssuer")
   finalReviews     FinalReview[]       @relation("FinalReviewReviewer")
+  createdEvents    DeptEvent[]         @relation("EventCreator")
 }
 
 // Proof/evidence file ownership — used to authorize downloads (prevents IDOR
@@ -269,6 +270,62 @@ model Department {
   userRoles     UserRole[]
   academicYears AcademicYearDept[]
   deptReviewWindows DeptReviewWindow[]
+  events        DeptEvent[]
+}
+
+enum DeptEventType {
+  FDP
+  GUEST_LECTURE
+  SEMINAR
+  WORKSHOP
+  INDUSTRY_VISIT
+  HACKATHON
+  INDUCTION_PROGRAM
+  CODING_CONTEST
+  PTM
+  CONFERENCE
+}
+
+enum DeptEventScope {
+  INTERNATIONAL
+  NATIONAL
+  INTER_COLLEGE
+  INTRA_COLLEGE
+}
+
+enum EventCollabType {
+  INDUSTRY
+  INSTITUTE
+  PROFESSIONAL_CHAPTER
+}
+
+model DeptEvent {
+  id                String           @id @default(uuid())
+  departmentId      String
+  createdById       String
+  eventName         String
+  type              DeptEventType
+  description       String?
+  scope             DeptEventScope?
+  eventDate         DateTime?
+  coordinators      String[]         @default([])
+  venue             String?
+  audienceInternal  Int?
+  audienceOutsiders Int?
+  hasCollaboration  Boolean          @default(false)
+  collabType        EventCollabType?
+  collaboratorName  String?
+  sponsorship       String?
+  scheduleFileUrl   String?
+  photoUrls         String[]         @default([])
+  outcomes          String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  department Department @relation(fields: [departmentId], references: [id])
+  createdBy  User       @relation("EventCreator", fields: [createdById], references: [id])
+
+  @@index([departmentId])
 }
 
 model UserRole {
