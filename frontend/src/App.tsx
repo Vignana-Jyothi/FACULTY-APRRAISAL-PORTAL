@@ -31,6 +31,7 @@ import DeptReviewersPage from './pages/reviewer/DeptReviewersPage';
 import DeptFeedbackPage from './pages/reviewer/DeptFeedbackPage';
 import RedListPage from './pages/reviewer/RedListPage';
 import TrackingPage from './pages/reviewer/TrackingPage';
+import EventsPage from './pages/events/EventsPage';
 import AdminEmailsPage from './pages/admin/AdminEmailsPage';
 import AdminAuditPage from './pages/admin/AdminAuditPage';
 import ProfilePage from './pages/faculty/ProfilePage';
@@ -100,6 +101,10 @@ export default function App() {
         {/* HoD (dean/principal too): set the department's review week per quarter. */}
         <Route path="/department/review-windows" element={
           <ProtectedRoute roles={['HOD', 'DEAN', 'PRINCIPAL']}><DeptReviewWindowsPage /></ProtectedRoute>
+        } />
+        {/* Department events: dept admin / HoD manage, dean / principal view. */}
+        <Route path="/events" element={
+          <ProtectedRoute roles={['DEPT_ADMIN', 'HOD', 'DEAN', 'PRINCIPAL']}><EventsPage /></ProtectedRoute>
         } />
         {/* Drafts in progress: the department checks proofs on a draft during
             the year and the HoD notes a provisional draft review. Its own path, so

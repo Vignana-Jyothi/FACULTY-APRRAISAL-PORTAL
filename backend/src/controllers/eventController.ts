@@ -41,14 +41,16 @@ export const EVENT_COLUMNS: Record<string, string> = {
 };
 
 // Empty form strings mean "leave unset".
-const blankToUndef = (v: unknown) => (v === '' || v == null ? undefined : v);
-const optStr = z.preprocess(blankToUndef, z.string().optional());
-const optDate = z.preprocess(blankToUndef, z.coerce.date().optional());
+// '' or null/undefined from the form means "clear this field"; keep null so a
+// PUT can actually blank a nullable column (undefined would be omitted).
+const emptyToNull = (v: unknown) => (v === '' || v == null ? null : v);
+const optStr = z.preprocess(emptyToNull, z.string().nullable().optional());
+const optDate = z.preprocess(emptyToNull, z.coerce.date().nullable().optional());
 const optInt = z.preprocess(
-  (v) => (v === '' || v == null ? undefined : Number(v)),
-  z.number().int().min(0).optional(),
+  (v) => (v === '' || v == null ? null : Number(v)),
+  z.number().int().min(0).nullable().optional(),
 );
-const optEnum = <T extends Record<string, string>>(e: T) => z.preprocess(blankToUndef, z.nativeEnum(e).optional());
+const optEnum = <T extends Record<string, string>>(e: T) => z.preprocess(emptyToNull, z.nativeEnum(e).nullable().optional());
 
 const createSchema = z.object({
   departmentId: z.string().min(1),

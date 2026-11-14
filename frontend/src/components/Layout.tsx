@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import {
   BarChart2, FileText, FilePen, BookOpen, User, Users, Settings, LayoutDashboard, Mail, Activity, Menu, X, Target, ShieldCheck, AlertTriangle, Gauge, CalendarClock, Gavel, UploadCloud,
-  MessageSquare, PieChart,
+  MessageSquare, PieChart, CalendarDays,
 } from 'lucide-react';
 import BrandHeader from './BrandHeader';
 import Footer from './Footer';
@@ -128,6 +128,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     add('/dean/cadre-targets', 'Cadre Targets', Target);
     add('/dean/review-windows', 'Review Windows', CalendarClock);
     add('/dean/departments', 'Departments', Settings);
+  }
+
+  // Department events: managed by dept admin / HoD, viewed by dean / principal.
+  if (isDeptAdmin() || hasRole('HOD') || isDean() || isPrincipal()) {
+    add('/events', 'Events', CalendarDays);
   }
 
   // Tier allocation (dean, special scrutinizer, principal) and the HoD's own
