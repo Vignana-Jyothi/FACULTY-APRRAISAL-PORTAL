@@ -104,7 +104,7 @@ export default function App() {
         } />
         {/* Department events: dept admin / HoD manage, dean / principal view. */}
         <Route path="/events" element={
-          <ProtectedRoute roles={['DEPT_ADMIN', 'HOD', 'DEAN', 'PRINCIPAL']}><EventsPage /></ProtectedRoute>
+          <ProtectedRoute roles={['DEPT_ADMIN', 'HOD']}><EventsPage /></ProtectedRoute>
         } />
         {/* Drafts in progress: the department checks proofs on a draft during
             the year and the HoD notes a provisional draft review. Its own path, so

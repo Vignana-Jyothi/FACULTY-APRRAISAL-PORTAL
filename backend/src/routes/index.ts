@@ -192,10 +192,10 @@ router.post('/appraisals/:id/clear-hold', authenticate, roleGuard([...DEPT_REVIE
 router.get('/tracking', authenticate, roleGuard([RoleType.HOD, ...TIER]), tracking.getTracking);
 // Department events (HoD / dept admin own dept; dean/principal/admin campus-wide).
 // Static /events/report/* must stay before /events/:id.
-router.get('/events', authenticate, roleGuard([...USER_MANAGE, ...CONFIG]), event.listEvents);
-router.get('/events/report/excel', authenticate, roleGuard([RoleType.HOD, RoleType.DEPT_ADMIN, ...CONFIG]), event.eventsReportExcel);
-router.get('/events/report/pdf', authenticate, roleGuard([RoleType.HOD, RoleType.DEPT_ADMIN, ...CONFIG]), event.eventsReportPdf);
-router.get('/events/:id', authenticate, roleGuard([...USER_MANAGE, ...CONFIG]), event.getEvent);
+router.get('/events', authenticate, roleGuard([RoleType.DEPT_ADMIN, RoleType.HOD]), event.listEvents);
+router.get('/events/report/excel', authenticate, roleGuard([RoleType.DEPT_ADMIN, RoleType.HOD]), event.eventsReportExcel);
+router.get('/events/report/pdf', authenticate, roleGuard([RoleType.DEPT_ADMIN, RoleType.HOD]), event.eventsReportPdf);
+router.get('/events/:id', authenticate, roleGuard([RoleType.DEPT_ADMIN, RoleType.HOD]), event.getEvent);
 router.post('/events', authenticate, roleGuard([RoleType.DEPT_ADMIN, RoleType.HOD]), event.createEvent);
 router.put('/events/:id', authenticate, roleGuard([RoleType.DEPT_ADMIN, RoleType.HOD]), event.updateEvent);
 router.delete('/events/:id', authenticate, roleGuard([RoleType.DEPT_ADMIN, RoleType.HOD]), event.deleteEvent);

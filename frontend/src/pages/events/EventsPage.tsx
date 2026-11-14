@@ -77,10 +77,10 @@ const fmtDate = (d?: string | null) => {
 };
 
 export default function EventsPage() {
-  const { isAdmin, isDeptAdmin, hasRole } = useAuthStore();
+  const { isDeptAdmin, hasRole } = useAuthStore();
   const authUser = useAuthStore((s) => s.user);
   const canManage = isDeptAdmin() || hasRole('HOD');
-  const isCampus = isAdmin() || hasRole('DEAN') || hasRole('PRINCIPAL');
+  const isCampus = false;
   const deptScoped = canManage && !isCampus;
   const myDeptId = authUser?.roles.find((r) => r.role === 'DEPT_ADMIN' || r.role === 'HOD')?.departmentId ?? '';
 

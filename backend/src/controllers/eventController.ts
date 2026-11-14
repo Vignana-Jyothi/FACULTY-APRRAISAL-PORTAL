@@ -3,17 +3,16 @@ import { z } from 'zod';
 import * as XLSX from 'xlsx';
 import prisma from '../utils/prismaClient';
 import { DeptEventType, DeptEventScope, EventCollabType, RoleType, Prisma } from '@prisma/client';
-import { CONFIG, deptIdsFor, hasAnyRole, isFullAdmin } from '../utils/roles';
+import { deptIdsFor } from '../utils/roles';
 import { renderHtmlToPdf, renderEventsReportHtml } from '../services/pdfService';
 
 /**
  * Who may see/touch which department's events.
- *   null  → campus reach (institute ADMIN, dean, principal): every department.
+ *   null  → (unused) every department.
  *   [...] → a DEPT_ADMIN / HoD: confined to their own department(s).
  *           An empty array denies everything.
  */
 export function eventScope(req: Request): string[] | null {
-  if (isFullAdmin(req.user) || hasAnyRole(req.user, CONFIG)) return null;
   return [...new Set(deptIdsFor(req.user!, [RoleType.DEPT_ADMIN, RoleType.HOD]))];
 }
 

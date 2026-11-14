@@ -131,7 +131,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   }
 
   // Department events: managed by dept admin / HoD, viewed by dean / principal.
-  if (isDeptAdmin() || hasRole('HOD') || isDean() || isPrincipal()) {
+  if (isDeptAdmin() || hasRole('HOD')) {
     add('/events', 'Events', CalendarDays);
   }
 
