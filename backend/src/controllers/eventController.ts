@@ -30,15 +30,81 @@ export const EVENT_COLUMNS: Record<string, string> = {
   description: 'Description',
   coordinators: 'Coordinators',
   venue: 'Venue',
-  audienceInternal: 'Audience (Internal)',
-  audienceOutsiders: 'Audience (Outsiders)',
+  targetAudienceType: 'Target Audience',
+  resourcePersons: 'Resource Persons',
+  audienceInternal: 'Participants (Internal)',
+  audienceOutsiders: 'Participants (External)',
+  studentGroup: 'Student Group',
+  contactName: 'Contact Person',
+  contactDesignation: 'Contact Designation',
+  contactDetails: 'Contact Details',
+  targetBatch: 'Target Batch',
+  studentCount: 'Student Count',
   hasCollaboration: 'Collaboration',
   collabType: 'Collaboration Type',
   collaboratorName: 'Collaborator',
   sponsorship: 'Sponsorship',
+  brochureUrl: 'Brochure',
+  posterUrl: 'Poster',
   outcomes: 'Outcomes',
-  department: 'Department',
 };
+
+type EventVariant = 'academic' | 'industry' | 'induction' | 'others';
+function eventVariant(type: string): EventVariant {
+  if (type === 'INDUSTRY_VISIT') return 'industry';
+  if (type === 'INDUCTION_PROGRAM') return 'induction';
+  if (type === 'OTHER' || type === 'PTM') return 'others';
+  return 'academic';
+}
+
+// Null out fields that don't belong to the event's variant so stray values never persist.
+// Skipped when `type` is absent (partial update that doesn't change the type).
+function normalizeByVariant<T extends Record<string, any>>(data: T): T {
+  if (!data.type) return data;
+  const d: Record<string, any> = { ...data };
+  const noCollab = () => {
+    d.hasCollaboration = false;
+    d.collabType = null;
+    d.collaboratorName = null;
+    d.sponsorship = null;
+  };
+  const noMedia = () => {
+    d.brochureUrl = null;
+    d.posterUrl = null;
+    d.resourcePersons = [];
+  };
+  const noAudience = () => {
+    d.audienceInternal = null;
+    d.audienceOutsiders = null;
+    d.targetAudienceType = null;
+  };
+  const noIndustry = () => {
+    d.studentGroup = null;
+    d.contactName = null;
+    d.contactDesignation = null;
+    d.contactDetails = null;
+  };
+  const noInduction = () => {
+    d.targetBatch = null;
+    d.studentCount = null;
+  };
+  switch (eventVariant(d.type)) {
+    case 'industry':
+      d.scope = null; d.endDate = null; noCollab(); noMedia(); noAudience(); d.scheduleFileUrl = null; noInduction();
+      break;
+    case 'induction':
+      d.scope = null; noCollab(); noMedia(); noAudience(); noIndustry();
+      break;
+    case 'others':
+      d.scope = null; d.endDate = null; noCollab(); noMedia(); d.scheduleFileUrl = null; noAudience(); noIndustry(); noInduction();
+      break;
+    case 'academic':
+      noIndustry(); noInduction();
+      if (d.scope === 'INTRA_COLLEGE') d.audienceOutsiders = null;
+      break;
+  }
+  return d as T;
+}
 
 // Empty form strings mean "leave unset".
 // '' or null/undefined from the form means "clear this field"; keep null so a
@@ -65,6 +131,17 @@ const baseSchema = z.object({
   venue: optStr,
   audienceInternal: optInt,
   audienceOutsiders: optInt,
+  coordinatorIds: z.array(z.string()).default([]),
+  resourcePersons: z.array(z.string()).default([]),
+  brochureUrl: optStr,
+  posterUrl: optStr,
+  targetAudienceType: optStr,
+  studentGroup: optStr,
+  contactName: optStr,
+  contactDesignation: optStr,
+  contactDetails: optStr,
+  targetBatch: optStr,
+  studentCount: optInt,
   hasCollaboration: z.boolean().default(false),
   collabType: optEnum(EventCollabType),
   collaboratorName: optStr,
@@ -136,7 +213,7 @@ export async function getEvent(req: Request, res: Response) {
 export async function createEvent(req: Request, res: Response) {
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid input', details: parsed.error.flatten() });
-  const data = parsed.data;
+  const data = normalizeByVariant(parsed.data);
 
   if (!inScope(eventScope(req), data.departmentId)) {
     return res.status(403).json({ error: 'You can only add events in your own department' });
@@ -175,7 +252,7 @@ export async function updateEvent(req: Request, res: Response) {
 
   const updated = await prisma.deptEvent.update({
     where: { id: existing.id },
-    data: parsed.data,
+    data: normalizeByVariant(parsed.data),
     include: EVENT_INCLUDE,
   });
   return res.json(updated);
@@ -204,16 +281,21 @@ function fmtDate(d: Date | null): string {
   return `${dd}-${mm}-${d.getUTCFullYear()}`;
 }
 
-function cellValue(e: any, key: string): string {
+function cellValue(e: any, key: string, nameMap: Map<string, string>): string {
   switch (key) {
     case 'type': return e.type === 'OTHER' ? (e.typeOther || 'Other') : humanize(e.type);
     case 'scope': case 'collabType': return humanize(e[key]);
     case 'startDate': return fmtDate(e.startDate);
     case 'endDate': return fmtDate(e.endDate);
-    case 'coordinators': return (e.coordinators ?? []).join(', ');
+    case 'coordinators':
+      if (e.coordinatorIds?.length) {
+        return (e.coordinatorIds as string[]).map((id) => nameMap.get(id)).filter(Boolean).join(', ');
+      }
+      return (e.coordinators ?? []).join(', ');
+    case 'resourcePersons': return (e.resourcePersons ?? []).join(', ');
+    case 'brochureUrl': case 'posterUrl': return e[key] ?? '';
     case 'hasCollaboration': return e.hasCollaboration ? 'Yes' : 'No';
-    case 'department': return e.department?.name ?? '';
-    case 'audienceInternal': case 'audienceOutsiders': return e[key] == null ? '' : String(e[key]);
+    case 'audienceInternal': case 'audienceOutsiders': case 'studentCount': return e[key] == null ? '' : String(e[key]);
     default: return e[key] ?? '';
   }
 }
@@ -224,6 +306,12 @@ async function loadReport(req: Request) {
     include: EVENT_INCLUDE,
     orderBy: EVENT_ORDER,
   });
+  const coordIds = [...new Set(events.flatMap((e) => e.coordinatorIds))];
+  const nameMap = new Map<string, string>();
+  if (coordIds.length) {
+    const users = await prisma.user.findMany({ where: { id: { in: coordIds } }, select: { id: true, name: true } });
+    for (const u of users) nameMap.set(u.id, u.name);
+  }
   const requested = typeof req.query.fields === 'string' && req.query.fields
     ? req.query.fields.split(',').map((s) => s.trim())
     : null;
@@ -241,7 +329,7 @@ async function loadReport(req: Request) {
   return {
     deptName: deptName ?? 'All Departments',
     headers: keys.map((k) => EVENT_COLUMNS[k]),
-    rows: events.map((e) => keys.map((k) => cellValue(e, k))),
+    rows: events.map((e) => keys.map((k) => cellValue(e, k, nameMap))),
   };
 }
 

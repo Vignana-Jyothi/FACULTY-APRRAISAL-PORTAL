@@ -676,10 +676,16 @@ export function renderQuarterlyDeptSummaryHtml(
 // ─── Department events report ────────────────────────────────────────
 
 export function renderEventsReportHtml(deptName: string, headers: string[], rows: string[][]): string {
+  const n = headers.length;
+  // Scale type down as columns grow so a wide report still fits the landscape
+  // page. table-layout:fixed + word wrapping keeps long cells from pushing the
+  // table off the right edge (content wraps down instead of widening).
+  const fontPt = n <= 8 ? 8.5 : n <= 12 ? 7 : n <= 16 ? 6 : n <= 20 ? 5.5 : 5;
+  const padPx = n <= 12 ? 4 : 3;
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><style>${BASE_STYLES}
-  table { font-size: 8.5pt; }
-  th { font-size: 8.5pt; }
+  table { table-layout: fixed; font-size: ${fontPt}pt; }
+  th, td { font-size: ${fontPt}pt; padding: ${padPx}px ${padPx}px; word-break: break-word; overflow-wrap: anywhere; }
 </style></head>
 <body>
   ${instituteHeader()}

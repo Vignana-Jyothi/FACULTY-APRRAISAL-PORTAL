@@ -315,6 +315,17 @@ model DeptEvent {
   venue             String?
   audienceInternal  Int?
   audienceOutsiders Int?
+  coordinatorIds     String[] @default([])
+  resourcePersons    String[] @default([])
+  brochureUrl        String?
+  posterUrl          String?
+  targetAudienceType String?
+  studentGroup       String?
+  contactName        String?
+  contactDesignation String?
+  contactDetails     String?
+  targetBatch        String?
+  studentCount       Int?
   hasCollaboration  Boolean          @default(false)
   collabType        EventCollabType?
   collaboratorName  String?
