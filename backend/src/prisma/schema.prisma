@@ -284,6 +284,7 @@ enum DeptEventType {
   CODING_CONTEST
   PTM
   CONFERENCE
+  OTHER
 }
 
 enum DeptEventScope {
@@ -305,6 +306,7 @@ model DeptEvent {
   createdById       String
   eventName         String
   type              DeptEventType
+  typeOther         String?
   description       String?
   scope             DeptEventScope?
   startDate         DateTime?

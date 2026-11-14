@@ -20,6 +20,7 @@ const TYPE_LABELS: Record<string, string> = {
   CODING_CONTEST: 'Coding Contest',
   PTM: 'PTM',
   CONFERENCE: 'Conference',
+  OTHER: 'Other',
 };
 const SCOPE_LABELS: Record<string, string> = {
   INTERNATIONAL: 'International',
@@ -55,6 +56,7 @@ const emptyForm = () => ({
   departmentId: '',
   eventName: '',
   type: '',
+  typeOther: '',
   scope: '',
   startDate: '',
   endDate: '',
@@ -128,6 +130,7 @@ export default function EventsPage() {
       departmentId: ev.departmentId,
       eventName: ev.eventName ?? '',
       type: ev.type ?? '',
+      typeOther: ev.typeOther ?? '',
       scope: ev.scope ?? '',
       startDate: ev.startDate ? ev.startDate.slice(0, 10) : '',
       endDate: ev.endDate ? ev.endDate.slice(0, 10) : '',
@@ -154,6 +157,7 @@ export default function EventsPage() {
     const payload: any = {
       eventName: form.eventName.trim(),
       type: form.type,
+      typeOther: form.type === 'OTHER' ? (form.typeOther || null) : null,
       scope: form.scope || null,
       startDate: form.startDate || null,
       endDate: form.endDate || null,
@@ -283,7 +287,7 @@ export default function EventsPage() {
             {events.map((ev, i) => (
               <tr key={ev.id} className={i % 2 === 1 ? 'bg-surface-muted/50' : ''}>
                 <td className="px-4 py-2.5 font-medium text-ink-primary">{ev.eventName}</td>
-                <td className="px-4 py-2.5 text-ink-muted">{TYPE_LABELS[ev.type] ?? ev.type}</td>
+                <td className="px-4 py-2.5 text-ink-muted">{ev.type === 'OTHER' ? (ev.typeOther || 'Other') : (TYPE_LABELS[ev.type] ?? ev.type)}</td>
                 <td className="px-4 py-2.5 text-ink-muted">{ev.scope ? SCOPE_LABELS[ev.scope] ?? ev.scope : '—'}</td>
                 <td className="px-4 py-2.5 text-ink-muted whitespace-nowrap">{fmtDate(ev.startDate)}{ev.endDate ? ` – ${fmtDate(ev.endDate)}` : ''}</td>
                 <td className="px-4 py-2.5 text-ink-muted">{ev.venue || '—'}</td>
@@ -355,6 +359,12 @@ export default function EventsPage() {
                   {Object.entries(TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               </div>
+              {form.type === 'OTHER' && (
+                <div className="col-span-2">
+                  <label className={labelCls}>Specify Type</label>
+                  <input required value={form.typeOther} onChange={(e) => setForm({ ...form, typeOther: e.target.value })} className={inputCls} />
+                </div>
+              )}
               <div>
                 <label className={labelCls}>Scope</label>
                 <select value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })} className={inputCls}>

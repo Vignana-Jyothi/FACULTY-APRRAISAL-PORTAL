@@ -56,6 +56,7 @@ const baseSchema = z.object({
   departmentId: z.string().min(1),
   eventName: z.string().trim().min(1),
   type: z.nativeEnum(DeptEventType),
+  typeOther: optStr,
   description: optStr,
   scope: optEnum(DeptEventScope),
   startDate: optDate,
@@ -78,8 +79,12 @@ const periodOk = (d: { startDate?: Date | null; endDate?: Date | null }) =>
   !d.startDate || !d.endDate || d.endDate >= d.startDate;
 const periodRefine = { message: 'End date must be on or after the start date', path: ['endDate'] };
 
-const createSchema = baseSchema.refine(periodOk, periodRefine);
-const updateSchema = baseSchema.omit({ departmentId: true }).partial().refine(periodOk, periodRefine);
+const typeOtherOk = (d: { type?: string; typeOther?: string | null }) =>
+  d.type !== 'OTHER' || !!(d.typeOther && d.typeOther.trim().length > 0);
+const typeOtherRefine = { message: 'Specify the event type', path: ['typeOther'] };
+
+const createSchema = baseSchema.refine(periodOk, periodRefine).refine(typeOtherOk, typeOtherRefine);
+const updateSchema = baseSchema.omit({ departmentId: true }).partial().refine(periodOk, periodRefine).refine(typeOtherOk, typeOtherRefine);
 
 const EVENT_INCLUDE = {
   department: { select: { code: true, name: true } },
@@ -201,7 +206,8 @@ function fmtDate(d: Date | null): string {
 
 function cellValue(e: any, key: string): string {
   switch (key) {
-    case 'type': case 'scope': case 'collabType': return humanize(e[key]);
+    case 'type': return e.type === 'OTHER' ? (e.typeOther || 'Other') : humanize(e.type);
+    case 'scope': case 'collabType': return humanize(e[key]);
     case 'startDate': return fmtDate(e.startDate);
     case 'endDate': return fmtDate(e.endDate);
     case 'coordinators': return (e.coordinators ?? []).join(', ');
