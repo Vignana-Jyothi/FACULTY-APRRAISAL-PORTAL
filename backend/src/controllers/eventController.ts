@@ -25,7 +25,8 @@ export const EVENT_COLUMNS: Record<string, string> = {
   eventName: 'Event Name',
   type: 'Type',
   scope: 'Scope',
-  eventDate: 'Date',
+  startDate: 'Start Date',
+  endDate: 'End Date',
   description: 'Description',
   coordinators: 'Coordinators',
   venue: 'Venue',
@@ -51,13 +52,14 @@ const optInt = z.preprocess(
 );
 const optEnum = <T extends Record<string, string>>(e: T) => z.preprocess(emptyToNull, z.nativeEnum(e).nullable().optional());
 
-const createSchema = z.object({
+const baseSchema = z.object({
   departmentId: z.string().min(1),
   eventName: z.string().trim().min(1),
   type: z.nativeEnum(DeptEventType),
   description: optStr,
   scope: optEnum(DeptEventScope),
-  eventDate: optDate,
+  startDate: optDate,
+  endDate: optDate,
   coordinators: z.array(z.string()).default([]),
   venue: optStr,
   audienceInternal: optInt,
@@ -72,7 +74,12 @@ const createSchema = z.object({
 });
 
 // Update: every field optional; the department can't be moved.
-const updateSchema = createSchema.omit({ departmentId: true }).partial();
+const periodOk = (d: { startDate?: Date | null; endDate?: Date | null }) =>
+  !d.startDate || !d.endDate || d.endDate >= d.startDate;
+const periodRefine = { message: 'End date must be on or after the start date', path: ['endDate'] };
+
+const createSchema = baseSchema.refine(periodOk, periodRefine);
+const updateSchema = baseSchema.omit({ departmentId: true }).partial().refine(periodOk, periodRefine);
 
 const EVENT_INCLUDE = {
   department: { select: { code: true, name: true } },
@@ -80,7 +87,7 @@ const EVENT_INCLUDE = {
 } satisfies Prisma.DeptEventInclude;
 
 const EVENT_ORDER: Prisma.DeptEventOrderByWithRelationInput[] = [
-  { eventDate: { sort: 'desc', nulls: 'last' } },
+  { startDate: { sort: 'desc', nulls: 'last' } },
   { createdAt: 'desc' },
 ];
 
@@ -195,7 +202,8 @@ function fmtDate(d: Date | null): string {
 function cellValue(e: any, key: string): string {
   switch (key) {
     case 'type': case 'scope': case 'collabType': return humanize(e[key]);
-    case 'eventDate': return fmtDate(e.eventDate);
+    case 'startDate': return fmtDate(e.startDate);
+    case 'endDate': return fmtDate(e.endDate);
     case 'coordinators': return (e.coordinators ?? []).join(', ');
     case 'hasCollaboration': return e.hasCollaboration ? 'Yes' : 'No';
     case 'department': return e.department?.name ?? '';

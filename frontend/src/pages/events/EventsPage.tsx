@@ -36,7 +36,8 @@ const REPORT_FIELDS: [string, string][] = [
   ['eventName', 'Event Name'],
   ['type', 'Type'],
   ['scope', 'Scope'],
-  ['eventDate', 'Date'],
+  ['startDate', 'Start Date'],
+  ['endDate', 'End Date'],
   ['description', 'Description'],
   ['coordinators', 'Coordinators'],
   ['venue', 'Venue'],
@@ -55,7 +56,8 @@ const emptyForm = () => ({
   eventName: '',
   type: '',
   scope: '',
-  eventDate: '',
+  startDate: '',
+  endDate: '',
   description: '',
   outcomes: '',
   venue: '',
@@ -127,7 +129,8 @@ export default function EventsPage() {
       eventName: ev.eventName ?? '',
       type: ev.type ?? '',
       scope: ev.scope ?? '',
-      eventDate: ev.eventDate ? ev.eventDate.slice(0, 10) : '',
+      startDate: ev.startDate ? ev.startDate.slice(0, 10) : '',
+      endDate: ev.endDate ? ev.endDate.slice(0, 10) : '',
       description: ev.description ?? '',
       outcomes: ev.outcomes ?? '',
       venue: ev.venue ?? '',
@@ -152,7 +155,8 @@ export default function EventsPage() {
       eventName: form.eventName.trim(),
       type: form.type,
       scope: form.scope || null,
-      eventDate: form.eventDate || null,
+      startDate: form.startDate || null,
+      endDate: form.endDate || null,
       description: form.description,
       outcomes: form.outcomes,
       venue: form.venue,
@@ -268,7 +272,7 @@ export default function EventsPage() {
               <th className="text-left px-4 py-2.5 font-medium">Event Name</th>
               <th className="text-left px-4 py-2.5 font-medium">Type</th>
               <th className="text-left px-4 py-2.5 font-medium">Scope</th>
-              <th className="text-left px-4 py-2.5 font-medium">Date</th>
+              <th className="text-left px-4 py-2.5 font-medium">Period</th>
               <th className="text-left px-4 py-2.5 font-medium">Venue</th>
               {isCampus && <th className="text-left px-4 py-2.5 font-medium">Department</th>}
               <th className="text-left px-4 py-2.5 font-medium">Coordinators</th>
@@ -281,7 +285,7 @@ export default function EventsPage() {
                 <td className="px-4 py-2.5 font-medium text-ink-primary">{ev.eventName}</td>
                 <td className="px-4 py-2.5 text-ink-muted">{TYPE_LABELS[ev.type] ?? ev.type}</td>
                 <td className="px-4 py-2.5 text-ink-muted">{ev.scope ? SCOPE_LABELS[ev.scope] ?? ev.scope : '—'}</td>
-                <td className="px-4 py-2.5 text-ink-muted whitespace-nowrap">{fmtDate(ev.eventDate)}</td>
+                <td className="px-4 py-2.5 text-ink-muted whitespace-nowrap">{fmtDate(ev.startDate)}{ev.endDate ? ` – ${fmtDate(ev.endDate)}` : ''}</td>
                 <td className="px-4 py-2.5 text-ink-muted">{ev.venue || '—'}</td>
                 {isCampus && <td className="px-4 py-2.5 text-ink-muted">{ev.department?.code ?? '—'}</td>}
                 <td className="px-4 py-2.5 text-ink-muted">{ev.coordinators?.length ? ev.coordinators.join(', ') : '—'}</td>
@@ -359,8 +363,12 @@ export default function EventsPage() {
                 </select>
               </div>
               <div>
-                <label className={labelCls}>Date</label>
-                <input type="date" value={form.eventDate} onChange={(e) => setForm({ ...form, eventDate: e.target.value })} className={inputCls} />
+                <label className={labelCls}>Start Date</label>
+                <input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>End Date</label>
+                <input type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} className={inputCls} />
               </div>
               <div>
                 <label className={labelCls}>Department</label>

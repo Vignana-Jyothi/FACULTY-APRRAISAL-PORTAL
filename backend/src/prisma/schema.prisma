@@ -307,7 +307,8 @@ model DeptEvent {
   type              DeptEventType
   description       String?
   scope             DeptEventScope?
-  eventDate         DateTime?
+  startDate         DateTime?
+  endDate           DateTime?
   coordinators      String[]         @default([])
   venue             String?
   audienceInternal  Int?
